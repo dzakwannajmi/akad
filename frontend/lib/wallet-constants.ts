@@ -8,3 +8,7 @@ export const CONTRACT_PATH = process.env.NEXT_PUBLIC_TOKEN_CONTRACT_PATH ?? '/co
 export const PRIVATE_STATE_ID = 'akad-token-private-state';
 export const PRIVATE_STATE_PASSWORD =
   process.env.NEXT_PUBLIC_PRIVATE_STATE_PASSWORD ?? 'akad-dev-only-password';
+export const SWAP_CONTRACT_ADDRESS =
+  process.env.NEXT_PUBLIC_SWAP_CONTRACT_ADDRESS ?? '';
+export const TOKEN_CONTRACT_ADDRESS =
+  process.env.NEXT_PUBLIC_TOKEN_CONTRACT_ADDRESS ?? '';

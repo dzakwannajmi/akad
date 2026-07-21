@@ -4,9 +4,10 @@ import { useState, useEffect, useCallback } from 'react';
 import { getCompatibleWallets, connectWallet } from '@/lib/wallet';
 import { getReserves, executeSwap } from '@/lib/swap-api';
 import { computeSwapOutput, applySlippage } from '@/lib/bonding-curve';
+import { Icon } from '@iconify/react';
 
 // Hardcoded for now — the addresses of our two deployed contracts on Preview.
-const SWAP_CONTRACT_ADDRESS = 'c4831f264adc54f237823ad837733c8ccbc698218f64cf3f13e84c02b8b8b5bb';
+import { SWAP_CONTRACT_ADDRESS } from '@/lib/wallet-constants';
 
 type Direction = 'AkdToNight' | 'NightToAkd';
 
@@ -19,6 +20,7 @@ export default function SwapPage() {
   const [reserves, setReserves] = useState<{ reserveAKD: bigint; reserveNight: bigint } | null>(null);
   const [status, setStatus] = useState<string>('idle');
   const [error, setError] = useState<string | null>(null);
+  const [history, setHistory] = useState<{ from: string; to: string; amountIn: string; amountOut: string; time: string }[]>([]);
 
   const fromToken = direction === 'AkdToNight' ? 'AKD' : 'tNIGHT';
   const toToken = direction === 'AkdToNight' ? 'tNIGHT' : 'AKD';
@@ -93,6 +95,16 @@ export default function SwapPage() {
         minOut
       );
       setStatus('swapped');
+      setHistory((h) => [
+        {
+          from: fromToken,
+          to: toToken,
+          amountIn,
+          amountOut: amountOut.toString(),
+          time: new Date().toLocaleTimeString(),
+        },
+        ...h,
+      ]);
       setAmountIn('');
       await refreshReserves();
     } catch (err: any) {
@@ -156,7 +168,7 @@ export default function SwapPage() {
             className="rounded-full bg-black border border-white/15 w-9 h-9 flex items-center justify-center hover:border-white/40 transition-colors"
             aria-label="Flip direction"
           >
-            ↓
+            <Icon icon="lucide:arrow-down" width={16} height={16} />
           </button>
         </div>
 
@@ -184,6 +196,37 @@ export default function SwapPage() {
           <p className="mt-6 text-center text-xs text-white/30 font-mono">
             Pool: {reserves.reserveAKD.toString()} AKD / {reserves.reserveNight.toString()} tNIGHT
           </p>
+        )}
+
+        <div className="mt-10 flex items-center justify-between">
+          <span className="text-xs font-mono text-white/40">Recent activity (this session)</span>
+          
+          <a
+            href={`https://explorer.preview.midnight.network/contracts/stream/${SWAP_CONTRACT_ADDRESS}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs font-mono text-white/40 hover:text-white/80 transition-colors underline"
+          >
+            View full history on explorer
+          </a>
+        </div>
+
+        {history.length === 0 ? (
+          <p className="mt-3 text-xs text-white/20 font-mono">No swaps yet this session.</p>
+        ) : (
+          <ul className="mt-3 space-y-2">
+            {history.map((h, i) => (
+              <li
+                key={i}
+                className="flex items-center justify-between text-xs font-mono text-white/50 border-b border-white/5 pb-2"
+              >
+                <span>
+                  {h.amountIn} {h.from} → {h.amountOut} {h.to}
+                </span>
+                <span className="text-white/25">{h.time}</span>
+              </li>
+            ))}
+          </ul>
         )}
       </div>
     </main>

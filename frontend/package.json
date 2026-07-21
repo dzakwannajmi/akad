@@ -16,6 +16,7 @@
     "@dnd-kit/modifiers": "^9.0.0",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
+    "@iconify/react": "^6.0.2",
     "@midnight-ntwrk/compact-js": "^2.5.1",
     "@midnight-ntwrk/compact-runtime": "^0.16.0",
     "@midnight-ntwrk/dapp-connector-api": "^4.0.1",
