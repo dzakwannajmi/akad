@@ -111,7 +111,8 @@ export async function getReserves(
   if (contractState === null) {
     throw new Error('Contract state not found');
   }
-  const ledgerState = (compiledContract as any).ledger(contractState.data);
+  const contractModule = await import('./contracts/swap/contract/index.js');
+  const ledgerState = (contractModule as any).ledger(contractState.data);
 
   return {
     reserveAKD: BigInt(ledgerState.reserveAKD),
@@ -140,6 +141,17 @@ export async function executeSwap(
     contractAddress,
     SWAP_CONTRACT_PATH
   );
+
+  // Ensure private state exists for this session (fresh page load won't
+  // have it from a prior deploy session — swap.compact has no real private
+  // state anyway, so an empty placeholder is safe).
+  const psId = PRIVATE_STATE_ID + '-swap';
+  const existing = await providers.privateStateProvider.get(psId);
+  if (existing === null) {
+    await providers.privateStateProvider.set(psId, createInitialSwapPrivateState());
+  }
+  await providers.privateStateProvider.setContractAddress(contractAddress);
+
   const compiledContract = await loadCompiledSwapContract();
 
   const circuitId = direction === 'AkdToNight' ? 'swapAkdToNight' : 'swapNightToAkd';
