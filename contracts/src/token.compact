@@ -1,0 +1,37 @@
+pragma language_version >= 0.23.0;
+
+import CompactStandardLibrary;
+
+// Balance ledger: maps an account identifier to its AKD balance.
+export ledger balances: Map<Bytes<32>, Uint<128>>;
+export ledger totalSupply: Uint<128>;
+
+// Supplied by the frontend/TypeScript witness implementation.
+// Each caller's wallet supplies its own stable 32-byte account identifier.
+witness accountKey(): Bytes<32>;
+
+// Mints the initial supply to the deployer. Call this once, right after deployment.
+export circuit init(): [] {
+  assert(totalSupply.read() == 0, "already initialized");
+
+  const owner = disclose(accountKey());
+
+  // 1,000,000 AKD at 6 decimals = 1_000_000_000_000 base units
+  balances.insert(owner, 1000000000000);
+  totalSupply.write(1000000000000);
+}
+
+// Transfers AKD from the caller (identified via accountKey witness) to a recipient.
+export circuit transfer(to: Bytes<32>, amount: Uint<128>): [] {
+  const sender = disclose(accountKey());
+  const senderBalance = balances.lookup(sender);
+
+  assert(senderBalance >= amount, "insufficient balance");
+
+  const newSenderBalance: Uint<128> = (senderBalance - amount) as Uint<128>;
+  balances.insert(sender, disclose(newSenderBalance));
+
+  const recipientBalance = balances.lookup(disclose(to));
+  const newRecipientBalance: Uint<128> = (recipientBalance + amount) as Uint<128>;
+  balances.insert(disclose(to), disclose(newRecipientBalance));
+}

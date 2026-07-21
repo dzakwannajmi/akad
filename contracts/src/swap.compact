@@ -1,0 +1,55 @@
+pragma language_version >= 0.23.0;
+
+import CompactStandardLibrary;
+import "../../compact-contracts/contracts/src/token/FungibleToken" prefix FT_;
+
+export ledger reserveAKD: Uint<128>;
+export ledger reserveNight: Uint<128>;
+
+// Swap AKD -> tNIGHT
+export circuit swapAkdToNight(dx: Uint<128>, dy: Uint<128>, minOut: Uint<128>): [] {
+  const x = reserveAKD.read();
+  const y = reserveNight.read();
+
+  assert(x > 0 && y > 0, "pool not initialized");
+  assert(dx > 0, "amount must be positive");
+  assert(dy > 0, "output rounds to zero");
+  assert(dy >= minOut, "slippage: insufficient output");
+  assert(dy < y, "cannot drain full reserve");
+  assert(x + dx <= 1000000000000000000, "reserveAKD exceeds safe bound");
+  assert(y <= 1000000000000000000, "reserveNight exceeds safe bound");
+
+  const xBig: Uint<64> = x as Uint<64>;
+  const dxBig: Uint<64> = dx as Uint<64>;
+  const yBig: Uint<64> = y as Uint<64>;
+  const dyBig: Uint<64> = dy as Uint<64>;
+
+  assert((xBig + dxBig) * (yBig - dyBig) >= xBig * yBig, "invalid swap: violates constant product invariant");
+
+  reserveAKD.write(disclose((x + dx) as Uint<128>));
+  reserveNight.write(disclose((y - dy) as Uint<128>));
+}
+
+// Swap tNIGHT -> AKD
+export circuit swapNightToAkd(dx: Uint<128>, dy: Uint<128>, minOut: Uint<128>): [] {
+  const x = reserveNight.read();
+  const y = reserveAKD.read();
+
+  assert(x > 0 && y > 0, "pool not initialized");
+  assert(dx > 0, "amount must be positive");
+  assert(dy > 0, "output rounds to zero");
+  assert(dy >= minOut, "slippage: insufficient output");
+  assert(dy < y, "cannot drain full reserve");
+  assert(x + dx <= 1000000000000000000, "reserveNight exceeds safe bound");
+  assert(y <= 1000000000000000000, "reserveAKD exceeds safe bound");
+
+  const xBig: Uint<64> = x as Uint<64>;
+  const dxBig: Uint<64> = dx as Uint<64>;
+  const yBig: Uint<64> = y as Uint<64>;
+  const dyBig: Uint<64> = dy as Uint<64>;
+
+  assert((xBig + dxBig) * (yBig - dyBig) >= xBig * yBig, "invalid swap: violates constant product invariant");
+
+  reserveNight.write(disclose((x + dx) as Uint<128>));
+  reserveAKD.write(disclose((y - dy) as Uint<128>));
+}
