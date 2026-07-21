@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Next.js
+frontend/.next/
+frontend/out/
+frontend/next-env.d.ts
+frontend/tsconfig.tsbuildinfo
+
+# Environment secrets
+.env
+.env.local
+.env*.local
+!.env.example
+!frontend/.env.example
+
+# Compact compile output (large binary artifacts — regenerate via `compact compile`)
+build/
+
+# OS/editor cruft
+.DS_Store
+*.log
+.vscode/
