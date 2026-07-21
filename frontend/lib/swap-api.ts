@@ -90,3 +90,65 @@ export async function addLiquidity(
     privateStateId: PRIVATE_STATE_ID + '-swap',
   });
 }
+
+// Reads current pool reserves directly from the indexer (read-only, no wallet tx needed).
+export async function getReserves(
+  connectedApi: any,
+  coinPublicKey: string,
+  encryptionPublicKey: string,
+  contractAddress: string
+): Promise<{ reserveAKD: bigint; reserveNight: bigint }> {
+  const providers = await buildProviders(
+    connectedApi,
+    coinPublicKey,
+    encryptionPublicKey,
+    contractAddress,
+    SWAP_CONTRACT_PATH
+  );
+
+  const contractState = await providers.publicDataProvider.queryContractState(contractAddress);
+  const compiledContract = await loadCompiledSwapContract();
+  if (contractState === null) {
+    throw new Error('Contract state not found');
+  }
+  const ledgerState = (compiledContract as any).ledger(contractState.data);
+
+  return {
+    reserveAKD: BigInt(ledgerState.reserveAKD),
+    reserveNight: BigInt(ledgerState.reserveNight),
+  };
+}
+
+// Executes a swap in either direction. dy must be pre-computed client-side
+// via computeSwapOutput() from bonding-curve.ts before calling this.
+export async function executeSwap(
+  connectedApi: any,
+  coinPublicKey: string,
+  encryptionPublicKey: string,
+  contractAddress: string,
+  direction: 'AkdToNight' | 'NightToAkd',
+  dx: bigint,
+  dy: bigint,
+  minOut: bigint
+): Promise<void> {
+  const { submitCallTxAsync } = await import('@midnight-ntwrk/midnight-js-contracts');
+
+  const providers = await buildProviders(
+    connectedApi,
+    coinPublicKey,
+    encryptionPublicKey,
+    contractAddress,
+    SWAP_CONTRACT_PATH
+  );
+  const compiledContract = await loadCompiledSwapContract();
+
+  const circuitId = direction === 'AkdToNight' ? 'swapAkdToNight' : 'swapNightToAkd';
+
+  await (submitCallTxAsync as any)(providers, {
+    compiledContract,
+    contractAddress,
+    circuitId,
+    args: [dx, dy, minOut],
+    privateStateId: PRIVATE_STATE_ID + '-swap',
+  });
+}
