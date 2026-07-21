@@ -1,8 +1,10 @@
 # Akad
 
+[![CI](https://github.com/dzakwannajmi/akad/actions/workflows/ci.yml/badge.svg)](https://github.com/dzakwannajmi/akad/actions/workflows/ci.yml)
+
 Privacy-optional AMM on Midnight Network. Built for Rise In × Midnight "New Moon to Full: Monthly Moonshots" builder program.
 
-**Live demo:** [_Demo Link_](https://akad-dzakwannajmis-projects.vercel.app|)
+**Live demo:** [_Demo Link_](https://akad-dzakwannajmis-projects.vercel.app)
 
 **Deployed contracts (Preview testnet):**
 - Token (AKD): `37e14edc42799d76746e22b87419252e94f64104e1fc0d2a59fd037cfe337cfb`

@@ -128,9 +128,17 @@ export default function SwapPage() {
               Connect Wallet
             </button>
           ) : (
-            <span className="text-xs font-mono text-white/40">
-              {addresses.unshieldedAddress.slice(0, 10)}...
-            </span>
+            <button
+              onClick={() => {
+                setConnectedApi(null);
+                setAddresses(null);
+                setReserves(null);
+              }}
+              className="text-xs font-mono text-white/40 hover:text-white/80 transition-colors"
+              title="Disconnect"
+            >
+              {addresses.unshieldedAddress.slice(0, 10)}... ✕
+            </button>
           )}
         </div>
 
