@@ -24,7 +24,7 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install
 
       - name: TypeScript typecheck
         run: npx tsc --noEmit

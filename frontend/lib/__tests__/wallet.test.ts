@@ -3,7 +3,6 @@ import { getCompatibleWallets } from '../wallet';
 
 describe('getCompatibleWallets', () => {
   beforeEach(() => {
-    // @ts-expect-error - resetting test global
     delete window.midnight;
   });
 
