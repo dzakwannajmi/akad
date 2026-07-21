@@ -2,7 +2,7 @@
 
 Privacy-optional AMM on Midnight Network. Built for Rise In × Midnight "New Moon to Full: Monthly Moonshots" builder program.
 
-**Live demo:** _add your deployed frontend URL here_
+**Live demo:** [_add your deployed frontend URL here_](https://akad-dzakwannajmis-projects.vercel.app/|)
 
 **Deployed contracts (Preview testnet):**
 - Token (AKD): `37e14edc42799d76746e22b87419252e94f64104e1fc0d2a59fd037cfe337cfb`
