@@ -13,6 +13,14 @@ Privacy-optional AMM on Midnight Network. Built for Rise In × Midnight "New Moo
 
 ---
 
+## Initial idea
+
+Akad started from an observation about Midnight's ecosystem: every AMM-style DEX pattern (Uniswap-style constant product) needs public reserves for price discovery, but no existing tool in the Midnight testnet ecosystem demonstrated this pattern end-to-end with an explicit, documented privacy boundary. Akad fills that gap — a working constant-product swap where the disclosure boundary (what's public vs private) is a deliberate, auditable design decision rather than an afterthought.
+
+## A note on Preview vs Preprod
+
+The program materials and some Midnight docs reference "Preprod" as the standard testnet. During development, a Midnight developer confirmed that Preprod was still under active development and not fully operational for contract deployment — Preview was the recommended network instead. Akad is deployed and fully tested on **Preview**, not Preprod. All addresses and explorer links in this README point to Preview.
+
 ## What is Akad
 
 Akad is a constant-product AMM (x * y = k) for swapping a custom fungible token (AKD) against tNIGHT on Midnight. Users choose a privacy level per action — a "Public" mode is fully built and working today; a "Private" mode is architected but not yet implemented (see Privacy Model and Roadmap below).
