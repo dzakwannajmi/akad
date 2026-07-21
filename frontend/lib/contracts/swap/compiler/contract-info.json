@@ -4,6 +4,32 @@
   "runtime-version": "0.16.0",
   "circuits": [
     {
+      "name": "addLiquidity",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "amountAKD",
+          "type": {
+            "type-name": "Uint",
+            "maxval": 340282366920938463463374607431768211455
+          }
+        },
+        {
+          "name": "amountNight",
+          "type": {
+            "type-name": "Uint",
+            "maxval": 340282366920938463463374607431768211455
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Tuple",
+        "types": [
+        ]
+      }
+    },
+    {
       "name": "swapAkdToNight",
       "pure": false,
       "proof": true,
@@ -76,185 +102,8 @@
   ],
   "ledger": [
     {
-      "name": "_isInitialized",
-      "index": 0,
-      "exported": false,
-      "storage": "Cell",
-      "type": {
-        "type-name": "Boolean"
-      }
-    },
-    {
-      "name": "_balances",
-      "index": 1,
-      "exported": false,
-      "storage": "Map",
-      "key": {
-        "type-name": "Struct",
-        "name": "Either",
-        "elements": [
-          {
-            "name": "is_left",
-            "type": {
-              "type-name": "Boolean"
-            }
-          },
-          {
-            "name": "left",
-            "type": {
-              "type-name": "Bytes",
-              "length": 32
-            }
-          },
-          {
-            "name": "right",
-            "type": {
-              "type-name": "Struct",
-              "name": "ContractAddress",
-              "elements": [
-                {
-                  "name": "bytes",
-                  "type": {
-                    "type-name": "Bytes",
-                    "length": 32
-                  }
-                }
-              ]
-            }
-          }
-        ]
-      },
-      "value": {
-        "type-name": "Uint",
-        "maxval": 340282366920938463463374607431768211455
-      }
-    },
-    {
-      "name": "_allowances",
-      "index": 2,
-      "exported": false,
-      "storage": "Map",
-      "key": {
-        "type-name": "Struct",
-        "name": "Either",
-        "elements": [
-          {
-            "name": "is_left",
-            "type": {
-              "type-name": "Boolean"
-            }
-          },
-          {
-            "name": "left",
-            "type": {
-              "type-name": "Bytes",
-              "length": 32
-            }
-          },
-          {
-            "name": "right",
-            "type": {
-              "type-name": "Struct",
-              "name": "ContractAddress",
-              "elements": [
-                {
-                  "name": "bytes",
-                  "type": {
-                    "type-name": "Bytes",
-                    "length": 32
-                  }
-                }
-              ]
-            }
-          }
-        ]
-      },
-      "value": {
-        "type-name": "Map",
-        "key": {
-          "type-name": "Struct",
-          "name": "Either",
-          "elements": [
-            {
-              "name": "is_left",
-              "type": {
-                "type-name": "Boolean"
-              }
-            },
-            {
-              "name": "left",
-              "type": {
-                "type-name": "Bytes",
-                "length": 32
-              }
-            },
-            {
-              "name": "right",
-              "type": {
-                "type-name": "Struct",
-                "name": "ContractAddress",
-                "elements": [
-                  {
-                    "name": "bytes",
-                    "type": {
-                      "type-name": "Bytes",
-                      "length": 32
-                    }
-                  }
-                ]
-              }
-            }
-          ]
-        },
-        "value": {
-          "type-name": "Uint",
-          "maxval": 340282366920938463463374607431768211455
-        }
-      }
-    },
-    {
-      "name": "_totalSupply",
-      "index": 3,
-      "exported": false,
-      "storage": "Cell",
-      "type": {
-        "type-name": "Uint",
-        "maxval": 340282366920938463463374607431768211455
-      }
-    },
-    {
-      "name": "_name",
-      "index": 4,
-      "exported": false,
-      "storage": "Cell",
-      "type": {
-        "type-name": "Opaque",
-        "tsType": "string"
-      }
-    },
-    {
-      "name": "_symbol",
-      "index": 5,
-      "exported": false,
-      "storage": "Cell",
-      "type": {
-        "type-name": "Opaque",
-        "tsType": "string"
-      }
-    },
-    {
-      "name": "_decimals",
-      "index": 6,
-      "exported": false,
-      "storage": "Cell",
-      "type": {
-        "type-name": "Uint",
-        "maxval": 255
-      }
-    },
-    {
       "name": "reserveAKD",
-      "index": 7,
+      "index": 0,
       "exported": true,
       "storage": "Cell",
       "type": {
@@ -264,7 +113,7 @@
     },
     {
       "name": "reserveNight",
-      "index": 8,
+      "index": 1,
       "exported": true,
       "storage": "Cell",
       "type": {

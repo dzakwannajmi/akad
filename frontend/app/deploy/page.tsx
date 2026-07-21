@@ -4,7 +4,7 @@
 import { useState } from 'react';
 import { getCompatibleWallets, connectWallet } from '@/lib/wallet';
 import { deployTokenContract, initTokenContract } from '@/lib/token-api';
-import { deploySwapContract } from '@/lib/swap-api';
+import { deploySwapContract, addLiquidity } from '@/lib/swap-api';
 
 const buttonStyle: React.CSSProperties = {
   fontFamily: 'var(--font-geist-mono), monospace',
@@ -30,6 +30,7 @@ export default function DeployPage() {
   const [contractAddress, setContractAddress] = useState<string | null>(null);
   const [swapAddress, setSwapAddress] = useState<string | null>(null);
   const [swapStatus, setSwapStatus] = useState<string>('idle');
+  const [liquidityStatus, setLiquidityStatus] = useState<string>('idle');
   const [connectedApi, setConnectedApi] = useState<any>(null);
   const [addresses, setAddresses] = useState<any>(null);
 
@@ -74,6 +75,37 @@ export default function DeployPage() {
         JSON.stringify(err);
       setError(detail || String(err));
       setSwapStatus('error');
+    }
+  };
+
+
+  const handleSeedLiquidity = async () => {
+    if (!connectedApi || !addresses || !swapAddress) {
+      setError('Deploy the swap contract first');
+      return;
+    }
+    setLiquidityStatus('seeding');
+    setError(null);
+    try {
+      // Demo seed amounts — arbitrary starting ratio, builder-chosen (see README).
+      await addLiquidity(
+        connectedApi,
+        addresses.shieldedCoinPublicKey,
+        addresses.shieldedEncryptionPublicKey,
+        swapAddress,
+        1000n,
+        1000n
+      );
+      setLiquidityStatus('seeded');
+    } catch (err: any) {
+      console.error('[Seed Liquidity] Error:', err);
+      const detail =
+        err?.cause?.cause?.message ||
+        err?.cause?.message ||
+        err?.message ||
+        JSON.stringify(err);
+      setError(detail || String(err));
+      setLiquidityStatus('error');
     }
   };
 
@@ -147,6 +179,14 @@ export default function DeployPage() {
           Swap contract address: <code>{swapAddress}</code>
         </p>
       )}
+      <button
+        style={!swapAddress || liquidityStatus === 'seeding' ? disabledButtonStyle : buttonStyle}
+        onClick={handleSeedLiquidity}
+        disabled={!swapAddress || liquidityStatus === 'seeding'}
+      >
+        Seed Liquidity (1000/1000)
+      </button>
+      <p style={{ marginTop: 16, marginBottom: 16 }}>Liquidity status: <strong>{liquidityStatus}</strong></p>
 
       {addresses && (
         <pre style={{ background: '#f4f4f4', padding: 16, fontSize: 12, overflow: 'auto' }}>

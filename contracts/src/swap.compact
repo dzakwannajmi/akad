@@ -1,10 +1,25 @@
 pragma language_version >= 0.23.0;
 
 import CompactStandardLibrary;
-import "../../compact-contracts/contracts/src/token/FungibleToken" prefix FT_;
 
 export ledger reserveAKD: Uint<128>;
 export ledger reserveNight: Uint<128>;
+
+// Seeds the pool's initial liquidity. Can only be called once (single fixed
+// liquidity from the builder — no LP tokens, keeps attack surface minimal
+// for Level 1-3 scope; see README roadmap for future multi-provider support).
+export circuit addLiquidity(amountAKD: Uint<128>, amountNight: Uint<128>): [] {
+  const x = reserveAKD.read();
+  const y = reserveNight.read();
+
+  assert(x == 0 && y == 0, "liquidity already seeded");
+  assert(amountAKD > 0 && amountNight > 0, "amounts must be positive");
+  assert(amountAKD <= 1000000000000000000, "amountAKD exceeds safe bound");
+  assert(amountNight <= 1000000000000000000, "amountNight exceeds safe bound");
+
+  reserveAKD.write(disclose(amountAKD));
+  reserveNight.write(disclose(amountNight));
+}
 
 // Swap AKD -> tNIGHT
 export circuit swapAkdToNight(dx: Uint<128>, dy: Uint<128>, minOut: Uint<128>): [] {

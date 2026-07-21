@@ -61,3 +61,32 @@ export async function deploySwapContract(
   localStorage.setItem('akad_swap_contract', contractAddress);
   return contractAddress;
 }
+
+// Seeds the pool's initial liquidity. Call once, right after deploySwapContract.
+export async function addLiquidity(
+  connectedApi: any,
+  coinPublicKey: string,
+  encryptionPublicKey: string,
+  contractAddress: string,
+  amountAKD: bigint,
+  amountNight: bigint
+): Promise<void> {
+  const { submitCallTxAsync } = await import('@midnight-ntwrk/midnight-js-contracts');
+
+  const providers = await buildProviders(
+    connectedApi,
+    coinPublicKey,
+    encryptionPublicKey,
+    contractAddress,
+    SWAP_CONTRACT_PATH
+  );
+  const compiledContract = await loadCompiledSwapContract();
+
+  await (submitCallTxAsync as any)(providers, {
+    compiledContract,
+    contractAddress,
+    circuitId: 'addLiquidity',
+    args: [amountAKD, amountNight],
+    privateStateId: PRIVATE_STATE_ID + '-swap',
+  });
+}

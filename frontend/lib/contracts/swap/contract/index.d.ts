@@ -4,6 +4,9 @@ export type Witnesses<PS> = {
 }
 
 export type ImpureCircuits<PS> = {
+  addLiquidity(context: __compactRuntime.CircuitContext<PS>,
+               amountAKD_0: bigint,
+               amountNight_0: bigint): __compactRuntime.CircuitResults<PS, []>;
   swapAkdToNight(context: __compactRuntime.CircuitContext<PS>,
                  dx_0: bigint,
                  dy_0: bigint,
@@ -15,6 +18,9 @@ export type ImpureCircuits<PS> = {
 }
 
 export type ProvableCircuits<PS> = {
+  addLiquidity(context: __compactRuntime.CircuitContext<PS>,
+               amountAKD_0: bigint,
+               amountNight_0: bigint): __compactRuntime.CircuitResults<PS, []>;
   swapAkdToNight(context: __compactRuntime.CircuitContext<PS>,
                  dx_0: bigint,
                  dy_0: bigint,
@@ -29,6 +35,9 @@ export type PureCircuits = {
 }
 
 export type Circuits<PS> = {
+  addLiquidity(context: __compactRuntime.CircuitContext<PS>,
+               amountAKD_0: bigint,
+               amountNight_0: bigint): __compactRuntime.CircuitResults<PS, []>;
   swapAkdToNight(context: __compactRuntime.CircuitContext<PS>,
                  dx_0: bigint,
                  dy_0: bigint,
