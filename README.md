@@ -74,6 +74,17 @@ These items are explicitly out of scope for Level 1-3 and documented here so the
 - Multi-provider liquidity / LP tokens — currently a single fixed liquidity seed from the builder (deliberate, to narrow attack surface for this stage).
 - Multi-pool support.
 
+## Screenshots
+
+**Contract compile output (circuits):**
+![Compile output](docs/screenshots/compile-output.png)
+
+**Deployed contract address:**
+![Deploy address](docs/screenshots/deploy-address.png)
+
+**Test suite passing:**
+![Test output](docs/screenshots/test-output.png)
+
 ## Testing and CI
 
 8+ tests (Vitest) covering bonding curve math and wallet compatibility filtering — see frontend/lib/__tests__/.
