@@ -1,0 +1,20 @@
+pragma language_version >= 0.23.0;
+import CompactStandardLibrary;
+
+witness testNonce(): Bytes<32>;
+
+// Confirm tokenType() works — this derives our collision-resistant AKD color.
+export circuit testTokenType(): [] {
+  const domainSep: Bytes<32> = persistentHash<Uint<8>>(1);
+  const selfAddr = kernel.self();
+  const akdColor: Bytes<32> = tokenType(domainSep, selfAddr);
+}
+
+export circuit testMint(): [] {
+  const nonce = testNonce();
+  const caller = ownPublicKey();
+  const recipient = left<ZswapCoinPublicKey, ContractAddress>(caller);
+  const domainSep: Bytes<32> = persistentHash<Uint<8>>(1);
+  const value = 100 as Uint<64>;
+  const coin = mintShieldedToken(domainSep, value, disclose(nonce), recipient);
+}
