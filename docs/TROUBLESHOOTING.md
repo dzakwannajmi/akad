@@ -18,6 +18,25 @@ Notes from building Akad on Compact/Midnight, kept here so the main README stays
 
 Per guidance from a Midnight developer during this build, Preprod was still under active development and not reliable for contract deployment at the time. Akad targets **Preview** — indexer, node, and proof server endpoints are all `*.preview.midnight.network`.
 
+## Why we don't run a local Docker proof server
+
+The [official installation guide](https://docs.midnight.network/getting-started/installation) documents running a proof server locally via Docker:
+
+```bash
+docker run -p 6300:6300 midnightntwrk/proof-server:latest midnight-proof-server -v
+```
+
+This is required only when proving happens on the developer's own machine — e.g. a local/standalone network, CLI-based deploy tooling (we hit this with the third-party `scaffold-midnight` tool, since abandoned), or manual circuit testing outside a wallet flow. To use it with Lace at all, you also have to manually switch Lace to **Settings → Midnight → Local (http://localhost:6300)** — it isn't the default.
+
+Akad's deploy pipeline delegates proving to the connected wallet instead, via `dappConnectorProofProvider`. On Preview testnet, Lace proves against Midnight's own hosted proof server rather than anything local — confirmed directly from the wallet's own config:
+
+```ts
+const config = await connectedApi.getConfiguration();
+// config.proverServerUri === "https://proof-server.preview.midnight.network"
+```
+
+So no local Docker proof server is needed (or used) for Akad's actual deploy/swap/wrap flow on Preview. The Docker proof server we set up early in development (see dev environment setup notes) was only used for initial local toolchain verification (compiling `counter.compact`), not for any of the deployed contract interactions.
+
 ## Shielded coins (`wrap`)
 
 `wrap()` (public AKD → native shielded coin via `mintShieldedToken`) works end-to-end and is confirmed live — Lace automatically displays the resulting shielded balance with no custom UI needed.
