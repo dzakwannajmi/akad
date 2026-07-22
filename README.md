@@ -18,12 +18,14 @@ Privacy-optional AMM on Midnight Network, built for Rise In × Midnight "New Moo
 
 - [What is Akad](#what-is-akad)
 - [Live Demo & Deployed Contracts](#live-demo--deployed-contracts)
+- [Trying the App](#trying-the-app)
 - [Architecture](#architecture)
+- [Design Notes](#design-notes)
 - [End-to-End Flows](#end-to-end-flows)
 - [Privacy Model](#privacy-model)
 - [Roadmap](#roadmap)
 - [Testing & CI](#testing--ci)
-- [Local Development](#local-development)
+- [Running Locally](#running-locally)
 - [Project Structure](#project-structure)
 
 ## What is Akad
@@ -47,6 +49,15 @@ The idea behind the name: "Akad" is an agreement between two parties — every s
 
 [View swap contract on Night Scan](https://explorer.preview.midnight.network/contracts/stream/c4831f264adc54f237823ad837733c8ccbc698218f64cf3f13e84c02b8b8b5bb) · [View on Midnight Explorer](https://preview.midnightexplorer.com/contracts/0xc4831f264adc54f237823ad837733c8ccbc698218f64cf3f13e84c02b8b8b5bb)
 
+## Trying the App
+
+1. Install [Lace wallet](https://www.lace.io/midnight) and switch its network to **Preview**.
+2. Get test tokens from the [Preview faucet](https://faucet.preview.midnight.network/) (you'll need tNIGHT for gas, and generate tDUST from it in Lace).
+3. Open the [live demo](https://akad-dzakwannajmis-projects.vercel.app/) and click **Launch App**.
+4. Connect your wallet on the swap page.
+5. Enter an amount, review the quote, and swap.
+6. Try **Wrap to Private** below the swap card — enter an AKD amount, wrap it, then check Lace: your shielded AKD balance appears automatically, unlinked from your public balance.
+
 ## Architecture
 
     contracts/    Compact smart contracts (token, swap) — see contracts/README.md
@@ -54,6 +65,12 @@ The idea behind the name: "Akad" is an agreement between two parties — every s
     docs/         Build notes and troubleshooting log
 
 **Stack:** Compact (smart contracts) · Next.js + TypeScript (frontend) · Lace wallet via DApp Connector API v4 · shadcn/ui · Vitest · GitHub Actions.
+
+## Design Notes
+
+Akad's swap mechanics use a standard constant-product model — public reserves, `x * y = k`, no oracle dependency. This part is deliberately conventional: it's a well-understood, battle-tested AMM design, and reinventing pricing mechanics wasn't the point of this project.
+
+The part that isn't standard is the privacy layer sitting alongside it. Rather than treating privacy as a separate product, Akad treats it as a mode a user opts into for their own holdings — public AKD behaves exactly like a normal ERC20-style balance, and `wrap` converts it into a native Zswap shielded coin whenever a user wants that balance to stop being publicly linkable. The AMM itself stays fully public (reserves have to be, for price discovery to work at all); the privacy boundary is drawn around token *custody*, not around the trade mechanism. See [Privacy Model](#privacy-model) for exactly what that boundary does and doesn't cover.
 
 ## End-to-End Flows
 
@@ -113,9 +130,22 @@ The honest boundary: swap trade amounts remain public (structural to any public-
 
 GitHub Actions runs typecheck, tests, and build on every push — see `.github/workflows/ci.yml`.
 
-## Local Development
+## Running Locally
 
-See [contracts/README.md](contracts/README.md) for compiling Compact contracts, and [frontend/README.md](frontend/README.md) for running the app.
+Contracts:
+
+    cd contracts
+    compact compile src/token.compact ../build/token
+    compact compile src/swap.compact ../build/swap
+
+Frontend:
+
+    cd frontend
+    npm install
+    cp .env.example .env.local
+    npm run dev
+
+Full details, including artifact wiring and environment variables, in [contracts/README.md](contracts/README.md) and [frontend/README.md](frontend/README.md).
 
 ## Project Structure
 
