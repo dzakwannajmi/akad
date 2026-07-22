@@ -1,108 +1,122 @@
+<div align="center">
+
 # Akad
 
+![Network](https://img.shields.io/badge/network-Preview%20(Preprod%20pending)-blue)
+![Chain](https://img.shields.io/badge/chain-Midnight-6f42c1)
 [![CI](https://github.com/dzakwannajmi/akad/actions/workflows/ci.yml/badge.svg)](https://github.com/dzakwannajmi/akad/actions/workflows/ci.yml)
 
-Privacy-optional AMM on Midnight Network. Built for Rise In × Midnight "New Moon to Full: Monthly Moonshots" builder program.
+Privacy-optional AMM on Midnight Network, built for Rise In × Midnight "New Moon to Full: Monthly Moonshots"
 
-**Live demo:** [_Demo Link_](https://akad-dzakwannajmis-projects.vercel.app)
+[Live Demo](https://akad-dzakwannajmis-projects.vercel.app/) · [Contracts](#deployed-contracts) · [Troubleshooting & Build Notes](docs/TROUBLESHOOTING.md)
 
-**Deployed contracts (Preview testnet):**
-- Token (AKD): `37e14edc42799d76746e22b87419252e94f64104e1fc0d2a59fd037cfe337cfb`
-- Swap (AMM): `c4831f264adc54f237823ad837733c8ccbc698218f64cf3f13e84c02b8b8b5bb`
-- [View on explorer](https://explorer.preview.midnight.network/contracts/stream/c4831f264adc54f237823ad837733c8ccbc698218f64cf3f13e84c02b8b8b5bb)
+</div>
 
 ---
 
-## Initial idea
+## Table of Contents
 
-Akad started from an observation about Midnight's ecosystem: every AMM-style DEX pattern (Uniswap-style constant product) needs public reserves for price discovery, but no existing tool in the Midnight testnet ecosystem demonstrated this pattern end-to-end with an explicit, documented privacy boundary. Akad fills that gap — a working constant-product swap where the disclosure boundary (what's public vs private) is a deliberate, auditable design decision rather than an afterthought.
-
-## A note on Preview vs Preprod
-
-The program materials and some Midnight docs reference "Preprod" as the standard testnet. During development, a Midnight developer confirmed that Preprod was still under active development and not fully operational for contract deployment — Preview was the recommended network instead. Akad is deployed and fully tested on **Preview**, not Preprod. All addresses and explorer links in this README point to Preview.
+- [What is Akad](#what-is-akad)
+- [Live Demo & Deployed Contracts](#live-demo--deployed-contracts)
+- [Architecture](#architecture)
+- [End-to-End Flows](#end-to-end-flows)
+- [Privacy Model](#privacy-model)
+- [Roadmap](#roadmap)
+- [Testing & CI](#testing--ci)
+- [Local Development](#local-development)
+- [Project Structure](#project-structure)
 
 ## What is Akad
 
-Akad is a constant-product AMM (x * y = k) for swapping a custom fungible token (AKD) against tNIGHT on Midnight. Users choose a privacy level per action — a "Public" mode is fully built and working today; a "Private" mode is architected but not yet implemented (see Privacy Model and Roadmap below).
+Akad is a constant-product AMM (`x * y = k`) for swapping a custom fungible token (AKD) against tNIGHT on Midnight Network. Users can hold AKD publicly (standard token balance) or convert it into a genuinely private, unlinkable balance backed by Midnight's native Zswap shielded-coin infrastructure.
 
-## Privacy Model
+The idea behind the name: "Akad" is an agreement between two parties — every swap is exactly that, with a level of openness each trader chooses for themselves.
 
-This section states plainly what an observer of the Akad contracts can and cannot learn, based on the actual deployed code, not aspirational claims.
+## Live Demo & Deployed Contracts
 
-### What an observer CAN learn (public, visible via indexer/explorer)
+**App:** https://akad-dzakwannajmis-projects.vercel.app/
 
-- Pool reserves (reserveAKD, reserveNight) at any point in time — required for price discovery, deliberately public.
-- Every individual trade's size and direction. Both dx (amount in) and dy (amount out) are explicitly disclosed when writing the new reserve values after a swap. Reserve deltas are public by construction, so trade amounts are not hidden even though dx/dy start as private circuit parameters.
-- Every addLiquidity call and its amounts — also explicitly disclosed.
-- Token balances in token.compact's balances map, keyed by a 32-byte identifier derived from the caller's wallet.
+**Network:** Midnight Preview testnet
 
-### What an observer CANNOT learn (not exposed in current contract state)
+**Contracts:**
 
-- Slippage tolerance (minOut) a trader sets per swap — used only in an on-chain assert, never written to public state.
-- The raw correspondence between a wallet's real public key and its balance-map key — the key is a SHA-256 hash of the wallet's shielded coin public key, not the plaintext key itself. This is a thin pseudonymity layer, not full identity privacy.
+| Contract | Address |
+|---|---|
+| Token (AKD) | `e62f476dc4194c4ea3641016f55f4eb7069ab2ead2903deb3fdfe4f5f9f63d04` |
+| Swap (AMM) | `c4831f264adc54f237823ad837733c8ccbc698218f64cf3f13e84c02b8b8b5bb` |
 
-### Honest summary
-
-Level 1-3 "Public" mode intentionally provides no amount or trade privacy. This is a deliberate, documented tradeoff: Midnight has no built-in shielded-balance primitive for custom fungible tokens (only native NIGHT/DUST get protocol-level shielding via Zswap). Real amount/identity privacy for a custom token requires a hand-rolled commitment and nullifier scheme — documented as Roadmap rather than claimed as delivered.
-
-The engineering choice that is "meaningfully using Midnight's privacy model" here: every value written to public ledger state goes through an explicit disclose() call — nothing leaks by accident. The public/private boundary is an explicit, auditable decision at every write site.
-
----
+[View swap contract on Night Scan](https://explorer.preview.midnight.network/contracts/stream/c4831f264adc54f237823ad837733c8ccbc698218f64cf3f13e84c02b8b8b5bb) · [View on Midnight Explorer](https://preview.midnightexplorer.com/contracts/0xc4831f264adc54f237823ad837733c8ccbc698218f64cf3f13e84c02b8b8b5bb)
 
 ## Architecture
 
-    contracts/src/
-      token.compact   — custom fungible token ledger (Map of Bytes32 to Uint128 balances)
-      swap.compact    — constant-product AMM: addLiquidity, swapAkdToNight, swapNightToAkd
+    contracts/    Compact smart contracts (token, swap) — see contracts/README.md
+    frontend/     Next.js app (landing, swap UI, wallet integration) — see frontend/README.md
+    docs/         Build notes and troubleshooting log
 
-    frontend/
-      app/            — Next.js pages: landing (/), swap UI (/swap), internal deploy tool (/deploy)
-      lib/            — wallet connector, provider setup, deploy/swap API, bonding curve math
-      lib/contracts/  — compiled contract JS modules (bundled by webpack)
-      public/contracts/ — compiled ZK keys/zkir (fetched via HTTP by the wallet's proof pipeline)
+**Stack:** Compact (smart contracts) · Next.js + TypeScript (frontend) · Lace wallet via DApp Connector API v4 · shadcn/ui · Vitest · GitHub Actions.
 
-**Stack:** Compact (smart contracts), Next.js + TypeScript (frontend), Lace wallet (DApp Connector API v4), shadcn/ui, Vitest (testing), GitHub Actions (CI).
+## End-to-End Flows
 
-**Why disclosure happens where it does:** the constant-product formula requires public reserves for correct price discovery — this is true of every AMM on every chain, not a Midnight-specific limitation. See the Privacy Model section above for the precise boundary.
+### Public Swap
 
-## Roadmap (not yet built)
+```mermaid
+flowchart LR
+  U["User<br/>(Lace wallet)"] -->|"connect()"| FE["Akad Frontend"]
+  FE -->|"compute dy off-chain<br/>(bonding curve)"| FE
+  FE -->|"swapAkdToNight(dx, dy, minOut)"| SC["Swap Contract"]
+  SC -->|"reads / writes"| R["reserveAKD, reserveNight<br/>(public)"]
+  SC -->|"tx confirmed"| FE
+  FE -->|"updated pool + balance"| U
+```
 
-These items are explicitly out of scope for Level 1-3 and documented here so the current scope is unambiguous:
+### Wrap — Public AKD to Private Shielded AKD
 
-- Commitment-based private balances for AKD — hide individual holdings using a persistentCommit + witness-opening scheme, instead of the current public balances map.
-- Trade-amount privacy — batching or commit-reveal-with-delay to reduce what an observer can infer from reserve deltas. Full amount-hiding in an AMM with public reserves is a known-hard problem.
-- Multi-provider liquidity / LP tokens — currently a single fixed liquidity seed from the builder (deliberate, to narrow attack surface for this stage).
-- Multi-pool support.
+```mermaid
+flowchart LR
+  U["User<br/>(Lace wallet)"] -->|"wrap(amount, nonce)"| TC["Token Contract"]
+  TC -->|"burn"| PB["Public balances map"]
+  TC -->|"mintShieldedToken()"| ZS["Zswap<br/>(native shielded pool)"]
+  ZS -->|"shielded coin, color = AKD"| U
+  U -->|"balance now shown as"| L["Lace: Shielded balance"]
+```
 
-## Screenshots
+`unwrap` (reversing the above) is implemented in the contract but not yet fully working end-to-end from the frontend — see [Roadmap](#roadmap) and [Troubleshooting](docs/TROUBLESHOOTING.md).
 
-**Contract compile output (circuits):**
-![Compile output](docs/screenshots/compile-output.png)
+## Privacy Model
 
-**Deployed contract address:**
-![Deploy address](docs/screenshots/deploy-address.png)
+What an observer **can** learn from the public contract state:
 
-**Test suite passing:**
-![Test output](docs/screenshots/test-output.png)
+- Pool reserves at any point in time, and every individual swap's size and direction (reserve deltas are public — required for AMM price discovery, true of any chain).
+- Public AKD balances, keyed by a hashed (not plaintext) wallet identifier.
 
-## Testing and CI
+What an observer **cannot** learn:
 
-8+ tests (Vitest) covering bonding curve math and wallet compatibility filtering — see frontend/lib/__tests__/.
+- Slippage tolerance (`minOut`) — used only in an on-chain assertion, never written to public state. A value proven correct without ever being shown.
+- **Ownership of any AKD balance moved into shielded form via `wrap`.** Once wrapped, that AKD is a native Zswap shielded coin — unlinkable from the public balance it came from, using Midnight's own audited shielded-pool cryptography rather than a hand-rolled scheme.
 
-GitHub Actions runs typecheck, tests, and build on every push — see .github/workflows/ci.yml.
+The honest boundary: swap trade amounts remain public (structural to any public-reserve AMM); balance ownership is private once wrapped. Akad does not claim trade-amount privacy during a swap.
 
-## Local development
+## Roadmap
 
-Contracts:
+- [ ] Fix `unwrap` — requires building the shielded transfer via the wallet's `makeTransfer`/`makeIntent` API rather than relying on automatic transaction balancing (see [Troubleshooting](docs/TROUBLESHOOTING.md))
+- [ ] Private swap — spend a shielded AKD coin directly into a swap, rather than wrap → public swap → wrap
+- [ ] Multi-token support — pools beyond AKD/tNIGHT
+- [ ] Multi-wallet support — beyond Lace (e.g. 1AM)
+- [ ] Multi-chain — beyond Midnight
+- [ ] Mobile-responsive UI
+- [ ] Multi-provider liquidity (LP tokens) — currently a single fixed liquidity seed from the builder
+- [ ] Reserve-delta privacy research — batching or delayed settlement to reduce what's inferable from public reserve changes
 
-    cd contracts
-    compact compile src/token.compact ../build/token
-    compact compile src/swap.compact ../build/swap
+## Testing & CI
 
-Frontend:
+8+ tests (Vitest) covering bonding curve math and wallet compatibility filtering — see `frontend/lib/__tests__/`.
 
-    cd frontend
-    npm install
-    cp .env.example .env.local
-    npm run dev
-    npm run test
+GitHub Actions runs typecheck, tests, and build on every push — see `.github/workflows/ci.yml`.
+
+## Local Development
+
+See [contracts/README.md](contracts/README.md) for compiling Compact contracts, and [frontend/README.md](frontend/README.md) for running the app.
+
+## Project Structure
+
+See [Architecture](#architecture) above, or the per-folder READMEs for details.

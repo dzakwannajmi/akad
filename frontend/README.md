@@ -1,36 +1,38 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Akad Frontend
 
-## Getting Started
+Next.js app for Akad — landing page, swap interface, and wallet integration with Lace via the Midnight DApp Connector API.
 
-First, run the development server:
+## Structure
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+    app/
+      page.tsx        landing page
+      swap/            public swap interface
+      deploy/          internal deploy/dev tooling (not part of the public flow)
+    lib/
+      wallet.ts               wallet detection + connect (DApp Connector API v4)
+      providers.ts             Midnight.js provider setup (indexer, proof, private state)
+      token-api.ts              deploy/init/wrap/unwrap calls for the token contract
+      swap-api.ts                deploy/liquidity/swap calls for the swap contract
+      bonding-curve.ts          constant-product math (mirrors the on-chain circuit)
+      contracts/                compiled contract JS modules (bundled by webpack)
+    public/contracts/           compiled ZK keys/zkir (fetched over HTTP by the wallet's proof pipeline)
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Setup
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Install dependencies and configure environment:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+    npm install
+    cp .env.example .env.local
+    npm run dev
 
-## Learn More
+Requires a Lace wallet (Midnight network set to **Preview**) with some tNIGHT for gas — see the [Preview faucet](https://faucet.preview.midnight.network/).
 
-To learn more about Next.js, take a look at the following resources:
+## Testing
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+    npm run test
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Notes
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Next.js 16 defaults to Turbopack; this project needs webpack (for WASM + `isomorphic-ws` support), so `dev`/`build` scripts pass `--webpack` explicitly.
+- Contract deploy is a one-time operation done via `/deploy` (internal tooling) — end users only interact with `/swap`.
+- See [docs/TROUBLESHOOTING.md](../docs/TROUBLESHOOTING.md) for integration issues encountered building this.
