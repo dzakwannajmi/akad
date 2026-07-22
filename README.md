@@ -8,7 +8,7 @@
 
 Privacy-optional AMM on Midnight Network, built for Rise In × Midnight "New Moon to Full: Monthly Moonshots"
 
-[Live Demo](https://akad-dzakwannajmis-projects.vercel.app/) · [Contracts](#deployed-contracts) · [Troubleshooting & Build Notes](docs/TROUBLESHOOTING.md)
+[Live Demo](https://youtu.be/UO1GlUcs83A?si=Dy7LKhTyzAB2-3Aj) · [Contracts](#deployed-contracts) · [Troubleshooting & Build Notes](docs/TROUBLESHOOTING.md)
 
 </div>
 
