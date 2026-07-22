@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { getCompatibleWallets, connectWallet } from '@/lib/wallet';
 import { getReserves, executeSwap } from '@/lib/swap-api';
 import { computeSwapOutput, applySlippage } from '@/lib/bonding-curve';
+import { wrapTokens } from '@/lib/token-api';
+import { TOKEN_CONTRACT_ADDRESS } from '@/lib/wallet-constants';
 import { Icon } from '@iconify/react';
 
 // Hardcoded for now — the addresses of our two deployed contracts on Preview.
@@ -19,6 +21,8 @@ export default function SwapPage() {
   const [amountOut, setAmountOut] = useState<bigint | null>(null);
   const [reserves, setReserves] = useState<{ reserveAKD: bigint; reserveNight: bigint } | null>(null);
   const [status, setStatus] = useState<string>('idle');
+  const [wrapAmount, setWrapAmount] = useState('');
+  const [wrapStatus, setWrapStatus] = useState<string>('idle');
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<{ from: string; to: string; amountIn: string; amountOut: string; time: string }[]>([]);
 
@@ -76,6 +80,30 @@ export default function SwapPage() {
       setAmountOut(null);
     }
   }, [amountIn, direction, reserves]);
+
+
+  const handleWrap = async () => {
+    if (!connectedApi || !addresses || !wrapAmount) return;
+    setWrapStatus('wrapping');
+    setError(null);
+    try {
+      const nonce = crypto.getRandomValues(new Uint8Array(32));
+      await wrapTokens(
+        connectedApi,
+        addresses.shieldedCoinPublicKey,
+        addresses.shieldedEncryptionPublicKey,
+        TOKEN_CONTRACT_ADDRESS,
+        BigInt(wrapAmount)
+      );
+      setWrapStatus('wrapped');
+      setWrapAmount('');
+    } catch (err: any) {
+      console.error('[Wrap]', err);
+      const detail = err?.cause?.cause?.message || err?.cause?.message || err?.message || String(err);
+      setError(detail);
+      setWrapStatus('error');
+    }
+  };
 
   const handleSwap = async () => {
     if (!connectedApi || !addresses || !reserves || amountOut === null) return;
@@ -199,6 +227,33 @@ export default function SwapPage() {
         </button>
 
         {error && <p className="mt-4 text-xs text-red-400 font-mono">{error}</p>}
+
+        <div className="mt-10 rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+          <div className="text-xs text-white/40 mb-3 font-mono">Wrap to Private</div>
+          <p className="text-xs text-white/40 mb-3 leading-relaxed">
+            Converts public AKD into a native shielded coin — unlinkable to your public balance.
+            Check your shielded balance in Lace after wrapping.
+          </p>
+          <div className="flex gap-2">
+            <input
+              type="number"
+              value={wrapAmount}
+              onChange={(e) => setWrapAmount(e.target.value)}
+              placeholder="Amount of AKD"
+              className="bg-transparent border border-white/10 rounded-full px-4 py-2 text-sm outline-none flex-1"
+            />
+            <button
+              onClick={handleWrap}
+              disabled={!connectedApi || !wrapAmount || wrapStatus === 'wrapping'}
+              className="rounded-full bg-white/10 border border-white/20 px-5 py-2 text-xs font-mono disabled:opacity-30 disabled:cursor-not-allowed hover:bg-white/20 transition-colors"
+            >
+              {wrapStatus === 'wrapping' ? 'Wrapping…' : 'Wrap'}
+            </button>
+          </div>
+          {wrapStatus === 'wrapped' && (
+            <p className="mt-3 text-xs text-green-400 font-mono">Wrapped — check Lace for your shielded balance.</p>
+          )}
+        </div>
 
         {reserves && (
           <p className="mt-6 text-center text-xs text-white/30 font-mono">

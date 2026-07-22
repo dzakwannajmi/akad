@@ -3,7 +3,8 @@
 // English comments per code convention; explanations to the user stay in Indonesian.
 import { useState } from 'react';
 import { getCompatibleWallets, connectWallet } from '@/lib/wallet';
-import { deployTokenContract, initTokenContract } from '@/lib/token-api';
+import { deployTokenContract, initTokenContract, wrapTokens, unwrapTokens, getTokenColor } from '@/lib/token-api';
+import { TOKEN_CONTRACT_ADDRESS } from '@/lib/wallet-constants';
 import { deploySwapContract, addLiquidity } from '@/lib/swap-api';
 
 const buttonStyle: React.CSSProperties = {
@@ -31,6 +32,9 @@ export default function DeployPage() {
   const [swapAddress, setSwapAddress] = useState<string | null>(null);
   const [swapStatus, setSwapStatus] = useState<string>('idle');
   const [liquidityStatus, setLiquidityStatus] = useState<string>('idle');
+  const [wrapStatus, setWrapStatus] = useState<string>('idle');
+  const [wrappedCoin, setWrappedCoin] = useState<{ nonce: Uint8Array; value: bigint } | null>(null);
+  const [unwrapStatus, setUnwrapStatus] = useState<string>('idle');
   const [connectedApi, setConnectedApi] = useState<any>(null);
   const [addresses, setAddresses] = useState<any>(null);
 
@@ -106,6 +110,68 @@ export default function DeployPage() {
         JSON.stringify(err);
       setError(detail || String(err));
       setLiquidityStatus('error');
+    }
+  };
+
+
+  const handleTestWrap = async () => {
+    const targetAddress = contractAddress || TOKEN_CONTRACT_ADDRESS;
+    if (!connectedApi || !addresses || !targetAddress) {
+      setError('No token contract address available');
+      return;
+    }
+    setWrapStatus('wrapping');
+    setError(null);
+    try {
+      const result = await wrapTokens(
+        connectedApi,
+        addresses.shieldedCoinPublicKey,
+        addresses.shieldedEncryptionPublicKey,
+        targetAddress,
+        10n
+      );
+      setWrappedCoin(result);
+      setWrapStatus('wrapped');
+    } catch (err: any) {
+      console.error('[Test Wrap] Error:', err);
+      const detail = err?.cause?.cause?.message || err?.cause?.message || err?.message || String(err);
+      setError(detail);
+      setWrapStatus('error');
+    }
+  };
+
+
+  const handleTestUnwrap = async () => {
+    const targetAddress = contractAddress || TOKEN_CONTRACT_ADDRESS;
+    if (!connectedApi || !addresses || !targetAddress || !wrappedCoin) {
+      setError('Wrap something first');
+      return;
+    }
+    setUnwrapStatus('unwrapping');
+    setError(null);
+    try {
+      const color = await getTokenColor(
+        connectedApi,
+        addresses.shieldedCoinPublicKey,
+        addresses.shieldedEncryptionPublicKey,
+        targetAddress
+      );
+      // NEW hypothesis: nonce should be FRESH (for the new output coin being
+      // created), not reused from the original wrap mint.
+      const freshNonce = crypto.getRandomValues(new Uint8Array(32));
+      await unwrapTokens(
+        connectedApi,
+        addresses.shieldedCoinPublicKey,
+        addresses.shieldedEncryptionPublicKey,
+        targetAddress,
+        { nonce: freshNonce, color, value: wrappedCoin.value }
+      );
+      setUnwrapStatus('unwrapped');
+    } catch (err: any) {
+      console.error('[Test Unwrap] Error:', err);
+      const detail = err?.cause?.cause?.message || err?.cause?.message || err?.message || String(err);
+      setError(detail);
+      setUnwrapStatus('error');
     }
   };
 
@@ -198,6 +264,22 @@ export default function DeployPage() {
           Contract address: <code>{contractAddress}</code>
         </p>
       )}
+      <button
+        style={(!contractAddress && !TOKEN_CONTRACT_ADDRESS) || wrapStatus === 'wrapping' ? disabledButtonStyle : buttonStyle}
+        onClick={handleTestWrap}
+        disabled={(!contractAddress && !TOKEN_CONTRACT_ADDRESS) || wrapStatus === 'wrapping'}
+      >
+        Test Wrap (10 AKD)
+      </button>
+      <p style={{ marginTop: 16 }}>Wrap status: <strong>{wrapStatus}</strong></p>
+      <button
+        style={!wrappedCoin || unwrapStatus === 'unwrapping' ? disabledButtonStyle : buttonStyle}
+        onClick={handleTestUnwrap}
+        disabled={!wrappedCoin || unwrapStatus === 'unwrapping'}
+      >
+        Test Unwrap
+      </button>
+      <p style={{ marginTop: 16 }}>Unwrap status: <strong>{unwrapStatus}</strong></p>
     </div>
   );
 }
