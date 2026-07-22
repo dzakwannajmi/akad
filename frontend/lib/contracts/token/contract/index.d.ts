@@ -9,6 +9,12 @@ export type ImpureCircuits<PS> = {
   transfer(context: __compactRuntime.CircuitContext<PS>,
            to_0: Uint8Array,
            amount_0: bigint): __compactRuntime.CircuitResults<PS, []>;
+  akdColor(context: __compactRuntime.CircuitContext<PS>): __compactRuntime.CircuitResults<PS, Uint8Array>;
+  wrap(context: __compactRuntime.CircuitContext<PS>,
+       amount_0: bigint,
+       nonce_0: Uint8Array): __compactRuntime.CircuitResults<PS, []>;
+  unwrap(context: __compactRuntime.CircuitContext<PS>,
+         coin_0: { nonce: Uint8Array, color: Uint8Array, value: bigint }): __compactRuntime.CircuitResults<PS, []>;
 }
 
 export type ProvableCircuits<PS> = {
@@ -16,6 +22,12 @@ export type ProvableCircuits<PS> = {
   transfer(context: __compactRuntime.CircuitContext<PS>,
            to_0: Uint8Array,
            amount_0: bigint): __compactRuntime.CircuitResults<PS, []>;
+  akdColor(context: __compactRuntime.CircuitContext<PS>): __compactRuntime.CircuitResults<PS, Uint8Array>;
+  wrap(context: __compactRuntime.CircuitContext<PS>,
+       amount_0: bigint,
+       nonce_0: Uint8Array): __compactRuntime.CircuitResults<PS, []>;
+  unwrap(context: __compactRuntime.CircuitContext<PS>,
+         coin_0: { nonce: Uint8Array, color: Uint8Array, value: bigint }): __compactRuntime.CircuitResults<PS, []>;
 }
 
 export type PureCircuits = {
@@ -26,6 +38,12 @@ export type Circuits<PS> = {
   transfer(context: __compactRuntime.CircuitContext<PS>,
            to_0: Uint8Array,
            amount_0: bigint): __compactRuntime.CircuitResults<PS, []>;
+  akdColor(context: __compactRuntime.CircuitContext<PS>): __compactRuntime.CircuitResults<PS, Uint8Array>;
+  wrap(context: __compactRuntime.CircuitContext<PS>,
+       amount_0: bigint,
+       nonce_0: Uint8Array): __compactRuntime.CircuitResults<PS, []>;
+  unwrap(context: __compactRuntime.CircuitContext<PS>,
+         coin_0: { nonce: Uint8Array, color: Uint8Array, value: bigint }): __compactRuntime.CircuitResults<PS, []>;
 }
 
 export type Ledger = {
@@ -37,6 +55,7 @@ export type Ledger = {
     [Symbol.iterator](): Iterator<[Uint8Array, bigint]>
   };
   readonly totalSupply: bigint;
+  readonly tokenColor: Uint8Array;
 }
 
 export type ContractReferenceLocations = any;
