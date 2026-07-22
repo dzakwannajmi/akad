@@ -102,3 +102,91 @@ export async function initTokenContract(
     privateStateId: PRIVATE_STATE_ID,
   });
 }
+
+// Wraps a public AKD amount into a native shielded coin sent to the caller.
+export async function wrapTokens(
+  connectedApi: any,
+  coinPublicKey: string,
+  encryptionPublicKey: string,
+  contractAddress: string,
+  amount: bigint
+): Promise<{ nonce: Uint8Array; value: bigint }> {
+  const { submitCallTxAsync } = await import('@midnight-ntwrk/midnight-js-contracts');
+
+  const providers = await buildProviders(connectedApi, coinPublicKey, encryptionPublicKey, contractAddress);
+
+  // Ensure private state exists for this session (same fix as executeSwap).
+  const existing = await providers.privateStateProvider.get(PRIVATE_STATE_ID);
+  if (existing === null) {
+    await providers.privateStateProvider.set(PRIVATE_STATE_ID, createInitialPrivateState());
+  }
+  await providers.privateStateProvider.setContractAddress(contractAddress);
+
+  const compiledContract = await loadCompiledContract(await deriveAccountKey(coinPublicKey));
+
+  // Random 32-byte nonce for the minted coin.
+  const nonce = crypto.getRandomValues(new Uint8Array(32));
+
+  await (submitCallTxAsync as any)(providers, {
+    compiledContract,
+    contractAddress,
+    circuitId: 'wrap',
+    args: [amount, nonce],
+    privateStateId: PRIVATE_STATE_ID,
+  });
+
+  return { nonce, value: amount };
+}
+
+// Helper kept local to avoid re-importing fromHex if unused elsewhere.
+function fromHexShim(_: string): Uint8Array {
+  return new Uint8Array(32);
+}
+
+// Reads the AKD shielded color (token type) from the contract's ledger.
+export async function getTokenColor(
+  connectedApi: any,
+  coinPublicKey: string,
+  encryptionPublicKey: string,
+  contractAddress: string
+): Promise<string> {
+  const providers = await buildProviders(connectedApi, coinPublicKey, encryptionPublicKey, contractAddress);
+
+  const contractState = await providers.publicDataProvider.queryContractState(contractAddress);
+  if (contractState === null) {
+    throw new Error('Contract state not found');
+  }
+  const contractModule = await import('./contracts/token/contract/index.js');
+  const ledgerState = (contractModule as any).ledger(contractState.data);
+
+  return ledgerState.tokenColor;
+}
+
+// Unwraps a shielded AKD coin back to public balance.
+export async function unwrapTokens(
+  connectedApi: any,
+  coinPublicKey: string,
+  encryptionPublicKey: string,
+  contractAddress: string,
+  coin: { nonce: Uint8Array; color: string; value: bigint }
+): Promise<void> {
+  const { submitCallTxAsync } = await import('@midnight-ntwrk/midnight-js-contracts');
+
+  const providers = await buildProviders(connectedApi, coinPublicKey, encryptionPublicKey, contractAddress);
+
+  const existing = await providers.privateStateProvider.get(PRIVATE_STATE_ID);
+  if (existing === null) {
+    await providers.privateStateProvider.set(PRIVATE_STATE_ID, createInitialPrivateState());
+  }
+  await providers.privateStateProvider.setContractAddress(contractAddress);
+
+  const compiledContract = await loadCompiledContract(await deriveAccountKey(coinPublicKey));
+
+  await (submitCallTxAsync as any)(providers, {
+    compiledContract,
+    contractAddress,
+    circuitId: 'unwrap',
+    args: [coin],
+    privateStateId: PRIVATE_STATE_ID,
+  });
+}
