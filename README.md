@@ -5,10 +5,11 @@
 ![Network](https://img.shields.io/badge/network-Preview%20(Preprod%20pending)-blue)
 ![Chain](https://img.shields.io/badge/chain-Midnight-6f42c1)
 [![CI](https://github.com/dzakwannajmi/akad/actions/workflows/ci.yml/badge.svg)](https://github.com/dzakwannajmi/akad/actions/workflows/ci.yml)
+[![X](https://img.shields.io/badge/X-@akadtok-000000?logo=x&logoColor=white)](https://x.com/akadtok)
 
 Privacy-optional AMM on Midnight Network, built for Rise In × Midnight "New Moon to Full: Monthly Moonshots"
 
-[Live Demo](https://akad-dzakwannajmis-projects.vercel.app) · [See Full Proposal](docs/PROPOSAL.md) · [Troubleshooting & Build Notes](docs/TROUBLESHOOTING.md) · [Demo Video](https://youtu.be/UO1GlUcs83A?si=Dy7LKhTyzAB2-3Aj)
+[Live Demo](https://akad-dzakwannajmis-projects.vercel.app) · [Demo Video](https://youtu.be/UO1GlUcs83A?si=Dy7LKhTyzAB2-3Aj) · [@akadtok](https://x.com/akadtok) · [See Full Proposal](docs/PROPOSAL.md) · [Troubleshooting & Build Notes](docs/TROUBLESHOOTING.md)
 
 </div>
 
@@ -44,19 +45,29 @@ The idea behind the name: "Akad" is an agreement between two parties — every s
 
 | Contract | Address |
 |---|---|
-| Token (AKD) | `e62f476dc4194c4ea3641016f55f4eb7069ab2ead2903deb3fdfe4f5f9f63d04` |
+| Token (AKD) | `6705f984ad72e8b04e9ba18b2034428cc68f190f2939e212fe1a873fdb806060` |
 | Swap (AMM) | `c4831f264adc54f237823ad837733c8ccbc698218f64cf3f13e84c02b8b8b5bb` |
 
 [View swap contract on Night Scan](https://explorer.preview.midnight.network/contracts/stream/c4831f264adc54f237823ad837733c8ccbc698218f64cf3f13e84c02b8b8b5bb) · [View on Midnight Explorer](https://preview.midnightexplorer.com/contracts/0xc4831f264adc54f237823ad837733c8ccbc698218f64cf3f13e84c02b8b8b5bb)
 
+**Verified transactions** — the full privacy round trip, on-chain:
+
+| Action | Block | Transaction |
+|---|---|---|
+| `wrap()` | #409,865 | [`af388d76…442967b`](https://explorer.1am.xyz/tx/af388d76d9cb0a32052a4e83e46fc07f95acb62e7942fe2c5909af4ad442967b?network=preview) |
+| `unwrap()` | #409,875 | [`29d67485…c0532e7`](https://explorer.1am.xyz/tx/29d67485e6604f0292bfc4a513bc7142dfbe3349e27e56cf835f736a4c0532e7?network=preview) |
+
 ## Trying the App
 
-1. Install [Lace wallet](https://www.lace.io/midnight) and switch its network to **Preview**.
-2. Get test tokens from the [Preview faucet](https://faucet.preview.midnight.network/) (you'll need tNIGHT for gas, and generate tDUST from it in Lace).
+1. Install a Midnight wallet — **1AM** (recommended) or [Lace](https://www.lace.io/midnight) — and switch its network to **Preview**.
+2. Get test tokens from the [Preview faucet](https://faucet.preview.midnight.network/): tNIGHT for gas, and DUST generated from it.
 3. Open the [live demo](https://akad-dzakwannajmis-projects.vercel.app/) and click **Launch App**.
 4. Connect your wallet on the swap page.
 5. Enter an amount, review the quote, and swap.
-6. Try **Wrap to Private** below the swap card — enter an AKD amount, wrap it, then check Lace: your shielded AKD balance appears automatically, unlinked from your public balance.
+6. Try **Wrap to Private** below the swap card — wrap an AKD amount, then check your wallet: the shielded AKD appears as a native shielded token, unlinked from your public balance.
+7. Unwrap sends it back the other way, crediting your public balance again.
+
+> **Wallet note:** `unwrap()` is verified on 1AM. On Lace, the shielded-receive transaction hangs inside the wallet's own `balanceUnsealedTransaction` and never returns — use 1AM for the full round trip.
 
 ## Architecture
 
@@ -64,7 +75,7 @@ The idea behind the name: "Akad" is an agreement between two parties — every s
     frontend/     Next.js app (landing, swap UI, wallet integration) — see frontend/README.md
     docs/         Build notes and troubleshooting log
 
-**Stack:** Compact (smart contracts) · Next.js + TypeScript (frontend) · Lace wallet via DApp Connector API v4 · shadcn/ui · Vitest · GitHub Actions.
+**Stack:** Compact (smart contracts) · Next.js + TypeScript (frontend) · 1AM and Lace wallets via DApp Connector API v4 · shadcn/ui · Vitest · GitHub Actions.
 
 ## Design Notes
 
@@ -78,7 +89,7 @@ The part that isn't standard is the privacy layer sitting alongside it. Rather t
 
 ```mermaid
 flowchart LR
-  U["User<br/>(Lace wallet)"] -->|"connect()"| FE["Akad Frontend"]
+  U["User<br/>(Midnight wallet)"] -->|"connect()"| FE["Akad Frontend"]
   FE -->|"compute dy off-chain<br/>(bonding curve)"| FE
   FE -->|"swapAkdToNight(dx, dy, minOut)"| SC["Swap Contract"]
   SC -->|"reads / writes"| R["reserveAKD, reserveNight<br/>(public)"]
@@ -90,14 +101,25 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-  U["User<br/>(Lace wallet)"] -->|"wrap(amount, nonce)"| TC["Token Contract"]
+  U["User<br/>(Midnight wallet)"] -->|"wrap(amount, nonce)"| TC["Token Contract"]
   TC -->|"burn"| PB["Public balances map"]
   TC -->|"mintShieldedToken()"| ZS["Zswap<br/>(native shielded pool)"]
   ZS -->|"shielded coin, color = AKD"| U
-  U -->|"balance now shown as"| L["Lace: Shielded balance"]
+  U -->|"balance now shown as"| L["Wallet: shielded AKD"]
 ```
 
-`unwrap` (reversing the above) is implemented in the contract but not yet fully working end-to-end from the frontend — see [Roadmap](#roadmap) and [Troubleshooting](docs/TROUBLESHOOTING.md).
+### Unwrap — Private Shielded AKD back to Public AKD
+
+```mermaid
+flowchart LR
+  U["User<br/>(Midnight wallet)"] -->|"unwrap(coin)"| TC["Token Contract"]
+  U -->|"spends shielded coin"| ZS["Zswap<br/>(native shielded pool)"]
+  ZS -->|"receiveShielded()"| TC
+  TC -->|"credit"| PB["Public balances map"]
+  PB -->|"public balance restored"| U
+```
+
+Both directions are verified on Preview — see the transaction table under [Live Demo & Deployed Contracts](#live-demo--deployed-contracts). `unwrap` requires the wallet to spend a shielded coin it owns; 1AM handles this, while Lace hangs inside its own transaction balancing.
 
 ## Privacy Model
 
@@ -109,16 +131,17 @@ What an observer **can** learn from the public contract state:
 What an observer **cannot** learn:
 
 - Slippage tolerance (`minOut`) — used only in an on-chain assertion, never written to public state. A value proven correct without ever being shown.
-- **Ownership of any AKD balance moved into shielded form via `wrap`.** Once wrapped, that AKD is a native Zswap shielded coin — unlinkable from the public balance it came from, using Midnight's own audited shielded-pool cryptography rather than a hand-rolled scheme.
+- **Ownership of any AKD balance held in shielded form.** `wrap` burns a public balance and mints a native Zswap shielded coin to the caller; `unwrap` returns that coin to the contract and credits the public balance back. While shielded, the AKD is unlinkable from the public balance it came from, using Midnight's own shielded-pool cryptography rather than a hand-rolled scheme.
 
-The honest boundary: swap trade amounts remain public (structural to any public-reserve AMM); balance ownership is private once wrapped. Akad does not claim trade-amount privacy during a swap.
+Both directions assert value conservation in-circuit, so shielded supply stays 1:1 backed by locked public balance.
+
+The honest boundary: swap trade amounts remain public (structural to any public-reserve AMM); balance ownership is private while wrapped. Akad does not claim trade-amount privacy during a swap.
 
 ## Roadmap
 
-- [ ] Fix `unwrap` — requires building the shielded transfer via the wallet's `makeTransfer`/`makeIntent` API rather than relying on automatic transaction balancing (see [Troubleshooting](docs/TROUBLESHOOTING.md))
-- [ ] Private swap — spend a shielded AKD coin directly into a swap, rather than wrap → public swap → wrap
+- [ ] Private swap — spend a shielded AKD coin directly into a swap, rather than wrap to public swap to unwrap
 - [ ] Multi-token support — pools beyond AKD/tNIGHT
-- [ ] Multi-wallet support — beyond Lace (e.g. 1AM)
+- [ ] Full Lace support — `unwrap` currently requires 1AM; Lace's transaction balancing hangs on shielded receive
 - [ ] Multi-chain — beyond Midnight
 - [ ] Mobile-responsive UI
 - [ ] Multi-provider liquidity (LP tokens) — currently a single fixed liquidity seed from the builder
