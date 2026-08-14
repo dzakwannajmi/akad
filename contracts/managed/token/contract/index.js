@@ -168,21 +168,21 @@ export class Contract {
         if (!(typeof(contextOrig_0) === 'object' && contextOrig_0.currentQueryContext != undefined)) {
           __compactRuntime.typeError('transfer',
                                      'argument 1 (as invoked from Typescript)',
-                                     'token.compact line 26 char 1',
+                                     'token.compact line 30 char 1',
                                      'CircuitContext',
                                      contextOrig_0)
         }
         if (!(to_0.buffer instanceof ArrayBuffer && to_0.BYTES_PER_ELEMENT === 1 && to_0.length === 32)) {
           __compactRuntime.typeError('transfer',
                                      'argument 1 (argument 2 as invoked from Typescript)',
-                                     'token.compact line 26 char 1',
+                                     'token.compact line 30 char 1',
                                      'Bytes<32>',
                                      to_0)
         }
         if (!(typeof(amount_0) === 'bigint' && amount_0 >= 0n && amount_0 <= 340282366920938463463374607431768211455n)) {
           __compactRuntime.typeError('transfer',
                                      'argument 2 (argument 3 as invoked from Typescript)',
-                                     'token.compact line 26 char 1',
+                                     'token.compact line 30 char 1',
                                      'Uint<0..340282366920938463463374607431768211456>',
                                      amount_0)
         }
@@ -211,7 +211,7 @@ export class Contract {
         if (!(typeof(contextOrig_0) === 'object' && contextOrig_0.currentQueryContext != undefined)) {
           __compactRuntime.typeError('akdColor',
                                      'argument 1 (as invoked from Typescript)',
-                                     'token.compact line 43 char 1',
+                                     'token.compact line 47 char 1',
                                      'CircuitContext',
                                      contextOrig_0)
         }
@@ -236,21 +236,21 @@ export class Contract {
         if (!(typeof(contextOrig_0) === 'object' && contextOrig_0.currentQueryContext != undefined)) {
           __compactRuntime.typeError('wrap',
                                      'argument 1 (as invoked from Typescript)',
-                                     'token.compact line 50 char 1',
+                                     'token.compact line 54 char 1',
                                      'CircuitContext',
                                      contextOrig_0)
         }
         if (!(typeof(amount_0) === 'bigint' && amount_0 >= 0n && amount_0 <= 340282366920938463463374607431768211455n)) {
           __compactRuntime.typeError('wrap',
                                      'argument 1 (argument 2 as invoked from Typescript)',
-                                     'token.compact line 50 char 1',
+                                     'token.compact line 54 char 1',
                                      'Uint<0..340282366920938463463374607431768211456>',
                                      amount_0)
         }
         if (!(nonce_0.buffer instanceof ArrayBuffer && nonce_0.BYTES_PER_ELEMENT === 1 && nonce_0.length === 32)) {
           __compactRuntime.typeError('wrap',
                                      'argument 2 (argument 3 as invoked from Typescript)',
-                                     'token.compact line 50 char 1',
+                                     'token.compact line 54 char 1',
                                      'Bytes<32>',
                                      nonce_0)
         }
@@ -280,14 +280,14 @@ export class Contract {
         if (!(typeof(contextOrig_0) === 'object' && contextOrig_0.currentQueryContext != undefined)) {
           __compactRuntime.typeError('unwrap',
                                      'argument 1 (as invoked from Typescript)',
-                                     'token.compact line 70 char 1',
+                                     'token.compact line 74 char 1',
                                      'CircuitContext',
                                      contextOrig_0)
         }
         if (!(typeof(coin_0) === 'object' && coin_0.nonce.buffer instanceof ArrayBuffer && coin_0.nonce.BYTES_PER_ELEMENT === 1 && coin_0.nonce.length === 32 && coin_0.color.buffer instanceof ArrayBuffer && coin_0.color.BYTES_PER_ELEMENT === 1 && coin_0.color.length === 32 && typeof(coin_0.value) === 'bigint' && coin_0.value >= 0n && coin_0.value <= 340282366920938463463374607431768211455n)) {
           __compactRuntime.typeError('unwrap',
                                      'argument 1 (argument 2 as invoked from Typescript)',
-                                     'token.compact line 70 char 1',
+                                     'token.compact line 74 char 1',
                                      'struct ShieldedCoinInfo<nonce: Bytes<32>, color: Bytes<32>, value: Uint<0..340282366920938463463374607431768211456>>',
                                      coin_0)
         }
@@ -650,6 +650,30 @@ export class Contract {
                                                  value: __compactRuntime.StateValue.newCell({ value: _descriptor_1.toValue(tmp_1),
                                                                                               alignment: _descriptor_1.alignment() }).encode() } },
                                        { ins: { cached: false, n: 1 } }]);
+    const domainSep_0 = this._persistentHash_0(42n);
+    const color_0 = this._tokenType_0(domainSep_0,
+                                      _descriptor_3.fromValue(__compactRuntime.queryLedgerState(context,
+                                                                                                partialProofData,
+                                                                                                [
+                                                                                                 { dup: { n: 2 } },
+                                                                                                 { idx: { cached: true,
+                                                                                                          pushPath: false,
+                                                                                                          path: [
+                                                                                                                 { tag: 'value',
+                                                                                                                   value: { value: _descriptor_8.toValue(0n),
+                                                                                                                            alignment: _descriptor_8.alignment() } }] } },
+                                                                                                 { popeq: { cached: true,
+                                                                                                            result: undefined } }]).value));
+    __compactRuntime.queryLedgerState(context,
+                                      partialProofData,
+                                      [
+                                       { push: { storage: false,
+                                                 value: __compactRuntime.StateValue.newCell({ value: _descriptor_8.toValue(2n),
+                                                                                              alignment: _descriptor_8.alignment() }).encode() } },
+                                       { push: { storage: true,
+                                                 value: __compactRuntime.StateValue.newCell({ value: _descriptor_0.toValue(color_0),
+                                                                                              alignment: _descriptor_0.alignment() }).encode() } },
+                                       { ins: { cached: false, n: 1 } }]);
     return [];
   }
   _transfer_0(context, partialProofData, to_0, amount_0) {
@@ -715,7 +739,7 @@ export class Contract {
                                                                                                      result: undefined } }]).value);
     const newRecipientBalance_0 = ((t1) => {
                                     if (t1 > 340282366920938463463374607431768211455n) {
-                                      throw new __compactRuntime.CompactError('token.compact line 36 char 42: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 340282366920938463463374607431768211455');
+                                      throw new __compactRuntime.CompactError('token.compact line 40 char 42: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 340282366920938463463374607431768211455');
                                     }
                                     return t1;
                                   })(recipientBalance_0 + amount_0);
@@ -802,7 +826,7 @@ export class Contract {
     const domainSep_0 = this._persistentHash_0(42n);
     const value_0 = ((t1) => {
                       if (t1 > 18446744073709551615n) {
-                        throw new __compactRuntime.CompactError('token.compact line 62 char 36: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 18446744073709551615');
+                        throw new __compactRuntime.CompactError('token.compact line 66 char 36: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 18446744073709551615');
                       }
                       return t1;
                     })(amount_0);
@@ -840,7 +864,7 @@ export class Contract {
     const amount_0 = coin_0.value;
     const newBalance_0 = ((t1) => {
                            if (t1 > 340282366920938463463374607431768211455n) {
-                             throw new __compactRuntime.CompactError('token.compact line 76 char 33: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 340282366920938463463374607431768211455');
+                             throw new __compactRuntime.CompactError('token.compact line 80 char 33: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 340282366920938463463374607431768211455');
                            }
                            return t1;
                          })(balance_0 + amount_0);

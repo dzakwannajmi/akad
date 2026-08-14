@@ -20,6 +20,10 @@ export circuit init(): [] {
   // 1,000,000 AKD at 6 decimals = 1_000_000_000_000 base units
   balances.insert(owner, 1000000000000);
   totalSupply.write(1000000000000);
+
+  const domainSep: Bytes<32> = persistentHash<Uint<8>>(42);
+  const color = tokenType(domainSep, kernel.self());
+  tokenColor.write(disclose(color));
 }
 
 // Transfers AKD from the caller (identified via accountKey witness) to a recipient.
