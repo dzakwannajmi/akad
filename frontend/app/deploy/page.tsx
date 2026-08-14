@@ -1,6 +1,4 @@
 'use client';
-
-// English comments per code convention; explanations to the user stay in Indonesian.
 import { useState } from 'react';
 import { getCompatibleWallets, connectWallet } from '@/lib/wallet';
 import { deployTokenContract, initTokenContract, wrapTokens, unwrapTokens, getTokenColor } from '@/lib/token-api';
@@ -32,6 +30,7 @@ export default function DeployPage() {
   const [swapAddress, setSwapAddress] = useState<string | null>(null);
   const [swapStatus, setSwapStatus] = useState<string>('idle');
   const [liquidityStatus, setLiquidityStatus] = useState<string>('idle');
+  const [initStatus, setInitStatus] = useState<string>('idle');
   const [wrapStatus, setWrapStatus] = useState<string>('idle');
   const [wrappedCoin, setWrappedCoin] = useState<{ nonce: Uint8Array; value: bigint } | null>(null);
   const [unwrapStatus, setUnwrapStatus] = useState<string>('idle');
@@ -114,6 +113,31 @@ export default function DeployPage() {
   };
 
 
+  const handleInit = async () => {
+    const targetAddress = contractAddress || TOKEN_CONTRACT_ADDRESS;
+    if (!connectedApi || !addresses || !targetAddress) {
+      setError('No token contract address available');
+      return;
+    }
+    setInitStatus('initializing');
+    setError(null);
+    try {
+      await initTokenContract(
+        connectedApi,
+        addresses.shieldedCoinPublicKey,
+        addresses.shieldedEncryptionPublicKey,
+        targetAddress
+      );
+      setInitStatus('initialized');
+    } catch (err: any) {
+      console.error('[Init] Error:', err);
+      const detail = err?.cause?.cause?.message || err?.cause?.message || err?.message || String(err);
+      setError(detail);
+      setInitStatus('error');
+    }
+  };
+
+
   const handleTestWrap = async () => {
     const targetAddress = contractAddress || TOKEN_CONTRACT_ADDRESS;
     if (!connectedApi || !addresses || !targetAddress) {
@@ -156,15 +180,12 @@ export default function DeployPage() {
         addresses.shieldedEncryptionPublicKey,
         targetAddress
       );
-      // NEW hypothesis: nonce should be FRESH (for the new output coin being
-      // created), not reused from the original wrap mint.
-      const freshNonce = crypto.getRandomValues(new Uint8Array(32));
       await unwrapTokens(
         connectedApi,
         addresses.shieldedCoinPublicKey,
         addresses.shieldedEncryptionPublicKey,
         targetAddress,
-        { nonce: freshNonce, color, value: wrappedCoin.value }
+        { nonce: wrappedCoin.nonce, color, value: wrappedCoin.value }
       );
       setUnwrapStatus('unwrapped');
     } catch (err: any) {
@@ -264,6 +285,14 @@ export default function DeployPage() {
           Contract address: <code>{contractAddress}</code>
         </p>
       )}
+      <button
+        style={(!contractAddress && !TOKEN_CONTRACT_ADDRESS) || initStatus === 'initializing' ? disabledButtonStyle : buttonStyle}
+        onClick={handleInit}
+        disabled={(!contractAddress && !TOKEN_CONTRACT_ADDRESS) || initStatus === 'initializing'}
+      >
+        Init Token
+      </button>
+      <p style={{ marginTop: 16 }}>Init status: <strong>{initStatus}</strong></p>
       <button
         style={(!contractAddress && !TOKEN_CONTRACT_ADDRESS) || wrapStatus === 'wrapping' ? disabledButtonStyle : buttonStyle}
         onClick={handleTestWrap}

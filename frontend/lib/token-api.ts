@@ -24,20 +24,18 @@ function createWitnesses(accountKeyBytes: Uint8Array) {
   };
 }
 
-let _compiledContract: any = null;
 async function loadCompiledContract(accountKeyBytes: Uint8Array) {
-  if (_compiledContract) return _compiledContract;
-
+  // NOTE: previously cached as a module-level singleton, which caused a bug
+  // where witness accountKeyBytes from the FIRST call in a session got baked
+  // in permanently, ignoring the accountKeyBytes passed on later calls (e.g.
+  // after switching wallets). Always rebuild so witnesses stay correct.
   const { CompiledContract } = await import('@midnight-ntwrk/compact-js');
-  // Bundled via webpack (needs @midnight-ntwrk/compact-runtime resolved), NOT fetched over HTTP.
   const contractModule = await import('./contracts/token/contract/index.js');
 
   const cc = CompiledContract.make('token', contractModule.Contract);
   const withWitnesses = (CompiledContract as any).withWitnesses(createWitnesses(accountKeyBytes));
-  // keys/ and zkir/ ARE fetched over HTTP from public/contracts/token, via CONTRACT_PATH.
   const withAssets = (CompiledContract as any).withCompiledFileAssets(CONTRACT_PATH);
-  _compiledContract = withWitnesses(withAssets(cc));
-  return _compiledContract;
+  return withWitnesses(withAssets(cc));
 }
 
 // Step 1: deploy the token contract (ledger starts at defaults — totalSupply = 0).
@@ -94,6 +92,14 @@ export async function initTokenContract(
   const accountKeyBytes = await deriveAccountKey(coinPublicKey);
   const compiledContract = await loadCompiledContract(accountKeyBytes);
 
+  // The private state provider is in-memory only, so its contents are lost on
+  // page reload. Every circuit call must ensure the entry exists before
+  // submitting — mirrors the same guard in wrapTokens/unwrapTokens.
+  const existing = await providers.privateStateProvider.get(PRIVATE_STATE_ID);
+  if (!existing) {
+    await providers.privateStateProvider.set(PRIVATE_STATE_ID, createInitialPrivateState());
+  }
+
   await (submitCallTxAsync as any)(providers, {
     compiledContract,
     contractAddress,
@@ -138,10 +144,6 @@ export async function wrapTokens(
   return { nonce, value: amount };
 }
 
-// Helper kept local to avoid re-importing fromHex if unused elsewhere.
-function fromHexShim(_: string): Uint8Array {
-  return new Uint8Array(32);
-}
 
 // Reads the AKD shielded color (token type) from the contract's ledger.
 export async function getTokenColor(
@@ -149,7 +151,7 @@ export async function getTokenColor(
   coinPublicKey: string,
   encryptionPublicKey: string,
   contractAddress: string
-): Promise<string> {
+): Promise<Uint8Array> {
   const providers = await buildProviders(connectedApi, coinPublicKey, encryptionPublicKey, contractAddress);
 
   const contractState = await providers.publicDataProvider.queryContractState(contractAddress);
@@ -168,7 +170,7 @@ export async function unwrapTokens(
   coinPublicKey: string,
   encryptionPublicKey: string,
   contractAddress: string,
-  coin: { nonce: Uint8Array; color: string; value: bigint }
+  coin: { nonce: Uint8Array; color: Uint8Array; value: bigint }
 ): Promise<void> {
   const { submitCallTxAsync } = await import('@midnight-ntwrk/midnight-js-contracts');
 
