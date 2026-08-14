@@ -37,11 +37,71 @@ const config = await connectedApi.getConfiguration();
 
 So no local Docker proof server is needed (or used) for Akad's actual deploy/swap/wrap flow on Preview. The Docker proof server we set up early in development (see dev environment setup notes) was only used for initial local toolchain verification (compiling `counter.compact`), not for any of the deployed contract interactions.
 
-## Shielded coins (`wrap`)
+## Shielded coins (`wrap` and `unwrap`)
 
-`wrap()` (public AKD → native shielded coin via `mintShieldedToken`) works end-to-end and is confirmed live — Lace automatically displays the resulting shielded balance with no custom UI needed.
+Both directions work and are verified on Preview. `wrap` burns a public balance and mints a native Zswap shielded coin to the caller; `unwrap` spends that coin back into the contract via `receiveShielded` and credits the public balance.
 
-`unwrap()` (shielded coin → public AKD) is not yet functional. Diagnosis: `receiveShielded` requires a real `QualifiedShieldedCoinInfo` that the wallet tracks internally (nonce evolves at mint time, and includes a Merkle index only the wallet knows) — a client-side reconstructed coin object doesn't match it. The wallet's transaction-balancing call (`balanceUnsealedTransaction`) hangs indefinitely trying to reconcile it, confirmed via direct instrumentation (the call is made, never resolves or rejects). The fix likely requires using the wallet's `makeTransfer`/`makeIntent` API to build the shielded transfer explicitly, rather than relying on `submitCallTxAsync`'s automatic balancing. See [Roadmap](README.md#roadmap).
+Two things to know before touching this code:
+
+- The shielded token colour is derived as `tokenType(domainSep, kernel.self())`, so it is **contract-address specific**. Every redeployment produces a different colour, and coins wrapped against an older deployment cannot be unwrapped against a newer one.
+- `unwrap` is verified on 1AM. On Lace, the call hangs inside the wallet's own `balanceUnsealedTransaction` and never returns — Lace's `connectedApi` also lacks `getProvingProvider()`, which `dapp-connector-api@4.x` declares as required.
+
+## The unwrap investigation — a post-mortem
+
+`unwrap()` failed for roughly a month across two wallets and five contract deployments. The cause turned out to be trivial, and the reason it took so long is worth writing down.
+
+### The symptom, and how it changed
+
+The same underlying fault surfaced differently depending on the wallet and how far the transaction got:
+
+| Wallet | Symptom |
+|---|---|
+| Lace | Silent hang inside `balanceUnsealedTransaction` — no popup, no error, no timeout |
+| 1AM | `Balance failed: Insufficient funds`, sometimes preceded by a "Dust Sponsorship Failed" prompt |
+
+The Lace hang was the most misleading. Producing no error at all, it invited architectural explanations. In reality the wallet held no shielded coin matching what the circuit asked for, and rather than reporting that, it simply never returned.
+
+### Hypotheses that were wrong
+
+Each was investigated and ruled out. They are listed because they were reasonable, and because ruling them out consumed most of the time:
+
+- **Nonce evolution** — that `mintShieldedToken` derives a coin nonce different from the seed passed in, making the client-reconstructed coin unmatchable.
+- **A Lace API gap** — Lace genuinely lacks `getProvingProvider()`. Real, documented, and irrelevant to this bug.
+- **SDK version mismatch** — every installed package was checked against the official Preview support matrix. All matched exactly.
+- **Proof server incompatibility** — a `midnight:proof-versioned` vs `midnight:vec(option(u64))` error suggested 1AM's ProofStation ran an incompatible proof format.
+- **Wrong architecture** — that `unwrap` needed rebuilding on `makeTransfer`/`makeIntent` to bypass automatic transaction balancing. This file documented that as the path forward for weeks.
+
+### The actual cause
+
+Two independent faults, stacked:
+
+1. `tokenColor` was declared as a ledger field but never written by any circuit. `akdColor()` computed the value and returned it; nothing persisted it. Reading it back gave 32 zero bytes.
+2. The fix for (1) never reached the running application. Compiled artifacts under `build/` were copied into `frontend/` by hand once, and never again. Every subsequent deployment put a months-old contract build on chain while the source sat corrected in the working tree.
+
+The consequence: `unwrap` read `tokenColor` from the ledger, got zeros, and asked the wallet to spend a coin of colour `0x0000...0000`. No wallet held such a coin. `wrap` was unaffected because it computes the colour inline and never reads the ledger — which is why one direction worked perfectly while the other never did.
+
+### What actually found it
+
+Logging the values rather than reasoning about them:
+
+```ts
+console.log('[DEBUG] targetAddress:', targetAddress);
+console.log('[DEBUG] totalSupply:', ledgerState.totalSupply?.toString());
+console.log('[DEBUG] tokenColor raw:', ledgerState.tokenColor);
+```
+
+Three lines. The decisive output was `totalSupply: 1000000000000` alongside `tokenColor: [0, 0, 0, ...]` — a contradiction, because the current `init()` writes both. An `init()` that mints supply but leaves the colour unwritten could only be an older build of the circuit, which pointed at the artifacts rather than the wallet. Timestamps confirmed it: compiled output dated 6 August, frontend copy dated 22 July.
+
+### The fix
+
+`scripts/sync-contract-artifacts.sh` copies compiled output into every location that consumes it — the contract module under `frontend/lib/`, the ZK assets under `frontend/public/`, and `contracts/managed/`. Run it after every `compact compile`, before deploying.
+
+### What to take from this
+
+- **A hang is a missing error message, not a hint about architecture.** Lace's silence was read as evidence of deep incompatibility. It was a wallet failing to report that it could not find a coin.
+- **Verify what is running, not what is written.** The contract source was correct for weeks. Nothing checked that the deployed bytecode matched it.
+- **Log the value before theorising about the mechanism.** Every wrong hypothesis was about mechanism. The answer was visible in a single printed field.
+- **Any manual copy step in a build pipeline will eventually be skipped.** Script it the first time.
 
 ## CI
 
