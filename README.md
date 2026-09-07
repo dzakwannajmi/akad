@@ -45,17 +45,20 @@ The idea behind the name: "Akad" is an agreement between two parties — every s
 
 | Contract | Address |
 |---|---|
-| Token (AKD) | `6705f984ad72e8b04e9ba18b2034428cc68f190f2939e212fe1a873fdb806060` |
-| Swap (AMM) | `c4831f264adc54f237823ad837733c8ccbc698218f64cf3f13e84c02b8b8b5bb` |
+| Akad (token + AMM) | `90a0183fe6e04efcc716f410d476b9d94148e788d4839013960382a4f50add3c` |
 
-[View swap contract on Night Scan](https://explorer.preview.midnight.network/contracts/stream/c4831f264adc54f237823ad837733c8ccbc698218f64cf3f13e84c02b8b8b5bb) · [View on Midnight Explorer](https://preview.midnightexplorer.com/contracts/0xc4831f264adc54f237823ad837733c8ccbc698218f64cf3f13e84c02b8b8b5bb)
+[View on Night Scan](https://explorer.preview.midnight.network/contracts/stream/90a0183fe6e04efcc716f410d476b9d94148e788d4839013960382a4f50add3c)
 
-**Verified transactions** — the full privacy round trip, on-chain:
+Token and swap logic were originally two separate contracts; they were merged into one so swap circuits could move a trader's real AKD balance without relying on an unverified cross-contract authorization pattern. See [contracts/README.md](contracts/README.md) for why.
 
-| Action | Block | Transaction |
-|---|---|---|
-| `wrap()` | #409,865 | [`af388d76…442967b`](https://explorer.1am.xyz/tx/af388d76d9cb0a32052a4e83e46fc07f95acb62e7942fe2c5909af4ad442967b?network=preview) |
-| `unwrap()` | #409,875 | [`29d67485…c0532e7`](https://explorer.1am.xyz/tx/29d67485e6604f0292bfc4a513bc7142dfbe3349e27e56cf835f736a4c0532e7?network=preview) |
+**Verified transactions** on the merged contract above, on-chain:
+
+| Action | Transaction |
+|---|---|
+| `wrap()` | [`50befbb2…d797d6`](https://explorer.1am.xyz/tx/50befbb21182d5243d2290b4a79684061d74c17f19c679cfd6f84df50ad797d6?network=preview) |
+| `unwrap()` | [`ac3d5cf1…7f81d4e08`](https://explorer.1am.xyz/tx/ac3d5cf1983907d19eed9c98c37fded2e223dc9b68767f152ffd5467f81d4e08?network=preview) |
+| `swapAkdToNight()` | [`3b7259a8…dd7fdaa38`](https://explorer.1am.xyz/tx/3b7259a832c31a778826a6d42e5cfceab301cb46bf915b88d7d57bb989fdaa38?network=preview) |
+| `swapNightToAkd()` | [`9dddfb5d…835fb7643750`](https://explorer.1am.xyz/tx/9dddfb5d9921ebe364c2d0a0ec779f10107a06849299d69e3050835fb7643750?network=preview) |
 
 ## Trying the App
 
@@ -71,7 +74,7 @@ The idea behind the name: "Akad" is an agreement between two parties — every s
 
 ## Architecture
 
-    contracts/    Compact smart contracts (token, swap) — see contracts/README.md
+    contracts/    Compact smart contract (akad.compact: token + AMM), see contracts/README.md
     frontend/     Next.js app (landing, swap UI, wallet integration) — see frontend/README.md
     docs/         Build notes and troubleshooting log
 
@@ -83,6 +86,8 @@ Akad's swap mechanics use a standard constant-product model — public reserves,
 
 The part that isn't standard is the privacy layer sitting alongside it. Rather than treating privacy as a separate product, Akad treats it as a mode a user opts into for their own holdings — public AKD behaves exactly like a normal ERC20-style balance, and `wrap` converts it into a native Zswap shielded coin whenever a user wants that balance to stop being publicly linkable. The AMM itself stays fully public (reserves have to be, for price discovery to work at all); the privacy boundary is drawn around token *custody*, not around the trade mechanism. See [Privacy Model](#privacy-model) for exactly what that boundary does and doesn't cover.
 
+**Where the AMM's settlement currently stands:** the AKD leg of every swap and of the initial liquidity seed is a real balance transfer, moving AKD between the trader (or the builder, for `addLiquidity`) and the pool's own custody account inside the contract. The tNIGHT leg is not yet real: `reserveNight` updates correctly so quoted prices stay accurate, but no tNIGHT actually changes custody on either side of a swap yet. Wiring that up needs Compact's unshielded-token primitives (`sendUnshielded` / `receiveUnshielded`), which is tracked in the [Roadmap](#roadmap) rather than shipped.
+
 ## End-to-End Flows
 
 ### Public Swap
@@ -91,7 +96,7 @@ The part that isn't standard is the privacy layer sitting alongside it. Rather t
 flowchart LR
   U["User<br/>(Midnight wallet)"] -->|"connect()"| FE["Akad Frontend"]
   FE -->|"compute dy off-chain<br/>(bonding curve)"| FE
-  FE -->|"swapAkdToNight(dx, dy, minOut)"| SC["Swap Contract"]
+  FE -->|"swapAkdToNight(dx, dy, minOut)"| SC["Akad Contract"]
   SC -->|"reads / writes"| R["reserveAKD, reserveNight<br/>(public)"]
   SC -->|"tx confirmed"| FE
   FE -->|"updated pool + balance"| U
@@ -101,7 +106,7 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-  U["User<br/>(Midnight wallet)"] -->|"wrap(amount, nonce)"| TC["Token Contract"]
+  U["User<br/>(Midnight wallet)"] -->|"wrap(amount, nonce)"| TC["Akad Contract"]
   TC -->|"burn"| PB["Public balances map"]
   TC -->|"mintShieldedToken()"| ZS["Zswap<br/>(native shielded pool)"]
   ZS -->|"shielded coin, color = AKD"| U
@@ -112,7 +117,7 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-  U["User<br/>(Midnight wallet)"] -->|"unwrap(coin)"| TC["Token Contract"]
+  U["User<br/>(Midnight wallet)"] -->|"unwrap(coin)"| TC["Akad Contract"]
   U -->|"spends shielded coin"| ZS["Zswap<br/>(native shielded pool)"]
   ZS -->|"receiveShielded()"| TC
   TC -->|"credit"| PB["Public balances map"]
@@ -139,6 +144,7 @@ The honest boundary: swap trade amounts remain public (structural to any public-
 
 ## Roadmap
 
+- [ ] Real tNIGHT settlement: wire `sendUnshielded`/`receiveUnshielded` so the tNIGHT leg of a swap actually moves funds, not just AKD (currently simulated, see [Design Notes](#design-notes))
 - [ ] Private swap — spend a shielded AKD coin directly into a swap, rather than wrap to public swap to unwrap
 - [ ] Multi-token support — pools beyond AKD/tNIGHT
 - [ ] Full Lace support — `unwrap` currently requires 1AM; Lace's transaction balancing hangs on shielded receive
@@ -158,8 +164,7 @@ GitHub Actions runs typecheck, tests, and build on every push — see `.github/w
 Contracts:
 
     cd contracts
-    compact compile src/token.compact ../build/token
-    compact compile src/swap.compact ../build/swap
+    compact compile src/akad.compact ../build/akad
 
 Frontend:
 

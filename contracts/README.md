@@ -4,40 +4,41 @@ Compact smart contracts for Akad — a constant-product AMM with an optional shi
 
 ## Contents
 
-- `src/token.compact` — AKD fungible token: public balance ledger, plus `wrap`/`unwrap` circuits bridging to native Zswap shielded coins
-- `src/swap.compact` — constant-product AMM (`x * y = k`): liquidity seeding and bidirectional swap
+- `src/akad.compact`: the AKD token (public balance ledger, `wrap`/`unwrap` bridging to native Zswap shielded coins) and the constant-product AMM (`x * y = k`) in a single contract.
+
+This used to be two contracts (`token.compact` + `swap.compact`). They were merged because a swap circuit calling into a separate token contract to move a trader's balance has no verified-safe authorization pattern in Compact today, since a callee circuit that reads a witness disqualifies it from cross-contract calls, and neither Midnight's own docs nor OpenZeppelin's Midnight contracts show a safe way around that. Keeping the balance ledger and the swap logic in one contract sidesteps the problem instead of leaving a fund-drain surface in production code. See [docs/TROUBLESHOOTING.md](../docs/TROUBLESHOOTING.md) for the investigation.
 
 ## Circuits
 
-**token.compact**
+**akad.compact**
 | Circuit | Purpose |
 |---|---|
-| `init` | One-time setup: mints initial supply, records the token's shielded color |
+| `init` | One-time setup: mints initial supply to the deployer, records the token's shielded color |
 | `transfer` | Public balance transfer between accounts |
 | `wrap` | Converts public AKD into a native shielded coin (Zswap) |
 | `unwrap` | Converts a shielded AKD coin back to public balance |
 | `akdColor` | Returns AKD's collision-resistant shielded token type |
+| `addLiquidity` | Seeds the pool's initial reserves (one-time, builder-provided); moves the builder's real AKD balance into the pool's custody account |
+| `swapAkdToNight` | Swap AKD for tNIGHT. The AKD leg moves a real balance from the trader to the pool; the tNIGHT leg is simulated (see Design notes) |
+| `swapNightToAkd` | Swap tNIGHT for AKD. The AKD leg moves a real balance from the pool to the trader; the tNIGHT leg is simulated (see Design notes) |
 
-**swap.compact**
-| Circuit | Purpose |
-|---|---|
-| `addLiquidity` | Seeds the pool's initial reserves (one-time, builder-provided) |
-| `swapAkdToNight` | Swap AKD for tNIGHT |
-| `swapNightToAkd` | Swap tNIGHT for AKD |
+`callerKey()`, `poolKey()`, and `balanceOf()` are internal (non-exported) helpers, not callable directly. `callerKey()` returns the caller's real wallet identity via `ownPublicKey()`; `poolKey()` is the pool's fixed custody account in the same balance map; `balanceOf()` is a safe map read that returns 0 for an account with no prior entry instead of letting `Map.lookup()` fail at runtime.
 
 ## Building
 
-Requires the [Compact toolchain](https://docs.midnight.network/getting-started/installation).
+Requires the [Compact toolchain](https://docs.midnight.network/getting-started/installation), pinned to compiler 0.31.1 for compatibility with the Preview network (see [docs/TROUBLESHOOTING.md](../docs/TROUBLESHOOTING.md)).
 
 ```bash
-compact compile src/token.compact ../build/token
-compact compile src/swap.compact ../build/swap
+compact compile src/akad.compact ../build/akad
 ```
 
-Compiled output (`compiler/`, `contract/`, `keys/`, `zkir/`) is consumed by the frontend — see `frontend/README.md` for how artifacts are wired in.
+Compiled output (`compiler/`, `contract/`, `keys/`, `zkir/`) is consumed by the frontend. Run `../scripts/sync-contract-artifacts.sh akad` after every compile, before deploying from the frontend. See `frontend/README.md` for how artifacts are wired in.
 
 ## Design notes
 
 - Reserve pools are intentionally public (required for AMM price discovery on any chain). See the root [README's Privacy Model section](../README.md#privacy-model) for the exact public/private boundary.
+- The AKD leg of every swap and of `addLiquidity` is a real balance transfer: AKD moves between the caller's account and `poolKey()`'s custody account in the same `balances` map, the same way `transfer` moves it between two regular accounts. The tNIGHT leg is not yet real: `reserveNight` updates correctly for pricing, but no tNIGHT changes custody on either side of a swap. Wiring real tNIGHT settlement needs Compact's unshielded-token primitives (`sendUnshielded` / `receiveUnshielded`), tracked as a roadmap item in the root README.
+- Caller identity is bound to `ownPublicKey()` rather than a self-declared witness. An earlier version of this contract let the caller supply their own account identifier with no on-chain verification, which meant any client could claim to be any account and drain its balance via `transfer`.
 - `wrap`/`unwrap` bridge public AKD to Midnight's native Zswap shielded pool via `mintShieldedToken`, rather than a hand-rolled commitment scheme — this keeps the security-critical cryptography inside Midnight's audited protocol code.
+- The constant-product invariant check in both swap circuits casts reserves down to `Uint<64>` before multiplying, so both reserves are capped at 4,000,000,000 base units each to stay under `Uint<64>::MAX` with room for a trade on top.
 - See [docs/TROUBLESHOOTING.md](../docs/TROUBLESHOOTING.md) for Compact language quirks encountered while building this.
