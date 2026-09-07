@@ -1,0 +1,244 @@
+pragma language_version >= 0.23.0;
+
+import CompactStandardLibrary;
+
+// Akad: privacy-optional constant-product AMM (x * y = k) for AKD <-> tNIGHT
+// on Midnight. This single contract replaces the earlier two-contract split
+// (token.compact + swap.compact): swap circuits now move real AKD balances
+// directly, which requires them to share this contract's own balances map
+// rather than call into a separately deployed contract. Compact has no
+// verified-safe pattern for authorizing a cross-contract balance debit
+// (see docs/TROUBLESHOOTING.md for the investigation), so merging into one
+// contract was the safer path.
+//
+// Caller identity is bound to the wallet's real Zswap public key
+// (ownPublicKey()) rather than a self-declared witness, closing a spoofing
+// gap present in the previous token.compact, where any client could supply
+// an arbitrary accountKey with no on-chain verification.
+//
+// tNIGHT remains simulated on both swap legs for now: reserveNight tracks
+// the AMM's quoted price correctly, but no real tNIGHT changes custody yet.
+// Wiring real tNIGHT settlement needs Compact's unshielded-token primitives
+// (sendUnshielded / receiveUnshielded), which are not yet compile-verified
+// against this toolchain. See README/FAQ for the current disclosure.
+
+// AKD balance ledger: maps an account identifier to its public AKD balance.
+export ledger balances: Map<Bytes<32>, Uint<128>>;
+export ledger totalSupply: Uint<128>;
+export ledger tokenColor: Bytes<32>;
+
+// AMM reserves (constant-product pool, AKD <-> tNIGHT).
+export ledger reserveAKD: Uint<128>;
+export ledger reserveNight: Uint<128>;
+
+// Returns the real, wallet-bound identity of whoever is calling this
+// transaction right now. Replaces the old self-declared accountKey()
+// witness, which any client could set to an arbitrary value with no
+// on-chain verification.
+circuit callerKey(): Bytes<32> {
+  return disclose(ownPublicKey().bytes);
+}
+
+// Fixed account identifier the pool itself uses to custody AKD it holds as
+// swap/liquidity reserves. Derived the same way tokenColor is (a
+// persistentHash of a small domain-separation constant), so it cannot
+// collide with any real ownPublicKey()-derived account key.
+circuit poolKey(): Bytes<32> {
+  return persistentHash<Uint<8>>(7);
+}
+
+// Safe balance read. `balances` only gets a map entry for an account once
+// that account has been credited at least once (init, transfer, unwrap, or
+// a swap). Calling Map.lookup() on a key with no entry yet fails at
+// runtime ("expected a cell, received null") instead of returning a
+// default, so every balance read in this contract goes through this
+// helper rather than calling balances.lookup() directly. Same pattern
+// OpenZeppelin's own FungibleToken.compact uses for balanceOf().
+circuit balanceOf(account: Bytes<32>): Uint<128> {
+  if (!balances.member(account)) {
+    return 0;
+  }
+  return balances.lookup(account);
+}
+
+// Mints the initial supply to the deployer. Call this once, right after deployment.
+export circuit init(): [] {
+  assert(totalSupply.read() == 0, "already initialized");
+
+  const owner = callerKey();
+
+  // 1,000,000 AKD at 6 decimals = 1_000_000_000_000 base units
+  balances.insert(owner, 1000000000000);
+  totalSupply.write(1000000000000);
+
+  const domainSep: Bytes<32> = persistentHash<Uint<8>>(42);
+  const color = tokenType(domainSep, kernel.self());
+  tokenColor.write(disclose(color));
+}
+
+// Transfers AKD from the caller to a recipient.
+export circuit transfer(to: Bytes<32>, amount: Uint<128>): [] {
+  const sender = callerKey();
+  const senderBalance = balanceOf(sender);
+
+  assert(senderBalance >= amount, "insufficient balance");
+
+  const newSenderBalance: Uint<128> = (senderBalance - amount) as Uint<128>;
+  balances.insert(sender, disclose(newSenderBalance));
+
+  const recipientBalance = balanceOf(disclose(to));
+  const newRecipientBalance: Uint<128> = (recipientBalance + amount) as Uint<128>;
+  balances.insert(disclose(to), disclose(newRecipientBalance));
+}
+
+// AKD domain separator — used to derive a collision-resistant shielded
+// token type ("color") for this contract, so our shielded AKD cannot be
+// confused with any other contract's shielded token.
+export circuit akdColor(): Bytes<32> {
+  const domainSep: Bytes<32> = persistentHash<Uint<8>>(42);
+  return tokenType(domainSep, kernel.self());
+}
+
+// Wrap: lock public AKD balance, mint the same amount as a native shielded
+// coin sent to the caller. 1:1 backed, single conservation invariant.
+export circuit wrap(amount: Uint<128>, nonce: Bytes<32>): [] {
+  const caller = callerKey();
+  const balance = balanceOf(caller);
+
+  assert(balance >= amount, "insufficient balance to wrap");
+  assert(amount > 0, "amount must be positive");
+  assert(amount <= 18446744073709551615, "amount exceeds shielded mint bound (Uint<64>)");
+
+  const newBalance: Uint<128> = (balance - amount) as Uint<128>;
+  balances.insert(caller, disclose(newBalance));
+
+  const domainSep: Bytes<32> = persistentHash<Uint<8>>(42);
+  const value: Uint<64> = disclose(amount as Uint<64>);
+  const recipient = left<ZswapCoinPublicKey, ContractAddress>(ownPublicKey());
+
+  const coin = mintShieldedToken(domainSep, value, disclose(nonce), recipient);
+}
+
+// Unwrap: receive a shielded AKD coin back into the contract, credit the
+// same amount to the caller's public balance. 1:1 backed, same invariant.
+export circuit unwrap(coin: ShieldedCoinInfo): [] {
+  receiveShielded(disclose(coin));
+
+  const caller = callerKey();
+  const balance = balanceOf(caller);
+  const amount: Uint<128> = coin.value;
+  const newBalance: Uint<128> = (balance + amount) as Uint<128>;
+
+  balances.insert(caller, disclose(newBalance));
+}
+
+// Seeds the pool's initial liquidity. Can only be called once (single fixed
+// liquidity from the builder, no LP tokens, keeps attack surface minimal
+// for this scope; see README roadmap for future multi-provider support).
+// Moves the builder's real AKD balance into the pool's own custody account.
+export circuit addLiquidity(amountAKD: Uint<128>, amountNight: Uint<128>): [] {
+  const x = reserveAKD.read();
+  const y = reserveNight.read();
+
+  assert(x == 0 && y == 0, "liquidity already seeded");
+  assert(amountAKD > 0 && amountNight > 0, "amounts must be positive");
+  // Bound tightened from the previous 1e18 to 4_000_000_000: sqrt(Uint<64>::MAX)
+  // is ~4_294_967_295, so the invariant check in the swap circuits below can
+  // overflow past that. 4e9 keeps (x+dx)*(y-dy) safely under Uint<64>::MAX
+  // even at the ceiling on both sides.
+  assert(amountAKD <= 4000000000, "amountAKD exceeds safe bound");
+  assert(amountNight <= 4000000000, "amountNight exceeds safe bound");
+
+  const builder = callerKey();
+  const builderBalance = balanceOf(builder);
+  assert(builderBalance >= amountAKD, "insufficient AKD balance to seed pool");
+
+  const newBuilderBalance: Uint<128> = (builderBalance - amountAKD) as Uint<128>;
+  balances.insert(builder, disclose(newBuilderBalance));
+
+  const pool = poolKey();
+  const poolBalance = balanceOf(pool);
+  const newPoolBalance: Uint<128> = (poolBalance + amountAKD) as Uint<128>;
+  balances.insert(pool, disclose(newPoolBalance));
+
+  reserveAKD.write(disclose(amountAKD));
+  reserveNight.write(disclose(amountNight));
+}
+
+// Swap AKD -> tNIGHT. The AKD leg is real: dx moves from the trader's
+// balance into the pool's custody. The tNIGHT leg is still simulated (see
+// file header) — reserveNight updates for correct pricing, but no real
+// tNIGHT is paid out to the trader yet.
+export circuit swapAkdToNight(dx: Uint<128>, dy: Uint<128>, minOut: Uint<128>): [] {
+  const x = reserveAKD.read();
+  const y = reserveNight.read();
+
+  assert(x > 0 && y > 0, "pool not initialized");
+  assert(dx > 0, "amount must be positive");
+  assert(dy > 0, "output rounds to zero");
+  assert(dy >= minOut, "slippage: insufficient output");
+  assert(dy < y, "cannot drain full reserve");
+  assert(x + dx <= 4000000000, "reserveAKD exceeds safe bound");
+  assert(y <= 4000000000, "reserveNight exceeds safe bound");
+
+  const xBig: Uint<64> = x as Uint<64>;
+  const dxBig: Uint<64> = dx as Uint<64>;
+  const yBig: Uint<64> = y as Uint<64>;
+  const dyBig: Uint<64> = dy as Uint<64>;
+
+  assert((xBig + dxBig) * (yBig - dyBig) >= xBig * yBig, "invalid swap: violates constant product invariant");
+
+  const trader = callerKey();
+  const traderBalance = balanceOf(trader);
+  assert(traderBalance >= dx, "insufficient AKD balance for swap");
+
+  const newTraderBalance: Uint<128> = (traderBalance - dx) as Uint<128>;
+  balances.insert(trader, disclose(newTraderBalance));
+
+  const pool = poolKey();
+  const poolBalance = balanceOf(pool);
+  const newPoolBalance: Uint<128> = (poolBalance + dx) as Uint<128>;
+  balances.insert(pool, disclose(newPoolBalance));
+
+  reserveAKD.write(disclose((x + dx) as Uint<128>));
+  reserveNight.write(disclose((y - dy) as Uint<128>));
+}
+
+// Swap tNIGHT -> AKD. The AKD leg is real: dy moves from the pool's
+// custody to the trader's balance. The tNIGHT leg is still simulated (see
+// file header) — reserveNight updates for correct pricing, but no real
+// tNIGHT is collected from the trader yet.
+export circuit swapNightToAkd(dx: Uint<128>, dy: Uint<128>, minOut: Uint<128>): [] {
+  const x = reserveNight.read();
+  const y = reserveAKD.read();
+
+  assert(x > 0 && y > 0, "pool not initialized");
+  assert(dx > 0, "amount must be positive");
+  assert(dy > 0, "output rounds to zero");
+  assert(dy >= minOut, "slippage: insufficient output");
+  assert(dy < y, "cannot drain full reserve");
+  assert(x + dx <= 4000000000, "reserveNight exceeds safe bound");
+  assert(y <= 4000000000, "reserveAKD exceeds safe bound");
+
+  const xBig: Uint<64> = x as Uint<64>;
+  const dxBig: Uint<64> = dx as Uint<64>;
+  const yBig: Uint<64> = y as Uint<64>;
+  const dyBig: Uint<64> = dy as Uint<64>;
+
+  assert((xBig + dxBig) * (yBig - dyBig) >= xBig * yBig, "invalid swap: violates constant product invariant");
+
+  const pool = poolKey();
+  const poolBalance = balanceOf(pool);
+  assert(poolBalance >= dy, "pool has insufficient AKD custody for this swap");
+
+  const newPoolBalance: Uint<128> = (poolBalance - dy) as Uint<128>;
+  balances.insert(pool, disclose(newPoolBalance));
+
+  const trader = callerKey();
+  const traderBalance = balanceOf(trader);
+  const newTraderBalance: Uint<128> = (traderBalance + dy) as Uint<128>;
+  balances.insert(trader, disclose(newTraderBalance));
+
+  reserveNight.write(disclose((x + dx) as Uint<128>));
+  reserveAKD.write(disclose((y - dy) as Uint<128>));
+}

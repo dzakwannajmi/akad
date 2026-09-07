@@ -3,14 +3,10 @@
 import Link from 'next/link';
 import { useState, useEffect, useCallback } from 'react';
 import { getCompatibleWallets, connectWallet } from '@/lib/wallet';
-import { getReserves, executeSwap } from '@/lib/swap-api';
+import { getReserves, executeSwap, wrapTokens, unwrapTokens, getTokenColor } from '@/lib/akad-api';
 import { computeSwapOutput, applySlippage } from '@/lib/bonding-curve';
-import { wrapTokens, unwrapTokens, getTokenColor } from '@/lib/token-api';
-import { TOKEN_CONTRACT_ADDRESS } from '@/lib/wallet-constants';
+import { CONTRACT_ADDRESS } from '@/lib/wallet-constants';
 import { Icon } from '@iconify/react';
-
-// Hardcoded for now — the addresses of our two deployed contracts on Preview.
-import { SWAP_CONTRACT_ADDRESS } from '@/lib/wallet-constants';
 
 type Direction = 'AkdToNight' | 'NightToAkd';
 
@@ -58,7 +54,7 @@ export default function SwapPage() {
         connectedApi,
         addresses.shieldedCoinPublicKey,
         addresses.shieldedEncryptionPublicKey,
-        SWAP_CONTRACT_ADDRESS
+        CONTRACT_ADDRESS
       );
       setReserves(r);
     } catch (err) {
@@ -97,7 +93,7 @@ export default function SwapPage() {
         connectedApi,
         addresses.shieldedCoinPublicKey,
         addresses.shieldedEncryptionPublicKey,
-        TOKEN_CONTRACT_ADDRESS,
+        CONTRACT_ADDRESS,
         BigInt(wrapAmount)
       );
       setWrappedCoin(coin);
@@ -121,13 +117,13 @@ export default function SwapPage() {
         connectedApi,
         addresses.shieldedCoinPublicKey,
         addresses.shieldedEncryptionPublicKey,
-        TOKEN_CONTRACT_ADDRESS
+        CONTRACT_ADDRESS
       );
       await unwrapTokens(
         connectedApi,
         addresses.shieldedCoinPublicKey,
         addresses.shieldedEncryptionPublicKey,
-        TOKEN_CONTRACT_ADDRESS,
+        CONTRACT_ADDRESS,
         { nonce: wrappedCoin.nonce, color, value: wrappedCoin.value }
       );
       setWrappedCoin(null);
@@ -151,7 +147,7 @@ export default function SwapPage() {
         connectedApi,
         addresses.shieldedCoinPublicKey,
         addresses.shieldedEncryptionPublicKey,
-        SWAP_CONTRACT_ADDRESS,
+        CONTRACT_ADDRESS,
         direction,
         dx,
         amountOut,
@@ -473,7 +469,7 @@ export default function SwapPage() {
                 <span className="text-sm text-white/45">This session</span>
                 {/* Tambahkan tag pembuka <a ... > dan penutup </a> */}
                 <a
-                  href={`https://explorer.preview.midnight.network/contracts/stream/${SWAP_CONTRACT_ADDRESS}`}
+                  href={`https://explorer.preview.midnight.network/contracts/stream/${CONTRACT_ADDRESS}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-1.5 font-mono text-xs text-white/40 transition-colors hover:text-white"

@@ -1,9 +1,16 @@
 'use client';
 import { useState } from 'react';
 import { getCompatibleWallets, connectWallet } from '@/lib/wallet';
-import { deployTokenContract, initTokenContract, wrapTokens, unwrapTokens, getTokenColor } from '@/lib/token-api';
-import { TOKEN_CONTRACT_ADDRESS } from '@/lib/wallet-constants';
-import { deploySwapContract, addLiquidity } from '@/lib/swap-api';
+import {
+  deployAkadContract,
+  waitForContractState,
+  initAkadContract,
+  addLiquidity,
+  wrapTokens,
+  unwrapTokens,
+  getTokenColor,
+} from '@/lib/akad-api';
+import { CONTRACT_ADDRESS } from '@/lib/wallet-constants';
 
 const buttonStyle: React.CSSProperties = {
   fontFamily: 'var(--font-geist-mono), monospace',
@@ -27,15 +34,15 @@ export default function DeployPage() {
   const [status, setStatus] = useState<string>('idle');
   const [error, setError] = useState<string | null>(null);
   const [contractAddress, setContractAddress] = useState<string | null>(null);
-  const [swapAddress, setSwapAddress] = useState<string | null>(null);
-  const [swapStatus, setSwapStatus] = useState<string>('idle');
-  const [liquidityStatus, setLiquidityStatus] = useState<string>('idle');
   const [initStatus, setInitStatus] = useState<string>('idle');
+  const [liquidityStatus, setLiquidityStatus] = useState<string>('idle');
   const [wrapStatus, setWrapStatus] = useState<string>('idle');
   const [wrappedCoin, setWrappedCoin] = useState<{ nonce: Uint8Array; value: bigint } | null>(null);
   const [unwrapStatus, setUnwrapStatus] = useState<string>('idle');
   const [connectedApi, setConnectedApi] = useState<any>(null);
   const [addresses, setAddresses] = useState<any>(null);
+
+  const targetAddress = contractAddress || CONTRACT_ADDRESS;
 
   const handleConnect = async () => {
     setError(null);
@@ -54,48 +61,78 @@ export default function DeployPage() {
     }
   };
 
-  const handleDeploySwap = async () => {
+  // Deploys the merged Akad contract, then immediately calls init() to mint
+  // the initial supply to the deployer — addLiquidity() below needs that
+  // balance to actually be there before it can seed the pool.
+  const handleDeploy = async () => {
     if (!connectedApi || !addresses) {
       setError('Connect wallet first');
       return;
     }
-    setSwapStatus('deploying');
+    setStatus('deploying');
     setError(null);
     try {
-      const addr = await deploySwapContract(
+      const addr = await deployAkadContract(
         connectedApi,
         addresses.shieldedCoinPublicKey,
         addresses.shieldedEncryptionPublicKey
       );
-      setSwapAddress(addr);
-      setSwapStatus('deployed');
+      setContractAddress(addr);
+      setStatus('deployed');
+
+      // Deploying then immediately calling init() can race the indexer on
+      // Preview — wait until the indexer actually has state at this
+      // address before submitting the next transaction.
+      setStatus('waiting for indexer');
+      await waitForContractState(
+        connectedApi,
+        addresses.shieldedCoinPublicKey,
+        addresses.shieldedEncryptionPublicKey,
+        addr
+      );
+
+      setInitStatus('initializing');
+      setStatus('initializing');
+      await initAkadContract(
+        connectedApi,
+        addresses.shieldedCoinPublicKey,
+        addresses.shieldedEncryptionPublicKey,
+        addr
+      );
+      setInitStatus('initialized');
+      setStatus('initialized');
     } catch (err: any) {
-      console.error('[Deploy Swap] Error:', err);
+      console.error('[Deploy] Error:', err);
+      console.error('[Deploy] Cause:', err?.cause);
+      console.error('[Deploy] Cause.cause:', err?.cause?.cause);
       const detail =
         err?.cause?.cause?.message ||
         err?.cause?.message ||
         err?.message ||
         JSON.stringify(err);
       setError(detail || String(err));
-      setSwapStatus('error');
+      setStatus('error');
     }
   };
 
-
+  // Seeds the pool. This now moves real AKD out of the deployer's own
+  // balance (from init()'s mint) into the pool's on-chain custody — the
+  // deployer needs at least this much AKD, so run this after init().
   const handleSeedLiquidity = async () => {
-    if (!connectedApi || !addresses || !swapAddress) {
-      setError('Deploy the swap contract first');
+    if (!connectedApi || !addresses || !targetAddress) {
+      setError('Deploy and init the contract first');
       return;
     }
     setLiquidityStatus('seeding');
     setError(null);
     try {
       // Demo seed amounts — arbitrary starting ratio, builder-chosen (see README).
+      // Kept well under the 4_000_000_000 safe bound in the contract.
       await addLiquidity(
         connectedApi,
         addresses.shieldedCoinPublicKey,
         addresses.shieldedEncryptionPublicKey,
-        swapAddress,
+        targetAddress,
         1000n,
         1000n
       );
@@ -112,36 +149,9 @@ export default function DeployPage() {
     }
   };
 
-
-  const handleInit = async () => {
-    const targetAddress = contractAddress || TOKEN_CONTRACT_ADDRESS;
-    if (!connectedApi || !addresses || !targetAddress) {
-      setError('No token contract address available');
-      return;
-    }
-    setInitStatus('initializing');
-    setError(null);
-    try {
-      await initTokenContract(
-        connectedApi,
-        addresses.shieldedCoinPublicKey,
-        addresses.shieldedEncryptionPublicKey,
-        targetAddress
-      );
-      setInitStatus('initialized');
-    } catch (err: any) {
-      console.error('[Init] Error:', err);
-      const detail = err?.cause?.cause?.message || err?.cause?.message || err?.message || String(err);
-      setError(detail);
-      setInitStatus('error');
-    }
-  };
-
-
   const handleTestWrap = async () => {
-    const targetAddress = contractAddress || TOKEN_CONTRACT_ADDRESS;
     if (!connectedApi || !addresses || !targetAddress) {
-      setError('No token contract address available');
+      setError('No contract address available');
       return;
     }
     setWrapStatus('wrapping');
@@ -164,9 +174,7 @@ export default function DeployPage() {
     }
   };
 
-
   const handleTestUnwrap = async () => {
-    const targetAddress = contractAddress || TOKEN_CONTRACT_ADDRESS;
     if (!connectedApi || !addresses || !targetAddress || !wrappedCoin) {
       setError('Wrap something first');
       return;
@@ -196,47 +204,10 @@ export default function DeployPage() {
     }
   };
 
-  const handleDeploy = async () => {
-    if (!connectedApi || !addresses) {
-      setError('Connect wallet first');
-      return;
-    }
-    setStatus('deploying');
-    setError(null);
-    try {
-      const addr = await deployTokenContract(
-        connectedApi,
-        addresses.shieldedCoinPublicKey,
-        addresses.shieldedEncryptionPublicKey
-      );
-      setContractAddress(addr);
-      setStatus('deployed');
-
-      await initTokenContract(
-        connectedApi,
-        addresses.shieldedCoinPublicKey,
-        addresses.shieldedEncryptionPublicKey,
-        addr
-      );
-      setStatus('initialized');
-    } catch (err: any) {
-      console.error('[Deploy] Error:', err);
-      console.error('[Deploy] Cause:', err?.cause);
-      console.error('[Deploy] Cause.cause:', err?.cause?.cause);
-      const detail =
-        err?.cause?.cause?.message ||
-        err?.cause?.message ||
-        err?.message ||
-        JSON.stringify(err);
-      setError(detail || String(err));
-      setStatus('error');
-    }
-  };
-
   return (
     <div style={{ padding: 32, fontFamily: 'var(--font-inter), sans-serif', color: '#0e0f0c', background: '#ffffff', minHeight: '100vh' }}>
       <h1 style={{ fontFamily: 'var(--font-geist-mono), monospace', marginBottom: 8 }}>
-        Akad — Token Deploy (dev)
+        Akad — Deploy (dev)
       </h1>
       <p style={{ marginBottom: 16 }}>Status: <strong>{status}</strong></p>
       {error && <p style={{ color: '#c0392b', marginBottom: 16 }}>Error: {error}</p>}
@@ -250,30 +221,9 @@ export default function DeployPage() {
           onClick={handleDeploy}
           disabled={!connectedApi || status === 'deploying'}
         >
-          Deploy Token Contract
-        </button>
-        <button
-          style={!connectedApi || swapStatus === 'deploying' ? disabledButtonStyle : buttonStyle}
-          onClick={handleDeploySwap}
-          disabled={!connectedApi || swapStatus === 'deploying'}
-        >
-          Deploy Swap Contract
+          Deploy + Init Akad Contract
         </button>
       </div>
-      <p style={{ marginBottom: 16 }}>Swap status: <strong>{swapStatus}</strong></p>
-      {swapAddress && (
-        <p style={{ marginBottom: 16 }}>
-          Swap contract address: <code>{swapAddress}</code>
-        </p>
-      )}
-      <button
-        style={!swapAddress || liquidityStatus === 'seeding' ? disabledButtonStyle : buttonStyle}
-        onClick={handleSeedLiquidity}
-        disabled={!swapAddress || liquidityStatus === 'seeding'}
-      >
-        Seed Liquidity (1000/1000)
-      </button>
-      <p style={{ marginTop: 16, marginBottom: 16 }}>Liquidity status: <strong>{liquidityStatus}</strong></p>
 
       {addresses && (
         <pre style={{ background: '#f4f4f4', padding: 16, fontSize: 12, overflow: 'auto' }}>
@@ -285,18 +235,21 @@ export default function DeployPage() {
           Contract address: <code>{contractAddress}</code>
         </p>
       )}
-      <button
-        style={(!contractAddress && !TOKEN_CONTRACT_ADDRESS) || initStatus === 'initializing' ? disabledButtonStyle : buttonStyle}
-        onClick={handleInit}
-        disabled={(!contractAddress && !TOKEN_CONTRACT_ADDRESS) || initStatus === 'initializing'}
-      >
-        Init Token
-      </button>
       <p style={{ marginTop: 16 }}>Init status: <strong>{initStatus}</strong></p>
+
       <button
-        style={(!contractAddress && !TOKEN_CONTRACT_ADDRESS) || wrapStatus === 'wrapping' ? disabledButtonStyle : buttonStyle}
+        style={!targetAddress || initStatus !== 'initialized' || liquidityStatus === 'seeding' ? disabledButtonStyle : buttonStyle}
+        onClick={handleSeedLiquidity}
+        disabled={!targetAddress || initStatus !== 'initialized' || liquidityStatus === 'seeding'}
+      >
+        Seed Liquidity (1000/1000)
+      </button>
+      <p style={{ marginTop: 16, marginBottom: 16 }}>Liquidity status: <strong>{liquidityStatus}</strong></p>
+
+      <button
+        style={!targetAddress || wrapStatus === 'wrapping' ? disabledButtonStyle : buttonStyle}
         onClick={handleTestWrap}
-        disabled={(!contractAddress && !TOKEN_CONTRACT_ADDRESS) || wrapStatus === 'wrapping'}
+        disabled={!targetAddress || wrapStatus === 'wrapping'}
       >
         Test Wrap (10 AKD)
       </button>
