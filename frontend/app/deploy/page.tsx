@@ -9,7 +9,11 @@ import {
   wrapTokens,
   unwrapTokens,
   getTokenColor,
+  getFaucetAddress,
+  transferTokens,
+  getFaucetBalance,
 } from '@/lib/akad-api';
+import { recordActivity } from '@/lib/activity-api';
 import { CONTRACT_ADDRESS } from '@/lib/wallet-constants';
 
 const buttonStyle: React.CSSProperties = {
@@ -41,6 +45,8 @@ export default function DeployPage() {
   const [unwrapStatus, setUnwrapStatus] = useState<string>('idle');
   const [connectedApi, setConnectedApi] = useState<any>(null);
   const [addresses, setAddresses] = useState<any>(null);
+  const [faucetStatus, setFaucetStatus] = useState<string>('idle');
+  const [faucetBalance, setFaucetBalance] = useState<bigint | null>(null);
 
   const targetAddress = contractAddress || CONTRACT_ADDRESS;
 
@@ -128,7 +134,7 @@ export default function DeployPage() {
     try {
       // Demo seed amounts — arbitrary starting ratio, builder-chosen (see README).
       // Kept well under the 4_000_000_000 safe bound in the contract.
-      await addLiquidity(
+      const { txId } = await addLiquidity(
         connectedApi,
         addresses.shieldedCoinPublicKey,
         addresses.shieldedEncryptionPublicKey,
@@ -136,6 +142,15 @@ export default function DeployPage() {
         1000n,
         1000n
       );
+      recordActivity({
+        txId,
+        txType: 'addLiquidity',
+        wallet: addresses.unshieldedAddress,
+        amountIn: '1000',
+        amountOut: '1000',
+        tokenIn: 'AKD',
+        tokenOut: 'tNIGHT',
+      }).catch((err) => console.error('[Activity] Failed to record addLiquidity:', err));
       setLiquidityStatus('seeded');
     } catch (err: any) {
       console.error('[Seed Liquidity] Error:', err);
@@ -146,6 +161,67 @@ export default function DeployPage() {
         JSON.stringify(err);
       setError(detail || String(err));
       setLiquidityStatus('error');
+    }
+  };
+
+  // One-time admin step: moves AKD from the deployer's own balance into the
+  // faucet's custody account (see contracts/src/akad.compact claimFaucet())
+  // so new wallets without any AKD yet can self-serve 50 AKD each to try a
+  // real swap, instead of the deployer transferring to each one by hand.
+  // Safe to call again later to top the faucet back up once it runs low.
+  const handleFundFaucet = async () => {
+    if (!connectedApi || !addresses || !targetAddress) {
+      setError('Deploy and init the contract first');
+      return;
+    }
+    setFaucetStatus('funding');
+    setError(null);
+    try {
+      const faucetAddress = await getFaucetAddress(
+        connectedApi,
+        addresses.shieldedCoinPublicKey,
+        addresses.shieldedEncryptionPublicKey,
+        targetAddress
+      );
+      // Funds 100 claims of 50 AKD each, comfortably above the Level 6
+      // target of 70 wallets.
+      await transferTokens(
+        connectedApi,
+        addresses.shieldedCoinPublicKey,
+        addresses.shieldedEncryptionPublicKey,
+        targetAddress,
+        faucetAddress,
+        5000n
+      );
+      const balance = await getFaucetBalance(
+        connectedApi,
+        addresses.shieldedCoinPublicKey,
+        addresses.shieldedEncryptionPublicKey,
+        targetAddress
+      );
+      setFaucetBalance(balance);
+      setFaucetStatus('funded');
+    } catch (err: any) {
+      console.error('[Fund Faucet] Error:', err);
+      const detail = err?.cause?.cause?.message || err?.cause?.message || err?.message || String(err);
+      setError(detail);
+      setFaucetStatus('error');
+    }
+  };
+
+  const handleCheckFaucetBalance = async () => {
+    if (!connectedApi || !addresses || !targetAddress) return;
+    try {
+      const balance = await getFaucetBalance(
+        connectedApi,
+        addresses.shieldedCoinPublicKey,
+        addresses.shieldedEncryptionPublicKey,
+        targetAddress
+      );
+      setFaucetBalance(balance);
+    } catch (err: any) {
+      console.error('[Check Faucet Balance] Error:', err);
+      setError(err?.message || String(err));
     }
   };
 
@@ -245,6 +321,25 @@ export default function DeployPage() {
         Seed Liquidity (1000/1000)
       </button>
       <p style={{ marginTop: 16, marginBottom: 16 }}>Liquidity status: <strong>{liquidityStatus}</strong></p>
+
+      <button
+        style={!targetAddress || initStatus !== 'initialized' || faucetStatus === 'funding' ? disabledButtonStyle : buttonStyle}
+        onClick={handleFundFaucet}
+        disabled={!targetAddress || initStatus !== 'initialized' || faucetStatus === 'funding'}
+      >
+        Fund Faucet (5000 AKD)
+      </button>
+      <button
+        style={!targetAddress ? disabledButtonStyle : buttonStyle}
+        onClick={handleCheckFaucetBalance}
+        disabled={!targetAddress}
+      >
+        Check Faucet Balance
+      </button>
+      <p style={{ marginTop: 16, marginBottom: 16 }}>
+        Faucet status: <strong>{faucetStatus}</strong>
+        {faucetBalance !== null && <>, balance: <strong>{faucetBalance.toString()}</strong> AKD (approx. {(faucetBalance / 50n).toString()} claims left)</>}
+      </p>
 
       <button
         style={!targetAddress || wrapStatus === 'wrapping' ? disabledButtonStyle : buttonStyle}

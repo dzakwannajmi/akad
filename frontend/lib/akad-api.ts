@@ -134,7 +134,7 @@ export async function wrapTokens(
   encryptionPublicKey: string,
   contractAddress: string,
   amount: bigint
-): Promise<{ nonce: Uint8Array; value: bigint }> {
+): Promise<{ nonce: Uint8Array; value: bigint; txId: string }> {
   const { submitCallTxAsync } = await import('@midnight-ntwrk/midnight-js-contracts');
 
   const providers = await buildProviders(connectedApi, coinPublicKey, encryptionPublicKey, contractAddress, AKAD_CONTRACT_PATH);
@@ -150,7 +150,7 @@ export async function wrapTokens(
   // Random 32-byte nonce for the minted coin.
   const nonce = crypto.getRandomValues(new Uint8Array(32));
 
-  await (submitCallTxAsync as any)(providers, {
+  const result = await (submitCallTxAsync as any)(providers, {
     compiledContract,
     contractAddress,
     circuitId: 'wrap',
@@ -158,7 +158,7 @@ export async function wrapTokens(
     privateStateId: PRIVATE_STATE_ID,
   });
 
-  return { nonce, value: amount };
+  return { nonce, value: amount, txId: result.txId };
 }
 
 // Reads the AKD shielded color (token type) from the contract's ledger.
@@ -187,7 +187,7 @@ export async function unwrapTokens(
   encryptionPublicKey: string,
   contractAddress: string,
   coin: { nonce: Uint8Array; color: Uint8Array; value: bigint }
-): Promise<void> {
+): Promise<{ txId: string }> {
   const { submitCallTxAsync } = await import('@midnight-ntwrk/midnight-js-contracts');
 
   const providers = await buildProviders(connectedApi, coinPublicKey, encryptionPublicKey, contractAddress, AKAD_CONTRACT_PATH);
@@ -200,13 +200,15 @@ export async function unwrapTokens(
 
   const compiledContract = await loadCompiledContract();
 
-  await (submitCallTxAsync as any)(providers, {
+  const result = await (submitCallTxAsync as any)(providers, {
     compiledContract,
     contractAddress,
     circuitId: 'unwrap',
     args: [coin],
     privateStateId: PRIVATE_STATE_ID,
   });
+
+  return { txId: result.txId };
 }
 
 // Transfers AKD from the caller to a recipient. Not wired into the swap UI
@@ -244,19 +246,102 @@ export async function addLiquidity(
   contractAddress: string,
   amountAKD: bigint,
   amountNight: bigint
-): Promise<void> {
+): Promise<{ txId: string }> {
   const { submitCallTxAsync } = await import('@midnight-ntwrk/midnight-js-contracts');
 
   const providers = await buildProviders(connectedApi, coinPublicKey, encryptionPublicKey, contractAddress, AKAD_CONTRACT_PATH);
   const compiledContract = await loadCompiledContract();
 
-  await (submitCallTxAsync as any)(providers, {
+  const result = await (submitCallTxAsync as any)(providers, {
     compiledContract,
     contractAddress,
     circuitId: 'addLiquidity',
     args: [amountAKD, amountNight],
     privateStateId: PRIVATE_STATE_ID,
   });
+
+  return { txId: result.txId };
+}
+
+// Reads the faucet's custody account bytes directly from ledger state
+// (written once by init(), see contracts/src/akad.compact), so the caller
+// of transferTokens() below doesn't need to reimplement persistentHash()
+// in TypeScript to compute it.
+export async function getFaucetAddress(
+  connectedApi: any,
+  coinPublicKey: string,
+  encryptionPublicKey: string,
+  contractAddress: string
+): Promise<Uint8Array> {
+  const providers = await buildProviders(connectedApi, coinPublicKey, encryptionPublicKey, contractAddress, AKAD_CONTRACT_PATH);
+
+  const contractState = await providers.publicDataProvider.queryContractState(contractAddress);
+  if (contractState === null) {
+    throw new Error('Contract state not found');
+  }
+  const contractModule = await import('./contracts/akad/contract/index.js');
+  const ledgerState = (contractModule as any).ledger(contractState.data);
+
+  return ledgerState.faucetAddress;
+}
+
+// Claims a one-time, fixed 50 AKD bootstrap amount from the on-chain public
+// faucet (see contracts/src/akad.compact claimFaucet()), for a wallet that
+// has never held AKD before and needs enough to try a real swap. Each
+// wallet can only succeed here once — a second call fails on-chain with
+// "this wallet has already claimed from the faucet".
+export async function claimFaucet(
+  connectedApi: any,
+  coinPublicKey: string,
+  encryptionPublicKey: string,
+  contractAddress: string
+): Promise<{ txId: string }> {
+  const { submitCallTxAsync } = await import('@midnight-ntwrk/midnight-js-contracts');
+
+  const providers = await buildProviders(connectedApi, coinPublicKey, encryptionPublicKey, contractAddress, AKAD_CONTRACT_PATH);
+
+  const existing = await providers.privateStateProvider.get(PRIVATE_STATE_ID);
+  if (existing === null) {
+    await providers.privateStateProvider.set(PRIVATE_STATE_ID, createInitialPrivateState());
+  }
+  await providers.privateStateProvider.setContractAddress(contractAddress);
+
+  const compiledContract = await loadCompiledContract();
+
+  const result = await (submitCallTxAsync as any)(providers, {
+    compiledContract,
+    contractAddress,
+    circuitId: 'claimFaucet',
+    args: [],
+    privateStateId: PRIVATE_STATE_ID,
+  });
+
+  return { txId: result.txId };
+}
+
+// Reads the faucet's own AKD balance directly from ledger state (read-only,
+// no wallet tx needed) — lets the UI show whether the faucet still has
+// funds before someone tries to claim from an empty one.
+export async function getFaucetBalance(
+  connectedApi: any,
+  coinPublicKey: string,
+  encryptionPublicKey: string,
+  contractAddress: string
+): Promise<bigint> {
+  const providers = await buildProviders(connectedApi, coinPublicKey, encryptionPublicKey, contractAddress, AKAD_CONTRACT_PATH);
+
+  const contractState = await providers.publicDataProvider.queryContractState(contractAddress);
+  if (contractState === null) {
+    throw new Error('Contract state not found');
+  }
+  const contractModule = await import('./contracts/akad/contract/index.js');
+  const ledgerState = (contractModule as any).ledger(contractState.data);
+
+  const faucetAddress = ledgerState.faucetAddress;
+  if (!ledgerState.balances.member(faucetAddress)) {
+    return 0n;
+  }
+  return BigInt(ledgerState.balances.lookup(faucetAddress));
 }
 
 // Reads current pool reserves directly from the indexer (read-only, no wallet tx needed).
@@ -294,7 +379,7 @@ export async function executeSwap(
   dx: bigint,
   dy: bigint,
   minOut: bigint
-): Promise<void> {
+): Promise<{ txId: string }> {
   const { submitCallTxAsync } = await import('@midnight-ntwrk/midnight-js-contracts');
 
   const providers = await buildProviders(connectedApi, coinPublicKey, encryptionPublicKey, contractAddress, AKAD_CONTRACT_PATH);
@@ -309,11 +394,13 @@ export async function executeSwap(
 
   const circuitId = direction === 'AkdToNight' ? 'swapAkdToNight' : 'swapNightToAkd';
 
-  await (submitCallTxAsync as any)(providers, {
+  const result = await (submitCallTxAsync as any)(providers, {
     compiledContract,
     contractAddress,
     circuitId,
     args: [dx, dy, minOut],
     privateStateId: PRIVATE_STATE_ID,
   });
+
+  return { txId: result.txId };
 }

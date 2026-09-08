@@ -30,6 +30,7 @@
     "@midnight-ntwrk/midnight-js-network-id": "^4.1.1",
     "@midnight-ntwrk/midnight-js-types": "^4.1.1",
     "@midnight-ntwrk/midnight-js-utils": "^4.1.1",
+    "@supabase/supabase-js": "^2.115.0",
     "@tanstack/react-table": "^8.21.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

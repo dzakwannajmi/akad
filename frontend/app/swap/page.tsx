@@ -3,8 +3,9 @@
 import Link from 'next/link';
 import { useState, useEffect, useCallback } from 'react';
 import { getCompatibleWallets, connectWallet } from '@/lib/wallet';
-import { getReserves, executeSwap, wrapTokens, unwrapTokens, getTokenColor } from '@/lib/akad-api';
+import { getReserves, executeSwap, wrapTokens, unwrapTokens, getTokenColor, claimFaucet } from '@/lib/akad-api';
 import { computeSwapOutput, applySlippage } from '@/lib/bonding-curve';
+import { recordActivity } from '@/lib/activity-api';
 import { CONTRACT_ADDRESS } from '@/lib/wallet-constants';
 import { Icon } from '@iconify/react';
 
@@ -23,10 +24,10 @@ export default function SwapPage() {
   const [wrappedCoin, setWrappedCoin] = useState<{ nonce: Uint8Array; value: bigint } | null>(null);
   const [unwrapStatus, setUnwrapStatus] = useState<string>('idle');
   const [tab, setTab] = useState<'swap' | 'wrap' | 'unwrap' | 'activity'>('swap');
+  const [faucetStatus, setFaucetStatus] = useState<string>('idle');
   const [showSettings, setShowSettings] = useState(false);
   const [tradeOpen, setTradeOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [history, setHistory] = useState<{ from: string; to: string; amountIn: string; amountOut: string; time: string }[]>([]);
 
   const fromToken = direction === 'AkdToNight' ? 'AKD' : 'tNIGHT';
   const toToken = direction === 'AkdToNight' ? 'tNIGHT' : 'AKD';
@@ -84,21 +85,61 @@ export default function SwapPage() {
   }, [amountIn, direction, reserves]);
 
 
+  // Bootstraps a wallet that has never held AKD before with a one-time 50
+  // AKD claim from the on-chain public faucet, so it can try a real swap
+  // without the deployer manually transferring tokens to it first. Fails
+  // on-chain (a clear assert message, not a crash) if this wallet already
+  // claimed once, or if the faucet itself has run dry.
+  const handleClaimFaucet = async () => {
+    if (!connectedApi || !addresses) return;
+    setFaucetStatus('claiming');
+    setError(null);
+    try {
+      const { txId } = await claimFaucet(
+        connectedApi,
+        addresses.shieldedCoinPublicKey,
+        addresses.shieldedEncryptionPublicKey,
+        CONTRACT_ADDRESS
+      );
+      recordActivity({
+        txId,
+        txType: 'claimFaucet',
+        wallet: addresses.unshieldedAddress,
+        amountOut: '50',
+        tokenOut: 'AKD',
+      }).catch((err) => console.error('[Activity] Failed to record claimFaucet:', err));
+      setFaucetStatus('claimed');
+      await refreshReserves();
+    } catch (err: any) {
+      console.error('[Claim Faucet]', err);
+      const detail = err?.cause?.cause?.message || err?.cause?.message || err?.message || String(err);
+      setError(detail);
+      setFaucetStatus('error');
+    }
+  };
+
   const handleWrap = async () => {
     if (!connectedApi || !addresses || !wrapAmount) return;
     setWrapStatus('wrapping');
     setError(null);
     try {
-      const coin = await wrapTokens(
+      const { nonce, value, txId } = await wrapTokens(
         connectedApi,
         addresses.shieldedCoinPublicKey,
         addresses.shieldedEncryptionPublicKey,
         CONTRACT_ADDRESS,
         BigInt(wrapAmount)
       );
-      setWrappedCoin(coin);
+      setWrappedCoin({ nonce, value });
       setUnwrapStatus('idle');
       setWrapStatus('wrapped');
+      recordActivity({
+        txId,
+        txType: 'wrap',
+        wallet: addresses.unshieldedAddress,
+        amountIn: wrapAmount,
+        tokenIn: 'AKD',
+      }).catch((err) => console.error('[Activity] Failed to record wrap:', err));
       setWrapAmount('');
     } catch (err: any) {
       console.error('[Wrap]', err);
@@ -119,13 +160,20 @@ export default function SwapPage() {
         addresses.shieldedEncryptionPublicKey,
         CONTRACT_ADDRESS
       );
-      await unwrapTokens(
+      const { txId } = await unwrapTokens(
         connectedApi,
         addresses.shieldedCoinPublicKey,
         addresses.shieldedEncryptionPublicKey,
         CONTRACT_ADDRESS,
         { nonce: wrappedCoin.nonce, color, value: wrappedCoin.value }
       );
+      recordActivity({
+        txId,
+        txType: 'unwrap',
+        wallet: addresses.unshieldedAddress,
+        amountIn: wrappedCoin.value.toString(),
+        tokenIn: 'AKD (shielded)',
+      }).catch((err) => console.error('[Activity] Failed to record unwrap:', err));
       setWrappedCoin(null);
       setUnwrapStatus('unwrapped');
     } catch (err: any) {
@@ -143,7 +191,7 @@ export default function SwapPage() {
     try {
       const dx = BigInt(amountIn);
       const minOut = applySlippage(amountOut, 50); // 0.5% slippage tolerance
-      await executeSwap(
+      const { txId } = await executeSwap(
         connectedApi,
         addresses.shieldedCoinPublicKey,
         addresses.shieldedEncryptionPublicKey,
@@ -154,16 +202,15 @@ export default function SwapPage() {
         minOut
       );
       setStatus('swapped');
-      setHistory((h) => [
-        {
-          from: fromToken,
-          to: toToken,
-          amountIn,
-          amountOut: amountOut.toString(),
-          time: new Date().toLocaleTimeString(),
-        },
-        ...h,
-      ]);
+      recordActivity({
+        txId,
+        txType: direction === 'AkdToNight' ? 'swapAkdToNight' : 'swapNightToAkd',
+        wallet: addresses.unshieldedAddress,
+        amountIn,
+        amountOut: amountOut.toString(),
+        tokenIn: fromToken,
+        tokenOut: toToken,
+      }).catch((err) => console.error('[Activity] Failed to record swap:', err));
       setAmountIn('');
       await refreshReserves();
     } catch (err: any) {
@@ -259,6 +306,12 @@ export default function SwapPage() {
               className="hidden text-base text-white/50 transition-colors hover:text-white sm:block sm:text-lg"
             >
               FAQ
+            </Link>
+            <Link
+              href="/activity"
+              className="hidden text-base text-white/50 transition-colors hover:text-white sm:block sm:text-lg"
+            >
+              Activity
             </Link>
           </nav>
 
@@ -398,6 +451,21 @@ export default function SwapPage() {
                   </span>
                 )}
               </div>
+
+              {connectedApi && (
+                <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl bg-white/[0.03] px-5 py-3">
+                  <p className="text-xs leading-relaxed text-white/35">
+                    New wallet, no AKD yet? Claim a one-time 50 AKD from the testnet faucet.
+                  </p>
+                  <button
+                    onClick={handleClaimFaucet}
+                    disabled={faucetStatus === 'claiming'}
+                    className="whitespace-nowrap rounded-full bg-white/10 px-4 py-2 font-mono text-xs transition-colors hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {faucetStatus === 'claiming' ? 'Claiming…' : faucetStatus === 'claimed' ? 'Claimed' : 'Claim faucet'}
+                  </button>
+                </div>
+              )}
             </>
           )}
 
@@ -464,39 +532,20 @@ export default function SwapPage() {
           )}
 
           {tab === 'activity' && (
-            <div className="rounded-2xl bg-white/[0.04] p-5">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-white/45">This session</span>
-                {/* Tambahkan tag pembuka <a ... > dan penutup </a> */}
-                <a
-                  href={`https://explorer.preview.midnight.network/contracts/stream/${CONTRACT_ADDRESS}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 font-mono text-xs text-white/40 transition-colors hover:text-white"
-                >
-                  Explorer
-                  <Icon icon="lucide:arrow-up-right" width={13} height={13} />
-                </a>
-              </div>
-              {history.length === 0 ? (
-                <p className="mt-5 font-mono text-xs text-white/25">No swaps yet this session.</p>
-              ) : (
-                <ul className="mt-4 divide-y divide-white/5">
-                  {history.map((h, i) => (
-                    <li
-                      key={i}
-                      className="flex items-center justify-between gap-4 py-3 font-mono text-xs text-white/50"
-                    >
-                      <span>
-                        {h.amountIn} {h.from} → {h.amountOut} {h.to}
-                      </span>
-                      <span className="text-white/25">{h.time}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
+            <div className="rounded-2xl bg-white/[0.04] p-8 text-center">
+              <p className="text-sm leading-relaxed text-white/45">
+                Every wrap, unwrap, and swap made through Akad, verified against the chain
+                and shown for every user, not just this session.
+              </p>
+              <Link
+                href="/activity"
+                className="mt-5 inline-flex items-center gap-1.5 rounded-full bg-white px-6 py-2.5 text-sm font-medium text-black transition-colors hover:bg-white/85"
+              >
+                View Activity
+                <Icon icon="lucide:arrow-up-right" width={14} height={14} />
+              </Link>
             </div>
-          )} {/* <--- Ganti ) menjadi )} di sini */}
+          )}
 
           {error && (
             <p className="mt-3 rounded-2xl bg-red-400/10 p-4 font-mono text-xs leading-relaxed text-red-300">

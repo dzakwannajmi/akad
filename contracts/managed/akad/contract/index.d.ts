@@ -8,6 +8,7 @@ export type ImpureCircuits<PS> = {
   transfer(context: __compactRuntime.CircuitContext<PS>,
            to_0: Uint8Array,
            amount_0: bigint): __compactRuntime.CircuitResults<PS, []>;
+  claimFaucet(context: __compactRuntime.CircuitContext<PS>): __compactRuntime.CircuitResults<PS, []>;
   akdColor(context: __compactRuntime.CircuitContext<PS>): __compactRuntime.CircuitResults<PS, Uint8Array>;
   wrap(context: __compactRuntime.CircuitContext<PS>,
        amount_0: bigint,
@@ -32,6 +33,7 @@ export type ProvableCircuits<PS> = {
   transfer(context: __compactRuntime.CircuitContext<PS>,
            to_0: Uint8Array,
            amount_0: bigint): __compactRuntime.CircuitResults<PS, []>;
+  claimFaucet(context: __compactRuntime.CircuitContext<PS>): __compactRuntime.CircuitResults<PS, []>;
   akdColor(context: __compactRuntime.CircuitContext<PS>): __compactRuntime.CircuitResults<PS, Uint8Array>;
   wrap(context: __compactRuntime.CircuitContext<PS>,
        amount_0: bigint,
@@ -59,6 +61,7 @@ export type Circuits<PS> = {
   transfer(context: __compactRuntime.CircuitContext<PS>,
            to_0: Uint8Array,
            amount_0: bigint): __compactRuntime.CircuitResults<PS, []>;
+  claimFaucet(context: __compactRuntime.CircuitContext<PS>): __compactRuntime.CircuitResults<PS, []>;
   akdColor(context: __compactRuntime.CircuitContext<PS>): __compactRuntime.CircuitResults<PS, Uint8Array>;
   wrap(context: __compactRuntime.CircuitContext<PS>,
        amount_0: bigint,
@@ -88,8 +91,16 @@ export type Ledger = {
   };
   readonly totalSupply: bigint;
   readonly tokenColor: Uint8Array;
+  readonly faucetAddress: Uint8Array;
   readonly reserveAKD: bigint;
   readonly reserveNight: bigint;
+  faucetClaimed: {
+    isEmpty(): boolean;
+    size(): bigint;
+    member(key_0: Uint8Array): boolean;
+    lookup(key_0: Uint8Array): boolean;
+    [Symbol.iterator](): Iterator<[Uint8Array, boolean]>
+  };
 }
 
 export type ContractReferenceLocations = any;

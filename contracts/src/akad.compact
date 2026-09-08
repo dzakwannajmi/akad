@@ -27,9 +27,21 @@ export ledger balances: Map<Bytes<32>, Uint<128>>;
 export ledger totalSupply: Uint<128>;
 export ledger tokenColor: Bytes<32>;
 
+// The faucet's custody account bytes, written once by init() so the
+// frontend can read it directly from ledger state (the same way it already
+// reads tokenColor) instead of needing a transaction just to look up an
+// address, or reimplementing persistentHash() in TypeScript.
+export ledger faucetAddress: Bytes<32>;
+
 // AMM reserves (constant-product pool, AKD <-> tNIGHT).
 export ledger reserveAKD: Uint<128>;
 export ledger reserveNight: Uint<128>;
+
+// Tracks which accounts have already claimed from the public faucet, so
+// each wallet can only bootstrap AKD once. A per-wallet limit rather than
+// a per-time-window one, since Compact circuits have no verified-safe way
+// to read wall-clock time for a cooldown.
+export ledger faucetClaimed: Map<Bytes<32>, Boolean>;
 
 // Returns the real, wallet-bound identity of whoever is calling this
 // transaction right now. Replaces the old self-declared accountKey()
@@ -47,6 +59,15 @@ circuit poolKey(): Bytes<32> {
   return persistentHash<Uint<8>>(7);
 }
 
+// Fixed account identifier for the public faucet's own AKD custody,
+// separate from the pool's. There is no dedicated funding circuit: the
+// builder tops this account up using the existing transfer() circuit,
+// passing the ledger's faucetAddress value as the recipient, the same
+// way any other account would be credited.
+circuit faucetKey(): Bytes<32> {
+  return persistentHash<Uint<8>>(11);
+}
+
 // Safe balance read. `balances` only gets a map entry for an account once
 // that account has been credited at least once (init, transfer, unwrap, or
 // a swap). Calling Map.lookup() on a key with no entry yet fails at
@@ -59,6 +80,17 @@ circuit balanceOf(account: Bytes<32>): Uint<128> {
     return 0;
   }
   return balances.lookup(account);
+}
+
+// Safe read for faucetClaimed, same member-check-then-default pattern as
+// balanceOf() above (verified against OpenZeppelin's own
+// AccessControl.compact _hasRole(), which reads a Map<..., Boolean> the
+// same way).
+circuit hasClaimedFaucet(account: Bytes<32>): Boolean {
+  if (!faucetClaimed.member(account)) {
+    return false;
+  }
+  return faucetClaimed.lookup(account);
 }
 
 // Mints the initial supply to the deployer. Call this once, right after deployment.
@@ -74,6 +106,7 @@ export circuit init(): [] {
   const domainSep: Bytes<32> = persistentHash<Uint<8>>(42);
   const color = tokenType(domainSep, kernel.self());
   tokenColor.write(disclose(color));
+  faucetAddress.write(disclose(faucetKey()));
 }
 
 // Transfers AKD from the caller to a recipient.
@@ -89,6 +122,32 @@ export circuit transfer(to: Bytes<32>, amount: Uint<128>): [] {
   const recipientBalance = balanceOf(disclose(to));
   const newRecipientBalance: Uint<128> = (recipientBalance + amount) as Uint<128>;
   balances.insert(disclose(to), disclose(newRecipientBalance));
+}
+
+// Lets any wallet that has never held AKD before bootstrap a small fixed
+// amount (50 AKD, in this contract's base units) so it can try a real
+// swap without the builder manually transferring tokens to it first.
+// One-time per wallet: see faucetClaimed / hasClaimedFaucet() above. The
+// faucet's own balance is funded by the builder via transfer(), passing
+// the ledger's faucetAddress value as the recipient. It can run dry, and
+// callers get a clear assert message when it does rather than a generic
+// balance failure.
+export circuit claimFaucet(): [] {
+  const caller = callerKey();
+  assert(!hasClaimedFaucet(caller), "this wallet has already claimed from the faucet");
+
+  const faucet = faucetKey();
+  const faucetBalance = balanceOf(faucet);
+  assert(faucetBalance >= 50, "faucet is empty, ask the deployer to top it up");
+
+  const newFaucetBalance: Uint<128> = (faucetBalance - 50) as Uint<128>;
+  balances.insert(faucet, disclose(newFaucetBalance));
+
+  const callerBalance = balanceOf(caller);
+  const newCallerBalance: Uint<128> = (callerBalance + 50) as Uint<128>;
+  balances.insert(caller, disclose(newCallerBalance));
+
+  faucetClaimed.insert(caller, true);
 }
 
 // AKD domain separator — used to derive a collision-resistant shielded

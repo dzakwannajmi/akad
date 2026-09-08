@@ -42,6 +42,18 @@
       }
     },
     {
+      "name": "claimFaucet",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+      ],
+      "result-type": {
+        "type-name": "Tuple",
+        "types": [
+        ]
+      }
+    },
+    {
       "name": "akdColor",
       "pure": false,
       "proof": true,
@@ -253,8 +265,18 @@
       }
     },
     {
-      "name": "reserveAKD",
+      "name": "faucetAddress",
       "index": 3,
+      "exported": true,
+      "storage": "Cell",
+      "type": {
+        "type-name": "Bytes",
+        "length": 32
+      }
+    },
+    {
+      "name": "reserveAKD",
+      "index": 4,
       "exported": true,
       "storage": "Cell",
       "type": {
@@ -264,12 +286,25 @@
     },
     {
       "name": "reserveNight",
-      "index": 4,
+      "index": 5,
       "exported": true,
       "storage": "Cell",
       "type": {
         "type-name": "Uint",
         "maxval": 340282366920938463463374607431768211455
+      }
+    },
+    {
+      "name": "faucetClaimed",
+      "index": 6,
+      "exported": true,
+      "storage": "Map",
+      "key": {
+        "type-name": "Bytes",
+        "length": 32
+      },
+      "value": {
+        "type-name": "Boolean"
       }
     }
   ]

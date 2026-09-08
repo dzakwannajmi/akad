@@ -33,7 +33,11 @@ const faqs = [
   },
   {
     q: 'Does swapping move my tokens?',
-    a: 'Not yet. The pool contract tracks reserves and enforces the constant-product invariant, but it does not transfer AKD between accounts. Wiring the AMM to the token contract\u2019s balances is planned work, not a shipped feature.',
+    a: 'Yes for AKD. Swapping moves your real AKD balance to or from the pool\u2019s custody account, the same balance ledger transfer uses. tNIGHT is still simulated on both swap legs: reserves update for correct pricing, but no real tNIGHT changes custody yet.',
+  },
+  {
+    q: 'I have a new wallet with no AKD. How do I test a swap?',
+    a: 'Connect your wallet on the Swap page and click Claim faucet. Every wallet can claim a one-time 50 AKD from the public faucet, enough to try a real swap. Each wallet can only claim once.',
   },
   {
     q: 'Why are the amounts so small?',
@@ -52,6 +56,7 @@ const footerColumns = [
       { label: 'Launch app', href: '/swap' },
       { label: 'How it works', href: '#how-it-works' },
       { label: 'FAQ', href: '#faq' },
+      { label: 'Activity', href: '/activity' },
     ],
   },
 ];
@@ -92,6 +97,12 @@ export default function Home() {
               className="hidden text-base text-white/50 transition-colors hover:text-white sm:block sm:text-lg"
             >
               FAQ
+            </Link>
+            <Link
+              href="/activity"
+              className="hidden text-base text-white/50 transition-colors hover:text-white sm:block sm:text-lg"
+            >
+              Activity
             </Link>
           </nav>
           <Link
