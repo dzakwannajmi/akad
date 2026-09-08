@@ -1,0 +1,41 @@
+/* Retheme of React Bits' CardSwap.css (reactbits.dev/components/card-swap)
+   for Akad's dark surface: same absolute-stack + perspective mechanics,
+   card look swapped for the site's existing glass-panel style (see
+   swap-preview-card.tsx) instead of the original's plain black/white card. */
+
+.akd-card-swap-container {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  transform: translate(5%, 20%);
+  transform-origin: bottom right;
+
+  perspective: 900px;
+  overflow: visible;
+}
+
+.akd-card {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  border-radius: 20px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: #d0f864;
+
+  transform-style: preserve-3d;
+  will-change: transform;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+@media (max-width: 768px) {
+  .akd-card-swap-container {
+    transform: scale(0.8) translate(15%, 20%);
+  }
+}
+
+@media (max-width: 480px) {
+  .akd-card-swap-container {
+    transform: scale(0.62) translate(20%, 20%);
+  }
+}

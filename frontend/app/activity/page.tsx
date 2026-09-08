@@ -1,8 +1,9 @@
 'use client';
 
-import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { Icon } from '@iconify/react';
+import { Spinner } from '@/components/icons/spinner';
+import { SiteHeader } from '@/components/brand/site-header';
 import { fetchActivity, type ActivityRow, type ActivityTxType } from '@/lib/activity-api';
 import { Area, AreaChart, CartesianGrid, XAxis } from 'recharts';
 import {
@@ -43,7 +44,7 @@ function formatDay(iso: string): string {
 const chartConfig = {
   count: {
     label: 'Transactions',
-    color: '#4ade80',
+    color: '#d0f864',
   },
 } satisfies ChartConfig;
 
@@ -109,39 +110,10 @@ export default function ActivityPage() {
 
   return (
     <main className="flex min-h-screen flex-col bg-black text-white selection:bg-white selection:text-black">
-      <header className="border-b border-white/10">
-        <div className="flex items-center justify-between px-6 py-4 sm:px-8">
-          <nav className="flex items-center gap-8">
-            <Link href="/" className="text-2xl font-medium tracking-tight sm:text-3xl">
-              Akad
-            </Link>
-            <Link
-              href="/swap"
-              className="hidden text-base text-white/50 transition-colors hover:text-white sm:block sm:text-lg"
-            >
-              Trade
-            </Link>
-            <Link
-              href="/#how-it-works"
-              className="hidden text-base text-white/50 transition-colors hover:text-white sm:block sm:text-lg"
-            >
-              How it works
-            </Link>
-            <Link
-              href="/#faq"
-              className="hidden text-base text-white/50 transition-colors hover:text-white sm:block sm:text-lg"
-            >
-              FAQ
-            </Link>
-          </nav>
-          <span className="rounded-full bg-white/10 px-4 py-2 font-mono text-xs text-white/60">
-            Activity
-          </span>
-        </div>
-      </header>
+      <SiteHeader />
 
       <div className="mx-auto w-full max-w-5xl flex-1 px-6 py-12 sm:px-8 sm:py-16">
-        <h1 className="text-3xl font-medium tracking-tight sm:text-4xl">Activity</h1>
+        <h1 className="text-3xl font-medium tracking-tight text-white sm:text-4xl">Activity</h1>
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-white/45">
           Every wrap, unwrap, swap, and liquidity seed made through Akad, across every wallet
           that has used it. Each row is written only after Midnight&apos;s indexer confirms the
@@ -255,7 +227,10 @@ export default function ActivityPage() {
                     colSpan={5}
                     className="py-8 text-center font-mono text-xs text-white/25"
                   >
-                    Loading…
+                    <span className="inline-flex items-center gap-2">
+                      <Spinner className="h-3.5 w-3.5" />
+                      Loading…
+                    </span>
                   </TableCell>
                 </TableRow>
               )}

@@ -8,6 +8,8 @@ import { computeSwapOutput, applySlippage } from '@/lib/bonding-curve';
 import { recordActivity } from '@/lib/activity-api';
 import { CONTRACT_ADDRESS } from '@/lib/wallet-constants';
 import { Icon } from '@iconify/react';
+import { Spinner } from '@/components/icons/spinner';
+import { SiteHeader } from '@/components/brand/site-header';
 
 type Direction = 'AkdToNight' | 'NightToAkd';
 
@@ -62,6 +64,18 @@ export default function SwapPage() {
       console.error('[Reserves]', err);
     }
   }, [connectedApi, addresses]);
+
+  // Lets footer/product links deep-link straight into a tab, e.g.
+  // /swap?tab=wrap. Read on mount rather than via next/navigation's
+  // useSearchParams(), which would force this page behind a Suspense
+  // boundary for no benefit here -- nothing above depends on the tab
+  // during the initial render.
+  useEffect(() => {
+    const requested = new URLSearchParams(window.location.search).get('tab');
+    if (requested === 'swap' || requested === 'wrap' || requested === 'unwrap' || requested === 'activity') {
+      setTab(requested);
+    }
+  }, []);
 
   useEffect(() => {
     refreshReserves();
@@ -236,89 +250,65 @@ export default function SwapPage() {
 
   return (
     <main className="flex min-h-screen flex-col bg-black text-white selection:bg-white selection:text-black">
-      <header className="border-b border-white/10">
-        <div className="flex items-center justify-between px-6 py-4 sm:px-8">
-          {tradeOpen && (
+      {tradeOpen && (
+        <button
+          aria-hidden
+          tabIndex={-1}
+          onClick={() => setTradeOpen(false)}
+          className="fixed inset-0 z-40 cursor-default"
+        />
+      )}
+
+      <SiteHeader
+        leftExtra={
+          <div className="relative z-50 hidden sm:block">
             <button
-              aria-hidden
-              tabIndex={-1}
-              onClick={() => setTradeOpen(false)}
-              className="fixed inset-0 z-40 cursor-default"
-            />
-          )}
+              onClick={() => setTradeOpen((v) => !v)}
+              aria-expanded={tradeOpen}
+              className="flex items-center gap-1.5 text-base font-medium text-white/80 transition-colors hover:text-white sm:text-lg"
+            >
+              Trade
+              <Icon
+                icon="lucide:chevron-down"
+                width={18}
+                height={18}
+                className={`transition-transform duration-200 ${tradeOpen ? 'rotate-180' : ''}`}
+              />
+            </button>
 
-          <nav className="flex items-center gap-8">
-            <Link href="/" className="text-2xl font-medium tracking-tight sm:text-3xl">
-              Akad
-            </Link>
-
-            <div className="relative z-50 hidden sm:block">
-              <button
-                onClick={() => setTradeOpen((v) => !v)}
-                aria-expanded={tradeOpen}
-                className="flex items-center gap-1.5 text-base font-medium transition-colors hover:text-white/80 sm:text-lg"
-              >
-                Trade
-                <Icon
-                  icon="lucide:chevron-down"
-                  width={18}
-                  height={18}
-                  className={`transition-transform duration-200 ${tradeOpen ? 'rotate-180' : ''}`}
-                />
-              </button>
-
-              <div
-                className={`absolute left-0 top-full mt-4 w-64 origin-top-left rounded-2xl border border-white/10 bg-[#0a0a0a] p-2 shadow-2xl transition-all duration-200 ease-out ${
-                  tradeOpen
-                    ? 'visible translate-y-0 opacity-100'
-                    : 'invisible -translate-y-2 opacity-0'
-                }`}
-              >
-                {tradeItems.map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => {
-                      setTab(item.id);
-                      setTradeOpen(false);
-                    }}
-                    className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors ${
-                      tab === item.id ? 'bg-white/10' : 'hover:bg-white/5'
-                    }`}
-                  >
-                    <Icon icon={item.icon} width={18} height={18} className="text-white/60" />
-                    <span>
-                      <span className="block text-sm font-medium">{item.label}</span>
-                      <span className="block text-xs text-white/40">{item.desc}</span>
-                    </span>
-                  </button>
-                ))}
-              </div>
+            <div
+              className={`absolute left-0 top-full mt-4 w-64 origin-top-left rounded-2xl border border-white/10 bg-[#0a0a0a] p-2 shadow-2xl transition-all duration-200 ease-out ${
+                tradeOpen
+                  ? 'visible translate-y-0 opacity-100'
+                  : 'invisible -translate-y-2 opacity-0'
+              }`}
+            >
+              {tradeItems.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => {
+                    setTab(item.id);
+                    setTradeOpen(false);
+                  }}
+                  className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors ${
+                    tab === item.id ? 'bg-white/10' : 'hover:bg-white/5'
+                  }`}
+                >
+                  <Icon icon={item.icon} width={18} height={18} className="text-white/60" />
+                  <span>
+                    <span className="block text-sm font-medium">{item.label}</span>
+                    <span className="block text-xs text-white/40">{item.desc}</span>
+                  </span>
+                </button>
+              ))}
             </div>
-
-            <Link
-              href="/#how-it-works"
-              className="hidden text-base text-white/50 transition-colors hover:text-white sm:block sm:text-lg"
-            >
-              How it works
-            </Link>
-            <Link
-              href="/#faq"
-              className="hidden text-base text-white/50 transition-colors hover:text-white sm:block sm:text-lg"
-            >
-              FAQ
-            </Link>
-            <Link
-              href="/activity"
-              className="hidden text-base text-white/50 transition-colors hover:text-white sm:block sm:text-lg"
-            >
-              Activity
-            </Link>
-          </nav>
-
-          {!connectedApi ? (
+          </div>
+        }
+        right={
+          !connectedApi ? (
             <button
               onClick={handleConnect}
-              className="rounded-full bg-white px-6 py-2.5 text-base font-medium text-black transition-colors hover:bg-white/85"
+              className="rounded-full bg-akd-accent px-6 py-2.5 text-base font-medium text-black"
             >
               Connect
             </button>
@@ -335,9 +325,9 @@ export default function SwapPage() {
               <span className="h-1.5 w-1.5 rounded-full bg-green-400" />
               {addresses.unshieldedAddress.slice(0, 10)}…
             </button>
-          )}
-        </div>
-      </header>
+          )
+        }
+      />
 
       <div className="flex flex-1 justify-center px-6 py-12 sm:py-16">
         <div className="w-full max-w-md">
@@ -395,8 +385,8 @@ export default function SwapPage() {
 
           {tab === 'swap' && (
             <>
-              <div className="relative">
-                <div className="rounded-2xl bg-white/[0.04] p-5">
+              <div className="relative rounded-2xl bg-white/[0.04]">
+                <div className="p-5 pb-6">
                   <div className="text-sm text-white/45">You send</div>
                   <div className="mt-2 flex items-center justify-between gap-3">
                     <input
@@ -412,7 +402,9 @@ export default function SwapPage() {
                   </div>
                 </div>
 
-                <div className="mt-1 rounded-2xl bg-white/[0.04] p-5">
+                <div className="h-px bg-white/[0.06]" />
+
+                <div className="p-5 pt-6">
                   <div className="text-sm text-white/45">You receive</div>
                   <div className="mt-2 flex items-center justify-between gap-3">
                     <span className="text-4xl font-medium tracking-tight text-white/80">
@@ -429,7 +421,7 @@ export default function SwapPage() {
                     setDirection((d) => (d === 'AkdToNight' ? 'NightToAkd' : 'AkdToNight'))
                   }
                   aria-label="Flip direction"
-                  className="absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 rounded-xl border-4 border-black bg-white/10 p-2.5 transition-colors hover:bg-white/20"
+                  className="absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 rounded-xl border-4 border-black bg-white/10 p-2.5 transition-colors hover:bg-akd-accent hover:text-black"
                 >
                   <Icon icon="lucide:arrow-down" width={16} height={16} />
                 </button>
@@ -438,8 +430,9 @@ export default function SwapPage() {
               <button
                 onClick={handleSwap}
                 disabled={!connectedApi || amountOut === null || status === 'swapping'}
-                className="mt-1 w-full rounded-2xl bg-white py-4 text-base font-medium text-black transition-colors hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-25"
+                className="mt-1 flex w-full items-center justify-center gap-2 rounded-2xl bg-akd-accent py-4 text-base font-medium text-black disabled:cursor-not-allowed disabled:opacity-25"
               >
+                {status === 'swapping' && <Spinner className="h-4 w-4" />}
                 {status === 'swapping' ? 'Swapping…' : 'Swap'}
               </button>
 
@@ -460,8 +453,9 @@ export default function SwapPage() {
                   <button
                     onClick={handleClaimFaucet}
                     disabled={faucetStatus === 'claiming'}
-                    className="whitespace-nowrap rounded-full bg-white/10 px-4 py-2 font-mono text-xs transition-colors hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-40"
+                    className="flex items-center gap-2 whitespace-nowrap rounded-full bg-white/10 px-4 py-2 font-mono text-xs text-white transition-colors hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-40"
                   >
+                    {faucetStatus === 'claiming' && <Spinner className="h-3.5 w-3.5" />}
                     {faucetStatus === 'claiming' ? 'Claiming…' : faucetStatus === 'claimed' ? 'Claimed' : 'Claim faucet'}
                   </button>
                 </div>
@@ -485,8 +479,9 @@ export default function SwapPage() {
               <button
                 onClick={handleWrap}
                 disabled={!connectedApi || !wrapAmount || wrapStatus === 'wrapping'}
-                className="mt-5 w-full rounded-2xl bg-white py-4 text-base font-medium text-black transition-colors hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-25"
+                className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl bg-akd-accent py-4 text-base font-medium text-black disabled:cursor-not-allowed disabled:opacity-25"
               >
+                {wrapStatus === 'wrapping' && <Spinner className="h-4 w-4" />}
                 {wrapStatus === 'wrapping' ? 'Wrapping…' : 'Wrap'}
               </button>
               {wrapStatus === 'wrapped' && (
@@ -512,8 +507,9 @@ export default function SwapPage() {
                   <button
                     onClick={handleUnwrap}
                     disabled={!connectedApi || unwrapStatus === 'unwrapping'}
-                    className="mt-5 w-full rounded-2xl bg-white py-4 text-base font-medium text-black transition-colors hover:bg-white/85 disabled:cursor-not-allowed disabled:opacity-25"
+                    className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl bg-akd-accent py-4 text-base font-medium text-black disabled:cursor-not-allowed disabled:opacity-25"
                   >
+                    {unwrapStatus === 'unwrapping' && <Spinner className="h-4 w-4" />}
                     {unwrapStatus === 'unwrapping' ? 'Unwrapping…' : 'Unwrap'}
                   </button>
                 </>
@@ -539,7 +535,7 @@ export default function SwapPage() {
               </p>
               <Link
                 href="/activity"
-                className="mt-5 inline-flex items-center gap-1.5 rounded-full bg-white px-6 py-2.5 text-sm font-medium text-black transition-colors hover:bg-white/85"
+                className="mt-5 inline-flex items-center gap-1.5 rounded-full bg-akd-accent px-6 py-2.5 text-sm font-medium text-black transition-colors hover:bg-white"
               >
                 View Activity
                 <Icon icon="lucide:arrow-up-right" width={14} height={14} />

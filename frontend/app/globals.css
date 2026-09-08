@@ -1,4 +1,14 @@
+/* Switzer isn't on Google Fonts, so it can't go through next/font like
+   Geist Mono does below -- Fontshare's own CSS API is the sanctioned way
+   to serve it (their license explicitly covers this: "Fontshare may also
+   make the Font Software available through the Fontshare API ... delivered
+   directly from servers used by Indian Type Foundry to the Licensee's
+   website"). Free for commercial use under the ITF Free Font License. */
+@import url('https://api.fontshare.com/v2/css?f[]=switzer@400,500,600,700&display=swap');
 @import "tailwindcss";
+/* Must load after tailwindcss (React Flow's own Tailwind v4 guidance) so
+   its layout-critical styles aren't overridden by utility resets. */
+@import "@xyflow/react/dist/style.css";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
@@ -7,7 +17,7 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: 'Switzer', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-mono: var(--font-geist-mono);
   --font-heading: var(--font-sans);
   --color-sidebar-ring: var(--sidebar-ring);
@@ -46,6 +56,44 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+/* Akad accent (product-wide, not shadcn's neutral theme tokens above):
+   used for headings, subheadings, links, and primary buttons on the
+   marketing surfaces. The brand wordmark "Akad" itself stays white
+   wherever it appears (nav logo, hero h1, footer credit) -- this accent
+   is deliberately never applied there. */
+@theme {
+  --color-akd-accent: #d0f864;
+  --color-akd-accent-hover: #e2ff5c;
+  --animate-akd-pulse: akd-pulse 2.4s ease-in-out infinite;
+  --animate-akd-word-in: akd-word-in 0.5s ease-out;
+}
+
+@keyframes akd-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.12);
+    opacity: 0.85;
+  }
+}
+
+/* Used by LoopingWord (components/landing/looping-word.tsx) for the
+   "Swap {word}." heading -- fades and rises in each time the loop swaps
+   to a new word. */
+@keyframes akd-word-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 :root {

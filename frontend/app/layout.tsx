@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist_Mono } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
+// Body/heading font is Switzer, loaded via the @import in globals.css (see
+// the comment there for why: Switzer isn't on Google Fonts, so next/font
+// can't load it). Geist Mono stays on next/font and stays the mono
+// typeface -- wallet addresses, tx hashes and base-unit numbers need a
+// real monospace face to stay aligned/legible, so that one usage was kept
+// instead of switching everything to Switzer.
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
@@ -25,7 +26,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
