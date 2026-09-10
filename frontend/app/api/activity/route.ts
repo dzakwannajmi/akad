@@ -4,6 +4,12 @@ import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { INDEXER_HTTP, CONTRACT_ADDRESS } from '@/lib/wallet-constants';
 
 export const dynamic = 'force-dynamic';
+// Explicit, not left to plan defaults: the retry loop in verifyTransaction
+// below can legitimately run close to a minute waiting on indexer lag.
+// 90s gives it headroom on both Fluid Compute (300s default) and legacy
+// compute (10s on Hobby without this) without depending on which one the
+// project happens to be on.
+export const maxDuration = 90;
 
 const ALLOWED_TX_TYPES = [
   'wrap',
@@ -175,11 +181,20 @@ async function verifyTransactionOnce(txIdentifier: string): Promise<VerifiedTx |
 // The client calls this right after submitting a transaction, but Midnight's
 // indexer usually takes a few seconds to catch up to a just-submitted tx.
 // Rather than fail the whole activity record on that normal lag, retry the
-// lookup for a bit before giving up. Six attempts spaced out over roughly
-// 15 seconds comfortably covers ordinary indexer lag without blocking the
-// request forever.
+// lookup for a bit before giving up.
+//
+// This used to stop after ~15s (six attempts), on the assumption that
+// "comfortably covers ordinary indexer lag". Verified false in practice on
+// Preview: a real, successful, contract-matching transaction was still
+// unindexed at the 15s mark and only showed up when queried by hand later.
+// Extended to ~62s (eleven attempts) with a longer tail so slow indexer
+// catches don't get reported as "not found" to a transaction that actually
+// succeeded. This is still a background, fire-and-forget call from the
+// client's perspective (see lib/activity-api.ts), so a longer wait here
+// never blocks the UI, and it stays far under Vercel's function duration
+// limit.
 async function verifyTransaction(txIdentifier: string): Promise<VerifiedTx | null> {
-  const delaysMs = [1000, 2000, 2000, 3000, 3000, 3000];
+  const delaysMs = [1000, 2000, 3000, 5000, 5000, 8000, 8000, 10000, 10000, 10000];
   for (let attempt = 0; attempt <= delaysMs.length; attempt++) {
     const result = await verifyTransactionOnce(txIdentifier);
     if (result) return result;
