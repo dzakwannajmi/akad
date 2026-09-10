@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="frontend/public/token/logo.svg" width="72" height="72" alt="Akad" />
+
 # Akad
 
 ![Network](https://img.shields.io/badge/network-Preview%20%26%20Preprod%20live-blue)
@@ -10,7 +12,7 @@
 
 Privacy-optional AMM on Midnight Network, built for Rise In × Midnight "New Moon to Full: Monthly Moonshots"
 
-[Live Demo](https://akad-dzakwannajmis-projects.vercel.app) · [Demo Video](https://youtu.be/UO1GlUcs83A?si=Dy7LKhTyzAB2-3Aj) · [@akadtok](https://x.com/akadtok) · [See Full Proposal](docs/PROPOSAL.md) · [Troubleshooting & Build Notes](docs/TROUBLESHOOTING.md)
+[Live Demo](https://akad-dzakwannajmis-projects.vercel.app) · [Demo Video](https://youtu.be/NAkaJpubq-U) · [@akadtok](https://x.com/akadtok) · [See Full Proposal](docs/PROPOSAL.md) · [Feedback & Testing](docs/FEEDBACK.md) · [Troubleshooting & Build Notes](docs/TROUBLESHOOTING.md)
 
 </div>
 
@@ -27,6 +29,7 @@ Privacy-optional AMM on Midnight Network, built for Rise In × Midnight "New Moo
 - [End-to-End Flows](#end-to-end-flows)
 - [Privacy Model](#privacy-model)
 - [Roadmap](#roadmap)
+- [Community Feedback](#community-feedback)
 - [Testing & CI](#testing--ci)
 - [Running Locally](#running-locally)
 - [Project Structure](#project-structure)
@@ -206,6 +209,10 @@ The honest boundary: swap trade amounts remain public (structural to any public-
 - [ ] Akad Explorer — a self-built block/transaction explorer scoped to the Akad contract, instead of relying on Night Scan/1AM's explorer for a full picture of pool and wallet activity
 - [ ] Akad as a wallet — extend the swap app itself into a lightweight Midnight wallet (key management, balances, shielded coins) instead of only connecting to an external one
 - [ ] Akad SDK — a published TypeScript package wrapping the contract's circuits and providers, so other developers can integrate Akad swap/wrap/unwrap into their own dApps without copying `lib/akad-api.ts`
+
+## Community Feedback
+
+Real testers try the live app, then report back through a short form, real wallet address and a transaction hash from their own session included, so the feedback loop is verifiable rather than just claimed. See [`docs/FEEDBACK.md`](docs/FEEDBACK.md) for the form, the live response spreadsheet, and the demo video walkthrough.
 
 ## Testing & CI
 
