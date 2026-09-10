@@ -201,15 +201,6 @@ export default function SwapPage() {
       ]);
       const colorHex = toHex(color);
       const shieldedMap = shieldedBalances as Record<string, bigint>;
-      // DIAGNOSTIC (temporary): the exact TokenType key format
-      // getShieldedBalances() uses hasn't been confirmed live yet -- this
-      // makes a mismatch visible in the console instead of silently
-      // showing 0. Safe to remove once confirmed working.
-      console.log('[Balances] my account key (hex):', addresses.shieldedCoinPublicKey);
-      console.log('[Balances] AKD token color (hex):', colorHex);
-      console.log('[Balances] public balance (base units):', publicBal.toString());
-      console.log('[Balances] shieldedBalances keys:', Object.keys(shieldedMap));
-      console.log('[Balances] shieldedBalances raw:', shieldedMap);
       setPublicBalance(publicBal);
       setShieldedBalance(shieldedMap[colorHex] ?? 0n);
     } catch (err) {

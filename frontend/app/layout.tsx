@@ -13,6 +13,14 @@ import "./globals.css";
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+  // Mono text (wallet addresses, tx hashes, balances) only ever renders
+  // after wallet connect / async data loads, well past the "few seconds
+  // from window load" window the browser checks -- so the automatic
+  // <link rel=preload> next/font injects into every route (it's declared
+  // in the root layout, so Next.js can't know a given page won't use it
+  // right away) was flagged as unused. The font still loads normally on
+  // first actual use, just without the eager preload hint.
+  preload: false,
 });
 
 export const metadata: Metadata = {
