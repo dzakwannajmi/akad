@@ -124,7 +124,7 @@
     { "op": "declare_pub_input", "var": 39 },
     { "op": "pi_skip", "guard": 28, "count": 4 },
     { "op": "cond_select", "bit": 28, "a": 36, "b": 11 },
-    { "op": "load_imm", "imm": "32" },
+    { "op": "load_imm", "imm": "80F0FA02" },
     { "op": "less_than", "a": 40, "b": 41, "bits": 128 },
     { "op": "cond_select", "bit": 42, "a": 11, "b": 0 },
     { "op": "assert", "cond": 43 },

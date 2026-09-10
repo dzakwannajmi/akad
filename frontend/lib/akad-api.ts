@@ -1,5 +1,7 @@
 import { buildProviders } from './providers';
 import { PRIVATE_STATE_ID } from './wallet-constants';
+import { getNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
+import { MidnightBech32m, ShieldedCoinPublicKey } from '@midnight-ntwrk/wallet-sdk-address-format';
 
 // akad.compact has no witness functions — caller identity comes from
 // ownPublicKey() inside the circuits, not a self-declared witness — and no
@@ -364,6 +366,51 @@ export async function getReserves(
     reserveAKD: BigInt(ledgerState.reserveAKD),
     reserveNight: BigInt(ledgerState.reserveNight),
   };
+}
+
+// Reads the connected wallet's own public AKD balance directly from ledger
+// state (read-only, no wallet tx needed) -- same pattern as
+// getFaucetBalance() above. The `balances` map is keyed by Bytes<32>
+// derived from ownPublicKey().bytes inside the contract (see callerKey()
+// in akad.compact), which is exactly the wallet's shielded coin public key
+// already passed into every call in this file as `coinPublicKey` (see
+// buildProviders() in providers.ts, which wires it straight into
+// WalletProvider.getCoinPublicKey() -- the same value the SDK uses to bind
+// every transaction to this wallet's identity). So the same bytes can be
+// looked up here without needing a new circuit or an on-chain call.
+//
+// coinPublicKey here is `addresses.shieldedCoinPublicKey` from the
+// wallet's getShieldedAddresses() call. Per @midnight-ntwrk/dapp-connector-api's
+// own doc comment, that field (like shieldedAddress/shieldedEncryptionPublicKey)
+// is "provided in Bech32m format" (e.g. "mn_shield-cpk_..."), NOT raw hex --
+// confirmed live: naively fromHex()-ing it produced an empty buffer (Buffer.from
+// silently stops at the first non-hex character instead of throwing), which
+// balances.member() then rejected as an empty Bytes<32>. Decode it through the
+// wallet SDK's own Bech32m codec to get the real 32 raw bytes, which is what
+// ownPublicKey().bytes inside the contract actually compares against (see
+// callerKey() in akad.compact).
+export async function getMyAkdBalance(
+  connectedApi: any,
+  coinPublicKey: string,
+  encryptionPublicKey: string,
+  contractAddress: string
+): Promise<bigint> {
+  const providers = await buildProviders(connectedApi, coinPublicKey, encryptionPublicKey, contractAddress, AKAD_CONTRACT_PATH);
+
+  const contractState = await providers.publicDataProvider.queryContractState(contractAddress);
+  if (contractState === null) {
+    throw new Error('Contract state not found');
+  }
+  const contractModule = await import('./contracts/akad/contract/index.js');
+  const ledgerState = (contractModule as any).ledger(contractState.data);
+
+  const parsedKey = MidnightBech32m.parse(coinPublicKey);
+  const decodedKey = ShieldedCoinPublicKey.codec.decode(getNetworkId(), parsedKey);
+  const accountKey = new Uint8Array(decodedKey.data);
+  if (!ledgerState.balances.member(accountKey)) {
+    return 0n;
+  }
+  return BigInt(ledgerState.balances.lookup(accountKey));
 }
 
 // Executes a swap in either direction. dy must be pre-computed client-side

@@ -132,15 +132,18 @@ export default function DeployPage() {
     setLiquidityStatus('seeding');
     setError(null);
     try {
-      // Demo seed amounts — arbitrary starting ratio, builder-chosen (see README).
-      // Kept well under the 4_000_000_000 safe bound in the contract.
+      // Demo seed amounts — arbitrary starting ratio, builder-chosen (see
+      // README), expressed at AKD's 6-decimal scale: 1000 AKD / 1000 NIGHT
+      // (1_000_000_000 base units each). Kept well under the
+      // 4_000_000_000 safe bound in the contract, with 4x headroom for
+      // trades on top.
       const { txId } = await addLiquidity(
         connectedApi,
         addresses.shieldedCoinPublicKey,
         addresses.shieldedEncryptionPublicKey,
         targetAddress,
-        1000n,
-        1000n
+        1000000000n,
+        1000000000n
       );
       recordActivity({
         txId,
@@ -184,15 +187,16 @@ export default function DeployPage() {
         addresses.shieldedEncryptionPublicKey,
         targetAddress
       );
-      // Funds 100 claims of 50 AKD each, comfortably above the Level 6
-      // target of 70 wallets.
+      // Funds 100 claims of 50 AKD each (50_000_000 base units at AKD's
+      // 6-decimal scale, see claimFaucet() in akad.compact), comfortably
+      // above the Level 6 target of 70 wallets.
       await transferTokens(
         connectedApi,
         addresses.shieldedCoinPublicKey,
         addresses.shieldedEncryptionPublicKey,
         targetAddress,
         faucetAddress,
-        5000n
+        5000000000n
       );
       const balance = await getFaucetBalance(
         connectedApi,

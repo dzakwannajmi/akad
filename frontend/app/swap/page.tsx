@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   getReserves,
+  getMyAkdBalance,
   executeSwap,
   wrapTokens,
   unwrapTokens,
@@ -13,7 +14,9 @@ import {
   privateSwapNightToAkd,
 } from '@/lib/akad-api';
 import { computeSwapOutput, applySlippage } from '@/lib/bonding-curve';
+import { formatBaseUnits, parseToBaseUnits } from '@/lib/decimals';
 import { recordActivity } from '@/lib/activity-api';
+import { toHex, fromHex } from '@midnight-ntwrk/midnight-js-utils';
 import { useNetwork } from '@/contexts/NetworkContext';
 import { useWalletConnect } from '@/hooks/use-wallet-connect';
 import { Icon } from '@iconify/react';
@@ -24,6 +27,54 @@ import { WalletConnectButton } from '@/components/brand/wallet-connect-button';
 import { AkdTokenIcon, NightTokenIcon } from '@/components/icons/token-icon';
 
 type Direction = 'AkdToNight' | 'NightToAkd';
+
+// wrap() mints a shielded coin with a client-generated nonce that only
+// this browser ever sees -- the wallet's own shielded-balance query later
+// confirms the coin exists, but can't recover its nonce, which is what
+// unwrap() needs to spend that exact coin. Persisting {nonce, value} to
+// localStorage (keyed per network + contract + wallet) means a page
+// refresh no longer makes "Unwrap" wrongly claim there's nothing to
+// unwrap. This does NOT survive a different browser/device, or the user
+// clearing site data -- a real fix for that would need the wallet to
+// expose spendable-coin details beyond the aggregate balance it reports
+// today (see getShieldedBalances() usage below), which isn't available.
+function wrappedCoinStorageKey(networkKey: string, contractAddress: string, wallet: string): string {
+  return `akad:wrappedCoin:${networkKey}:${contractAddress}:${wallet}`;
+}
+
+function saveWrappedCoin(key: string, coin: { nonce: Uint8Array; value: bigint }): void {
+  try {
+    window.localStorage.setItem(key, JSON.stringify({ nonce: toHex(coin.nonce), value: coin.value.toString() }));
+  } catch (err) {
+    console.error('[WrappedCoin] Failed to persist to localStorage:', err);
+  }
+}
+
+function loadWrappedCoin(key: string): { nonce: Uint8Array; value: bigint } | null {
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { nonce: string; value: string };
+    // fromHex() returns a Node Buffer, not a plain Uint8Array -- the
+    // compact-runtime rejects a Buffer for a Bytes<32> circuit argument
+    // (this nonce gets passed straight into unwrap()), so re-wrap it.
+    // Same root cause as the accountKey fix in getMyAkdBalance()
+    // (akad-api.ts), confirmed live via a CompactError: "expected value
+    // of type Bytes<32> but received <Buffer >".
+    return { nonce: new Uint8Array(fromHex(parsed.nonce)), value: BigInt(parsed.value) };
+  } catch (err) {
+    console.error('[WrappedCoin] Failed to read from localStorage:', err);
+    return null;
+  }
+}
+
+function clearWrappedCoin(key: string): void {
+  try {
+    window.localStorage.removeItem(key);
+  } catch (err) {
+    console.error('[WrappedCoin] Failed to clear localStorage:', err);
+  }
+}
 
 function TokenPillIcon({ token }: { token: string }) {
   return token === 'AKD' ? (
@@ -43,6 +94,10 @@ export default function SwapPage() {
   const [amountIn, setAmountIn] = useState('');
   const [amountOut, setAmountOut] = useState<bigint | null>(null);
   const [reserves, setReserves] = useState<{ reserveAKD: bigint; reserveNight: bigint } | null>(null);
+  const [publicBalance, setPublicBalance] = useState<bigint | null>(null);
+  const [shieldedBalance, setShieldedBalance] = useState<bigint | null>(null);
+  const [balancesLoading, setBalancesLoading] = useState(false);
+  const [balancesError, setBalancesError] = useState<string | null>(null);
   const [status, setStatus] = useState<string>('idle');
   const [wrapAmount, setWrapAmount] = useState('');
   const [wrapStatus, setWrapStatus] = useState<string>('idle');
@@ -52,6 +107,7 @@ export default function SwapPage() {
   const [faucetStatus, setFaucetStatus] = useState<string>('idle');
   const [showSettings, setShowSettings] = useState(false);
   const [tradeOpen, setTradeOpen] = useState(false);
+  const [showPoolInfo, setShowPoolInfo] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fromToken = direction === 'AkdToNight' ? 'AKD' : 'NIGHT';
@@ -76,8 +132,24 @@ export default function SwapPage() {
   // connectedApi without knowing about this page's reserves -- drop the
   // stale quote whenever the connection goes away.
   useEffect(() => {
-    if (!connectedApi) setReserves(null);
+    if (!connectedApi) {
+      setReserves(null);
+      setPublicBalance(null);
+      setShieldedBalance(null);
+    }
   }, [connectedApi]);
+
+  // Rehydrates a wrapped coin persisted from a previous page load (see
+  // saveWrappedCoin() above) once we know which wallet/network/contract to
+  // look it up for. Runs again on network switch so each network's own
+  // wrapped coin (if any) is picked up separately.
+  useEffect(() => {
+    if (!addresses) return;
+    const stored = loadWrappedCoin(
+      wrappedCoinStorageKey(networkKey, CONTRACT_ADDRESS, addresses.unshieldedAddress)
+    );
+    if (stored) setWrappedCoin(stored);
+  }, [networkKey, CONTRACT_ADDRESS, addresses]);
 
   const refreshReserves = useCallback(async () => {
     if (!connectedApi || !addresses) return;
@@ -91,6 +163,62 @@ export default function SwapPage() {
       setReserves(r);
     } catch (err) {
       console.error('[Reserves]', err);
+    }
+  }, [connectedApi, addresses]);
+
+  // Reads both the public AKD balance (custom ledger map, see
+  // getMyAkdBalance() in akad-api.ts) and the shielded AKD balance (a real
+  // Zswap coin the wallet itself tracks) for the connected wallet. The
+  // shielded lookup keys getShieldedBalances()'s Record<TokenType, bigint>
+  // by AKD's hex-encoded token color -- this is the one piece not yet
+  // smoke-tested live (no browser/wallet available in this dev session),
+  // so verify the panel shows a sane number after a real wrap before
+  // trusting it fully.
+  const refreshBalances = useCallback(async () => {
+    if (!connectedApi || !addresses) {
+      setPublicBalance(null);
+      setShieldedBalance(null);
+      setBalancesError(null);
+      return;
+    }
+    setBalancesLoading(true);
+    setBalancesError(null);
+    try {
+      const [publicBal, color, shieldedBalances] = await Promise.all([
+        getMyAkdBalance(
+          connectedApi,
+          addresses.shieldedCoinPublicKey,
+          addresses.shieldedEncryptionPublicKey,
+          CONTRACT_ADDRESS
+        ),
+        getTokenColor(
+          connectedApi,
+          addresses.shieldedCoinPublicKey,
+          addresses.shieldedEncryptionPublicKey,
+          CONTRACT_ADDRESS
+        ),
+        connectedApi.getShieldedBalances(),
+      ]);
+      const colorHex = toHex(color);
+      const shieldedMap = shieldedBalances as Record<string, bigint>;
+      // DIAGNOSTIC (temporary): the exact TokenType key format
+      // getShieldedBalances() uses hasn't been confirmed live yet -- this
+      // makes a mismatch visible in the console instead of silently
+      // showing 0. Safe to remove once confirmed working.
+      console.log('[Balances] my account key (hex):', addresses.shieldedCoinPublicKey);
+      console.log('[Balances] AKD token color (hex):', colorHex);
+      console.log('[Balances] public balance (base units):', publicBal.toString());
+      console.log('[Balances] shieldedBalances keys:', Object.keys(shieldedMap));
+      console.log('[Balances] shieldedBalances raw:', shieldedMap);
+      setPublicBalance(publicBal);
+      setShieldedBalance(shieldedMap[colorHex] ?? 0n);
+    } catch (err) {
+      console.error('[Balances] failed:', err);
+      setBalancesError(err instanceof Error ? err.message : String(err));
+      setPublicBalance(null);
+      setShieldedBalance(null);
+    } finally {
+      setBalancesLoading(false);
     }
   }, [connectedApi, addresses]);
 
@@ -110,6 +238,10 @@ export default function SwapPage() {
     refreshReserves();
   }, [refreshReserves]);
 
+  useEffect(() => {
+    refreshBalances();
+  }, [refreshBalances]);
+
   // In private AKD -> NIGHT mode the input isn't free-typed -- dx is fixed
   // to whatever's already wrapped, since privateSwapAkdToNight() spends the
   // whole coin (no change-making). Every other mode keeps using amountIn.
@@ -118,14 +250,13 @@ export default function SwapPage() {
       setAmountOut(null);
       return;
     }
-    const dxSource =
-      privateMode && direction === 'AkdToNight' ? wrappedCoin?.value.toString() : amountIn;
-    if (!dxSource) {
+    const dx =
+      privateMode && direction === 'AkdToNight' ? wrappedCoin?.value ?? null : parseToBaseUnits(amountIn);
+    if (dx === null || dx <= 0n) {
       setAmountOut(null);
       return;
     }
     try {
-      const dx = BigInt(dxSource);
       const [reserveIn, reserveOut] =
         direction === 'AkdToNight'
           ? [reserves.reserveAKD, reserves.reserveNight]
@@ -162,7 +293,7 @@ export default function SwapPage() {
         network: networkKey,
       }).catch((err) => console.error('[Activity] Failed to record claimFaucet:', err));
       setFaucetStatus('claimed');
-      await refreshReserves();
+      await Promise.all([refreshReserves(), refreshBalances()]);
     } catch (err: any) {
       console.error('[Claim Faucet]', err);
       const detail = err?.cause?.cause?.message || err?.cause?.message || err?.message || String(err);
@@ -173,6 +304,11 @@ export default function SwapPage() {
 
   const handleWrap = async () => {
     if (!connectedApi || !addresses || !wrapAmount) return;
+    const amount = parseToBaseUnits(wrapAmount);
+    if (amount === null || amount <= 0n) {
+      setError('Jumlah wrap tidak valid.');
+      return;
+    }
     setWrapStatus('wrapping');
     setError(null);
     try {
@@ -181,20 +317,22 @@ export default function SwapPage() {
         addresses.shieldedCoinPublicKey,
         addresses.shieldedEncryptionPublicKey,
         CONTRACT_ADDRESS,
-        BigInt(wrapAmount)
+        amount
       );
       setWrappedCoin({ nonce, value });
+      saveWrappedCoin(wrappedCoinStorageKey(networkKey, CONTRACT_ADDRESS, addresses.unshieldedAddress), { nonce, value });
       setUnwrapStatus('idle');
       setWrapStatus('wrapped');
       recordActivity({
         txId,
         txType: 'wrap',
         wallet: addresses.unshieldedAddress,
-        amountIn: wrapAmount,
+        amountIn: formatBaseUnits(value),
         tokenIn: 'AKD',
         network: networkKey,
       }).catch((err) => console.error('[Activity] Failed to record wrap:', err));
       setWrapAmount('');
+      await refreshBalances();
     } catch (err: any) {
       console.error('[Wrap]', err);
       const detail = err?.cause?.cause?.message || err?.cause?.message || err?.message || String(err);
@@ -225,12 +363,14 @@ export default function SwapPage() {
         txId,
         txType: 'unwrap',
         wallet: addresses.unshieldedAddress,
-        amountIn: wrappedCoin.value.toString(),
+        amountIn: formatBaseUnits(wrappedCoin.value),
         tokenIn: 'AKD (shielded)',
         network: networkKey,
       }).catch((err) => console.error('[Activity] Failed to record unwrap:', err));
+      clearWrappedCoin(wrappedCoinStorageKey(networkKey, CONTRACT_ADDRESS, addresses.unshieldedAddress));
       setWrappedCoin(null);
       setUnwrapStatus('unwrapped');
+      await refreshBalances();
     } catch (err: any) {
       console.error('[Unwrap]', err);
       const detail = err?.cause?.cause?.message || err?.cause?.message || err?.message || String(err);
@@ -268,19 +408,25 @@ export default function SwapPage() {
           txId,
           txType: 'privateSwapAkdToNight',
           wallet: addresses.unshieldedAddress,
-          amountIn: wrappedCoin.value.toString(),
-          amountOut: amountOut.toString(),
+          amountIn: formatBaseUnits(wrappedCoin.value),
+          amountOut: formatBaseUnits(amountOut),
           tokenIn: 'AKD (shielded)',
           tokenOut: toToken,
           network: networkKey,
         }).catch((err) => console.error('[Activity] Failed to record privateSwapAkdToNight:', err));
+        clearWrappedCoin(wrappedCoinStorageKey(networkKey, CONTRACT_ADDRESS, addresses.unshieldedAddress));
         setWrappedCoin(null);
-        await refreshReserves();
+        await Promise.all([refreshReserves(), refreshBalances()]);
         return;
       }
 
       if (privateMode && direction === 'NightToAkd') {
-        const dx = BigInt(amountIn);
+        const dx = parseToBaseUnits(amountIn);
+        if (dx === null || dx <= 0n) {
+          setError('Jumlah tidak valid.');
+          setStatus('idle');
+          return;
+        }
         const { nonce, value, txId } = await privateSwapNightToAkd(
           connectedApi,
           addresses.shieldedCoinPublicKey,
@@ -295,20 +441,26 @@ export default function SwapPage() {
           txId,
           txType: 'privateSwapNightToAkd',
           wallet: addresses.unshieldedAddress,
-          amountIn,
-          amountOut: value.toString(),
+          amountIn: formatBaseUnits(dx),
+          amountOut: formatBaseUnits(value),
           tokenIn: fromToken,
           tokenOut: 'AKD (shielded)',
           network: networkKey,
         }).catch((err) => console.error('[Activity] Failed to record privateSwapNightToAkd:', err));
         setWrappedCoin({ nonce, value });
+        saveWrappedCoin(wrappedCoinStorageKey(networkKey, CONTRACT_ADDRESS, addresses.unshieldedAddress), { nonce, value });
         setUnwrapStatus('idle');
         setAmountIn('');
-        await refreshReserves();
+        await Promise.all([refreshReserves(), refreshBalances()]);
         return;
       }
 
-      const dx = BigInt(amountIn);
+      const dx = parseToBaseUnits(amountIn);
+      if (dx === null || dx <= 0n) {
+        setError('Jumlah tidak valid.');
+        setStatus('idle');
+        return;
+      }
       const { txId } = await executeSwap(
         connectedApi,
         addresses.shieldedCoinPublicKey,
@@ -324,14 +476,14 @@ export default function SwapPage() {
         txId,
         txType: direction === 'AkdToNight' ? 'swapAkdToNight' : 'swapNightToAkd',
         wallet: addresses.unshieldedAddress,
-        amountIn,
-        amountOut: amountOut.toString(),
+        amountIn: formatBaseUnits(dx),
+        amountOut: formatBaseUnits(amountOut),
         tokenIn: fromToken,
         tokenOut: toToken,
         network: networkKey,
       }).catch((err) => console.error('[Activity] Failed to record swap:', err));
       setAmountIn('');
-      await refreshReserves();
+      await Promise.all([refreshReserves(), refreshBalances()]);
     } catch (err: any) {
       console.error('[Swap]', err);
       const detail = err?.cause?.cause?.message || err?.cause?.message || err?.message || String(err);
@@ -448,6 +600,49 @@ export default function SwapPage() {
             </button>
           </div>
 
+          {connectedApi && (
+            <div className="mb-3">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-2xl bg-white/[0.04] px-4 py-3">
+                  <div className="flex items-center gap-1.5 text-xs text-white/40">
+                    <AkdTokenIcon className="h-3.5 w-3.5" />
+                    Public AKD
+                  </div>
+                  <div className="mt-1 font-mono text-lg tabular-nums">
+                    {balancesLoading ? (
+                      <Spinner className="h-4 w-4" />
+                    ) : balancesError ? (
+                      <span className="text-base text-red-400/70">Couldn&apos;t load</span>
+                    ) : (
+                      formatBaseUnits(publicBalance ?? 0n)
+                    )}
+                  </div>
+                </div>
+                <div className="rounded-2xl bg-white/[0.04] px-4 py-3">
+                  <div className="flex items-center gap-1.5 text-xs text-white/40">
+                    <Icon icon="lucide:shield" width={14} height={14} />
+                    Private AKD (shielded)
+                  </div>
+                  <div className="mt-1 font-mono text-lg tabular-nums">
+                    {balancesLoading ? (
+                      <Spinner className="h-4 w-4" />
+                    ) : balancesError ? (
+                      <span className="text-base text-red-400/70">Couldn&apos;t load</span>
+                    ) : (
+                      formatBaseUnits(shieldedBalance ?? 0n)
+                    )}
+                  </div>
+                </div>
+              </div>
+              {balancesError && (
+                <p className="mt-2 text-xs leading-relaxed text-red-400/60">
+                  Balance check failed: {balancesError}. Your funds are unaffected, this is just a
+                  display error, check the browser console for details.
+                </p>
+              )}
+            </div>
+          )}
+
           {showSettings && (
             <div className="mb-3 rounded-2xl bg-white/[0.04] p-5">
               <div className="font-mono text-xs uppercase tracking-wider text-white/35">
@@ -493,7 +688,7 @@ export default function SwapPage() {
                   <div className="mt-2 flex items-center justify-between gap-3">
                     {privateAkdInputLocked ? (
                       <span className="text-4xl font-medium tracking-tight">
-                        {wrappedCoin ? wrappedCoin.value.toString() : '0'}
+                        {wrappedCoin ? formatBaseUnits(wrappedCoin.value) : '0'}
                       </span>
                     ) : (
                       <input
@@ -531,7 +726,7 @@ export default function SwapPage() {
                   <div className="text-sm text-white/45">You receive</div>
                   <div className="mt-2 flex items-center justify-between gap-3">
                     <span className="text-4xl font-medium tracking-tight text-white/80">
-                      {amountOut !== null ? amountOut.toString() : '0'}
+                      {amountOut !== null ? formatBaseUnits(amountOut) : '0'}
                     </span>
                     <span className="flex items-center gap-2 whitespace-nowrap rounded-full bg-white/10 py-2 pl-2 pr-4 font-mono text-sm">
                       <TokenPillIcon token={toToken} />
@@ -565,14 +760,28 @@ export default function SwapPage() {
                 {status === 'swapping' ? 'Swapping…' : privateMode ? 'Swap privately' : 'Swap'}
               </button>
 
-              <div className="mt-4 flex items-center justify-between font-mono text-xs text-white/30">
-                <span>Base units · 6 decimals</span>
-                {reserves && (
-                  <span>
-                    Pool {reserves.reserveAKD.toString()} / {reserves.reserveNight.toString()}
-                  </span>
-                )}
-              </div>
+              {reserves && (
+                <div className="mt-4">
+                  <button
+                    onClick={() => setShowPoolInfo((v) => !v)}
+                    className="flex w-full items-center justify-end gap-1.5 font-mono text-xs text-white/30 transition-colors hover:text-white/60"
+                  >
+                    <span>
+                      Pool {formatBaseUnits(reserves.reserveAKD)} AKD / {formatBaseUnits(reserves.reserveNight)} NIGHT
+                    </span>
+                    <Icon icon="lucide:info" width={13} height={13} />
+                  </button>
+                  {showPoolInfo && (
+                    <p className="mt-2 rounded-xl bg-white/[0.03] p-3 text-right text-xs leading-relaxed text-white/40">
+                      This is how much AKD and NIGHT the pool itself is holding right now. Akad prices
+                      trades off these two numbers (a constant-product formula, x times y stays
+                      constant), so the rate moves a little with every trade, and a bigger pool means
+                      less price impact per trade. That is also why &quot;You receive&quot; is never an
+                      exact 1:1 amount, even with no fees.
+                    </p>
+                  )}
+                </div>
+              )}
 
               {connectedApi && (
                 <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl bg-white/[0.03] px-5 py-3">
@@ -646,7 +855,7 @@ export default function SwapPage() {
                     Sends the shielded coin back to the contract and credits your public balance.
                   </p>
                   <div className="mt-5 flex items-center gap-3 text-4xl font-medium tracking-tight">
-                    <span>{wrappedCoin.value.toString()}</span>
+                    <span>{formatBaseUnits(wrappedCoin.value)}</span>
                     <span className="flex items-center gap-1.5 font-mono text-base text-white/40">
                       <AkdTokenIcon className="h-5 w-5" />
                       AKD shielded

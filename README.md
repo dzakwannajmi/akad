@@ -48,20 +48,38 @@ The idea behind the name: "Akad" is an agreement between two parties — every s
 
 | Contract | Network | Address |
 |---|---|---|
-| Akad (token + AMM) | Preview | `462616f6263725ab0a22b5ffdcde5798a47c39ec72f04978c2e0bb8b9588583f` |
-| Akad (token + AMM) | Preprod | `52907ea70ae01643508a270cf5592901e8b88216f1d332e953231f788b7e7975` |
+| Akad (token + AMM) | Preview | `69637ed3acebec446aab0a6b7029542ce9fdaf63eea275ff033783a069e59f40` |
+| Akad (token + AMM) | Preprod | `55f49f1cb90332976244a358be62a894d8370295f362254f630dd86025f6d9ce` |
 
-[View Preview contract on Night Scan](https://explorer.preview.midnight.network/contracts/stream/462616f6263725ab0a22b5ffdcde5798a47c39ec72f04978c2e0bb8b9588583f)
+[View Preview contract on Night Scan](https://explorer.preview.midnight.network/contracts/stream/69637ed3acebec446aab0a6b7029542ce9fdaf63eea275ff033783a069e59f40)
 
-Token and swap logic were originally two separate contracts; they were merged into one so swap circuits could move a trader's real AKD balance without relying on an unverified cross-contract authorization pattern. See [contracts/README.md](contracts/README.md) for why. Both addresses above are from the redeploy that shipped the private-swap circuits and the `unwrap()` token-color fix (see [Roadmap](#roadmap)); coins wrapped against an older deployment cannot be unwrapped against this one.
+Token and swap logic were originally two separate contracts; they were merged into one so swap circuits could move a trader's real AKD balance without relying on an unverified cross-contract authorization pattern. See [contracts/README.md](contracts/README.md) for why. Both addresses above are from the redeploy that fixed `claimFaucet()` to actually grant 50 AKD at the token's 6-decimal scale (50_000_000 base units, not 50) instead of a leftover pre-decimals amount; coins wrapped against an older deployment cannot be unwrapped against this one.
 
-**Verified transactions** on the current Preview contract above, on-chain:
+**Verified transactions**, on-chain, on the contract addresses above, one of each circuit on each network:
+
+Preview:
 
 | Action | Transaction |
 |---|---|
-| `privateSwapAkdToNight()` | [`f44c3e0b…dff7c62`](https://explorer.1am.xyz/tx/f44c3e0bad755827fccb15c55454bd15cb32ff6f0c0e0f47700fb269bdff7c62?network=preview) |
+| `swapAkdToNight()` | [`e8b715e8…b925cd3`](https://explorer.1am.xyz/tx/e8b715e872d63d0dc573a44c07ce2785f9b8a7d4c933efc9d62a3c8e1b925cd3?network=preview) |
+| `swapNightToAkd()` | [`ab12661d…0b15bf9`](https://explorer.1am.xyz/tx/ab12661d560a7ea0ab76e4b9ccb071fb13cc2937551ed083973f095070b15bf9?network=preview) |
+| `wrap()` | [`e0afe019…698ca3a`](https://explorer.1am.xyz/tx/e0afe0195ea8bdb1ea44640aeba2a0faaf09210f0bfee824856887296698ca3a?network=preview) |
+| `unwrap()` | [`27b02bf2…5c0b59f`](https://explorer.1am.xyz/tx/27b02bf2085f88ebc22cc08e007e305bf550eaf6ec9ce3c1513b904e25c0b59f?network=preview) |
+| `privateSwapAkdToNight()` | [`0ea5d06d…4310bba`](https://explorer.1am.xyz/tx/0ea5d06da7d3dd69a5f31ddddac9b817a7941dde45836452304cc3b804310bba?network=preview) |
+| `privateSwapNightToAkd()` | [`d60c058d…9ed33ba`](https://explorer.1am.xyz/tx/d60c058d08d19492989214d0c4b9d5dc6951fc01b4e6ffedd3fcb6da49ed33ba?network=preview) |
 
-> `wrap`, `unwrap`, `swapAkdToNight`, `swapNightToAkd`, and `privateSwapNightToAkd` were all re-verified working after this redeploy (both directions of private swap, and a full swap/wrap/unwrap cycle on Preprod), but fresh transaction links for this specific contract address are still being collected — the previous set of links here pointed at the prior deployment and have been removed rather than left pointing at a superseded address.
+Preprod:
+
+| Action | Transaction |
+|---|---|
+| `swapAkdToNight()` | [`62de96af…1a3bb76`](https://explorer.1am.xyz/tx/62de96afc9684d749ab206f832b39175cb105c4190ec14d921de9e0f31a3bb76?network=preprod) |
+| `swapNightToAkd()` | [`341a8361…18b3691`](https://explorer.1am.xyz/tx/341a8361fb1560aea1b4a9bf2d0f92474c690df009324987110c1fdbd18b3691?network=preprod) |
+| `wrap()` | [`a3eaca37…6d7c8b3`](https://explorer.1am.xyz/tx/a3eaca376205800047ab8d86afcbc2132d5797c1b2d12e854ff426a906d7c8b3?network=preprod) |
+| `unwrap()` | [`a63ee30c…fbdd22d`](https://explorer.1am.xyz/tx/a63ee30c2ad941cb688df6d15c8be5725cd8a55b89159f0bbe2fc165cfbdd22d?network=preprod) |
+| `privateSwapAkdToNight()` | [`3d0f4b58…d60dffd`](https://explorer.1am.xyz/tx/3d0f4b58c26ed5491ceacf5284ce097e31e29e01d2e57d387b6d62b56d60dffd?network=preprod) |
+| `privateSwapNightToAkd()` | [`9b06237a…e54bac0`](https://explorer.1am.xyz/tx/9b06237aa80ccbe28dfd3b99c4d1e41513633ebebb09e3fbdbd900495e54bac0?network=preprod) |
+
+Previous deployment (superseded by the redeploy above, kept for history): Preview `462616f6263725ab0a22b5ffdcde5798a47c39ec72f04978c2e0bb8b9588583f`, Preprod `52907ea70ae01643508a270cf5592901e8b88216f1d332e953231f788b7e7975`.
 
 ## Trying the App
 
@@ -182,6 +200,7 @@ The honest boundary: swap trade amounts remain public (structural to any public-
 - [ ] Multi-chain — beyond Midnight
 - [ ] Mobile-responsive UI
 - [ ] Multi-provider liquidity (LP tokens) — currently a single fixed liquidity seed from the builder
+- [ ] Pool page — a dedicated page for the AKD/NIGHT pool itself (live reserves, a price chart, TVL, and volume), the way a standard DEX shows its pool view, instead of the single reserve line on the swap card today
 - [ ] Reserve-delta privacy research — batching or delayed settlement to reduce what's inferable from public reserve changes
 - [x] Deploy the contract to Preprod and verify a full swap/wrap/unwrap cycle there
 - [ ] Akad Explorer — a self-built block/transaction explorer scoped to the Akad contract, instead of relying on Night Scan/1AM's explorer for a full picture of pool and wallet activity

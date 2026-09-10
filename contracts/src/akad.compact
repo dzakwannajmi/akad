@@ -135,26 +135,26 @@ export circuit transfer(to: Bytes<32>, amount: Uint<128>): [] {
 }
 
 // Lets any wallet that has never held AKD before bootstrap a small fixed
-// amount (50 AKD, in this contract's base units) so it can try a real
-// swap without the builder manually transferring tokens to it first.
-// One-time per wallet: see faucetClaimed / hasClaimedFaucet() above. The
-// faucet's own balance is funded by the builder via transfer(), passing
-// the ledger's faucetAddress value as the recipient. It can run dry, and
-// callers get a clear assert message when it does rather than a generic
-// balance failure.
+// amount (50 AKD -- 50_000_000 base units at this token's 6 decimals) so
+// it can try a real swap without the builder manually transferring tokens
+// to it first. One-time per wallet: see faucetClaimed / hasClaimedFaucet()
+// above. The faucet's own balance is funded by the builder via transfer(),
+// passing the ledger's faucetAddress value as the recipient. It can run
+// dry, and callers get a clear assert message when it does rather than a
+// generic balance failure.
 export circuit claimFaucet(): [] {
   const caller = callerKey();
   assert(!hasClaimedFaucet(caller), "this wallet has already claimed from the faucet");
 
   const faucet = faucetKey();
   const faucetBalance = balanceOf(faucet);
-  assert(faucetBalance >= 50, "faucet is empty, ask the deployer to top it up");
+  assert(faucetBalance >= 50000000, "faucet is empty, ask the deployer to top it up");
 
-  const newFaucetBalance: Uint<128> = (faucetBalance - 50) as Uint<128>;
+  const newFaucetBalance: Uint<128> = (faucetBalance - 50000000) as Uint<128>;
   balances.insert(faucet, disclose(newFaucetBalance));
 
   const callerBalance = balanceOf(caller);
-  const newCallerBalance: Uint<128> = (callerBalance + 50) as Uint<128>;
+  const newCallerBalance: Uint<128> = (callerBalance + 50000000) as Uint<128>;
   balances.insert(caller, disclose(newCallerBalance));
 
   faucetClaimed.insert(caller, true);

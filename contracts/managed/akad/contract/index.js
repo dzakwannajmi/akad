@@ -1169,11 +1169,13 @@ export class Contract {
     const faucetBalance_0 = this._balanceOf_0(context,
                                               partialProofData,
                                               faucet_0);
-    __compactRuntime.assert(faucetBalance_0 >= 50n,
+    __compactRuntime.assert(faucetBalance_0 >= 50000000n,
                             'faucet is empty, ask the deployer to top it up');
-    const newFaucetBalance_0 = (__compactRuntime.assert(faucetBalance_0 >= 50n,
+    const newFaucetBalance_0 = (__compactRuntime.assert(faucetBalance_0
+                                                        >=
+                                                        50000000n,
                                                         'result of subtraction would be negative'),
-                                faucetBalance_0 - 50n);
+                                faucetBalance_0 - 50000000n);
     __compactRuntime.queryLedgerState(context,
                                       partialProofData,
                                       [
@@ -1199,7 +1201,7 @@ export class Contract {
                                    throw new __compactRuntime.CompactError('akad.compact line 157 char 39: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 340282366920938463463374607431768211455');
                                  }
                                  return t1;
-                               })(callerBalance_0 + 50n);
+                               })(callerBalance_0 + 50000000n);
     __compactRuntime.queryLedgerState(context,
                                       partialProofData,
                                       [
