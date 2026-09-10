@@ -23,3 +23,7 @@ build/
 .DS_Store
 *.log
 .vscode/
+
+# Files the Claude desktop app drops into this folder when it delivers
+# generated files during a chat session -- not meant to be versioned.
+Claude outputs/
