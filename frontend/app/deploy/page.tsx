@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { getCompatibleWallets, connectWallet } from '@/lib/wallet';
 import {
   deployAkadContract,
@@ -14,7 +14,8 @@ import {
   getFaucetBalance,
 } from '@/lib/akad-api';
 import { recordActivity } from '@/lib/activity-api';
-import { CONTRACT_ADDRESS } from '@/lib/wallet-constants';
+import { useNetwork } from '@/contexts/NetworkContext';
+import { NETWORKS, type NetworkKey } from '@/lib/networks';
 
 const buttonStyle: React.CSSProperties = {
   fontFamily: 'var(--font-geist-mono), monospace',
@@ -35,6 +36,8 @@ const disabledButtonStyle: React.CSSProperties = {
 };
 
 export default function DeployPage() {
+  const { networkKey, network, setNetworkKey } = useNetwork();
+  const CONTRACT_ADDRESS = network.contractAddress;
   const [status, setStatus] = useState<string>('idle');
   const [error, setError] = useState<string | null>(null);
   const [contractAddress, setContractAddress] = useState<string | null>(null);
@@ -47,6 +50,20 @@ export default function DeployPage() {
   const [addresses, setAddresses] = useState<any>(null);
   const [faucetStatus, setFaucetStatus] = useState<string>('idle');
   const [faucetBalance, setFaucetBalance] = useState<bigint | null>(null);
+
+  useEffect(() => {
+    setStatus('idle');
+    setError(null);
+    setContractAddress(null);
+    setInitStatus('idle');
+    setLiquidityStatus('idle');
+    setFaucetStatus('idle');
+    setFaucetBalance(null);
+    setConnectedApi(null);
+    setAddresses(null);
+    // Only ever needs to react to networkKey changing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [networkKey]);
 
   const targetAddress = contractAddress || CONTRACT_ADDRESS;
 
@@ -150,6 +167,7 @@ export default function DeployPage() {
         amountOut: '1000',
         tokenIn: 'AKD',
         tokenOut: 'tNIGHT',
+        network: networkKey,
       }).catch((err) => console.error('[Activity] Failed to record addLiquidity:', err));
       setLiquidityStatus('seeded');
     } catch (err: any) {
@@ -285,6 +303,31 @@ export default function DeployPage() {
       <h1 style={{ fontFamily: 'var(--font-geist-mono), monospace', marginBottom: 8 }}>
         Akad — Deploy (dev)
       </h1>
+      <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
+        <span style={{ fontFamily: 'var(--font-geist-mono), monospace', fontSize: 13 }}>
+          Deploying to:
+        </span>
+        {(Object.keys(NETWORKS) as NetworkKey[]).map((key) => (
+          <button
+            key={key}
+            onClick={() => setNetworkKey(key)}
+            style={
+              networkKey === key
+                ? { ...buttonStyle, marginRight: 0 }
+                : { ...buttonStyle, marginRight: 0, background: '#ffffff', color: '#0e0f0c' }
+            }
+          >
+            {NETWORKS[key].label}
+          </button>
+        ))}
+      </div>
+      {!CONTRACT_ADDRESS && !contractAddress && (
+        <p style={{ marginBottom: 16, color: '#a15c00', fontSize: 13 }}>
+          No NEXT_PUBLIC_AKAD_CONTRACT_ADDRESS_{network.id.toUpperCase()} set yet -- deploy a
+          fresh contract below, then copy the resulting address into that env var so the rest
+          of the app can find it on {network.label}.
+        </p>
+      )}
       <p style={{ marginBottom: 16 }}>Status: <strong>{status}</strong></p>
       {error && <p style={{ color: '#c0392b', marginBottom: 16 }}>Error: {error}</p>}
 

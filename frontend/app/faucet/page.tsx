@@ -1,13 +1,14 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { SiteHeader } from '@/components/brand/site-header';
 import { Spinner } from '@/components/icons/spinner';
 import { getCompatibleWallets, connectWallet } from '@/lib/wallet';
 import { claimFaucet } from '@/lib/akad-api';
 import { recordActivity } from '@/lib/activity-api';
-import { CONTRACT_ADDRESS } from '@/lib/wallet-constants';
+import { useNetwork } from '@/contexts/NetworkContext';
+import { NetworkToggle } from '@/components/brand/network-toggle';
 
 type ConnectResult = Awaited<ReturnType<typeof connectWallet>>;
 type Status = 'idle' | 'connecting' | 'claiming' | 'claimed';
@@ -26,10 +27,22 @@ function errorDetail(err: unknown): string {
 }
 
 export default function FaucetPage() {
+  const { networkKey, network } = useNetwork();
+  const CONTRACT_ADDRESS = network.contractAddress;
   const [connectedApi, setConnectedApi] = useState<ConnectResult['connectedApi'] | null>(null);
   const [addresses, setAddresses] = useState<ConnectResult['addresses'] | null>(null);
   const [status, setStatus] = useState<Status>('idle');
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setConnectedApi(null);
+    setAddresses(null);
+    setStatus('idle');
+    setError(null);
+    // Only ever needs to react to networkKey changing -- deliberately not
+    // depending on anything else here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [networkKey]);
 
   const handleConnect = async () => {
     setError(null);
@@ -68,6 +81,7 @@ export default function FaucetPage() {
         wallet: addresses.unshieldedAddress,
         amountOut: '50',
         tokenOut: 'AKD',
+        network: networkKey,
       }).catch((err) => console.error('[Activity] Failed to record claimFaucet:', err));
       setStatus('claimed');
     } catch (err) {
@@ -79,7 +93,7 @@ export default function FaucetPage() {
 
   return (
     <main className="flex min-h-screen flex-col bg-black text-white selection:bg-white selection:text-black">
-      <SiteHeader />
+      <SiteHeader right={<NetworkToggle />} />
 
       <div className="relative flex flex-1 items-center overflow-hidden">
         {/* Large dimmed brand mark standing in for the big background
@@ -96,19 +110,19 @@ export default function FaucetPage() {
         <div className="relative mx-auto w-full max-w-5xl px-6 py-20 sm:px-10">
           <div className="max-w-lg">
             <h1 className="text-5xl font-medium leading-[0.95] tracking-[-0.03em] sm:text-6xl">
-              Akad Preview Faucet
+              Akad {network.label} Faucet
             </h1>
             <p className="mt-5 text-base leading-relaxed text-white/50">
-              Claim a one-time 50 AKD on Midnight&apos;s Preview testnet, enough to try a real
-              swap. AKD has no real value: this faucet only works on Preview, and each wallet
-              can claim once.
+              Claim a one-time 50 AKD on Midnight&apos;s {network.label} testnet, enough to try a
+              real swap. AKD has no real value, and each wallet can claim once per network.
             </p>
 
             <div className="mt-10 rounded-2xl border border-white/10 bg-white/[0.04] p-6">
               {!connectedApi ? (
                 <>
                   <p className="text-sm leading-relaxed text-white/50">
-                    Connect a Midnight wallet (1AM or Lace) on the Preview network to claim.
+                    Connect a Midnight wallet (1AM or Lace) on the {network.label} network to
+                    claim.
                   </p>
                   <button
                     onClick={handleConnect}

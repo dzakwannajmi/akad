@@ -1,19 +1,22 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { getCompatibleWallets, connectWallet } from '@/lib/wallet';
 import { getReserves, executeSwap, wrapTokens, unwrapTokens, getTokenColor, claimFaucet } from '@/lib/akad-api';
 import { computeSwapOutput, applySlippage } from '@/lib/bonding-curve';
 import { recordActivity } from '@/lib/activity-api';
-import { CONTRACT_ADDRESS } from '@/lib/wallet-constants';
+import { useNetwork } from '@/contexts/NetworkContext';
 import { Icon } from '@iconify/react';
 import { Spinner } from '@/components/icons/spinner';
 import { SiteHeader } from '@/components/brand/site-header';
+import { NetworkToggle } from '@/components/brand/network-toggle';
 
 type Direction = 'AkdToNight' | 'NightToAkd';
 
 export default function SwapPage() {
+  const { networkKey, network } = useNetwork();
+  const CONTRACT_ADDRESS = network.contractAddress;
   const [connectedApi, setConnectedApi] = useState<any>(null);
   const [addresses, setAddresses] = useState<any>(null);
   const [direction, setDirection] = useState<Direction>('AkdToNight');
@@ -33,6 +36,19 @@ export default function SwapPage() {
 
   const fromToken = direction === 'AkdToNight' ? 'AKD' : 'tNIGHT';
   const toToken = direction === 'AkdToNight' ? 'tNIGHT' : 'AKD';
+
+  // Skips the reset on the very first render (there's nothing to reset
+  // yet) and fires only on an actual network change after that.
+  const mountedNetworkRef = useRef(networkKey);
+  useEffect(() => {
+    if (mountedNetworkRef.current === networkKey) return;
+    mountedNetworkRef.current = networkKey;
+    setConnectedApi(null);
+    setAddresses(null);
+    setReserves(null);
+    setWrappedCoin(null);
+    setError(null);
+  }, [networkKey]);
 
   const handleConnect = async () => {
     setError(null);
@@ -121,6 +137,7 @@ export default function SwapPage() {
         wallet: addresses.unshieldedAddress,
         amountOut: '50',
         tokenOut: 'AKD',
+        network: networkKey,
       }).catch((err) => console.error('[Activity] Failed to record claimFaucet:', err));
       setFaucetStatus('claimed');
       await refreshReserves();
@@ -153,6 +170,7 @@ export default function SwapPage() {
         wallet: addresses.unshieldedAddress,
         amountIn: wrapAmount,
         tokenIn: 'AKD',
+        network: networkKey,
       }).catch((err) => console.error('[Activity] Failed to record wrap:', err));
       setWrapAmount('');
     } catch (err: any) {
@@ -187,6 +205,7 @@ export default function SwapPage() {
         wallet: addresses.unshieldedAddress,
         amountIn: wrappedCoin.value.toString(),
         tokenIn: 'AKD (shielded)',
+        network: networkKey,
       }).catch((err) => console.error('[Activity] Failed to record unwrap:', err));
       setWrappedCoin(null);
       setUnwrapStatus('unwrapped');
@@ -224,6 +243,7 @@ export default function SwapPage() {
         amountOut: amountOut.toString(),
         tokenIn: fromToken,
         tokenOut: toToken,
+        network: networkKey,
       }).catch((err) => console.error('[Activity] Failed to record swap:', err));
       setAmountIn('');
       await refreshReserves();
@@ -305,27 +325,30 @@ export default function SwapPage() {
           </div>
         }
         right={
-          !connectedApi ? (
-            <button
-              onClick={handleConnect}
-              className="rounded-full bg-akd-accent px-6 py-2.5 text-base font-medium text-black"
-            >
-              Connect
-            </button>
-          ) : (
-            <button
-              onClick={() => {
-                setConnectedApi(null);
-                setAddresses(null);
-                setReserves(null);
-              }}
-              title="Disconnect"
-              className="flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 font-mono text-xs text-white/70 transition-colors hover:bg-white/20"
-            >
-              <span className="h-1.5 w-1.5 rounded-full bg-green-400" />
-              {addresses.unshieldedAddress.slice(0, 10)}…
-            </button>
-          )
+          <div className="flex items-center gap-3">
+            <NetworkToggle />
+            {!connectedApi ? (
+              <button
+                onClick={handleConnect}
+                className="rounded-full bg-akd-accent px-6 py-2.5 text-base font-medium text-black"
+              >
+                Connect
+              </button>
+            ) : (
+              <button
+                onClick={() => {
+                  setConnectedApi(null);
+                  setAddresses(null);
+                  setReserves(null);
+                }}
+                title="Disconnect"
+                className="flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 font-mono text-xs text-white/70 transition-colors hover:bg-white/20"
+              >
+                <span className="h-1.5 w-1.5 rounded-full bg-green-400" />
+                {addresses.unshieldedAddress.slice(0, 10)}…
+              </button>
+            )}
+          </div>
         }
       />
 

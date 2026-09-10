@@ -4,6 +4,8 @@
 // route for why) — this file only ever sends the app's own view of what
 // just happened, not the source of truth.
 
+import type { NetworkKey } from './networks';
+
 export type ActivityTxType = 'wrap' | 'unwrap' | 'addLiquidity' | 'swapAkdToNight' | 'swapNightToAkd' | 'claimFaucet';
 
 export type ActivityRow = {
@@ -18,12 +20,16 @@ export type ActivityRow = {
   block_height: number | null;
   block_time: string | null;
   created_at: string;
+  // Nullable because rows recorded before the network toggle shipped have
+  // no way to know which network they were on.
+  network: NetworkKey | null;
 };
 
 export type RecordActivityInput = {
   txId: string;
   txType: ActivityTxType;
   wallet: string;
+  network: NetworkKey;
   amountIn?: string;
   amountOut?: string;
   tokenIn?: string;

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { PostgrestError } from '@supabase/supabase-js';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { INDEXER_HTTP, CONTRACT_ADDRESS } from '@/lib/wallet-constants';
+import { NETWORKS, type NetworkKey } from '@/lib/networks';
 
 export const dynamic = 'force-dynamic';
 // Explicit, not left to plan defaults: the retry loop in verifyTransaction
@@ -33,6 +33,7 @@ type ActivityRow = {
   block_height: number | null;
   block_time: string | null;
   created_at: string;
+  network: NetworkKey | null;
 };
 
 const MAX_ROWS = 500;
@@ -142,8 +143,12 @@ type VerifiedTx = { hash: string; blockHeight: number | null; blockTime: string 
 // whatever the client claims. This is what keeps the activity table
 // honest: a row only exists here because the indexer already agreed the
 // underlying transaction happened on-chain.
-async function verifyTransactionOnce(txIdentifier: string): Promise<VerifiedTx | null> {
-  const res = await fetch(INDEXER_HTTP, {
+async function verifyTransactionOnce(
+  txIdentifier: string,
+  indexerHttp: string,
+  contractAddress: string
+): Promise<VerifiedTx | null> {
+  const res = await fetch(indexerHttp, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -165,7 +170,7 @@ async function verifyTransactionOnce(txIdentifier: string): Promise<VerifiedTx |
   if (!tx) return null;
 
   const touchesOurContract = tx.contractActions.some(
-    (action) => normalizeHex(action.address) === normalizeHex(CONTRACT_ADDRESS)
+    (action) => normalizeHex(action.address) === normalizeHex(contractAddress)
   );
   if (!touchesOurContract) return null;
 
@@ -193,10 +198,14 @@ async function verifyTransactionOnce(txIdentifier: string): Promise<VerifiedTx |
 // client's perspective (see lib/activity-api.ts), so a longer wait here
 // never blocks the UI, and it stays far under Vercel's function duration
 // limit.
-async function verifyTransaction(txIdentifier: string): Promise<VerifiedTx | null> {
+async function verifyTransaction(
+  txIdentifier: string,
+  indexerHttp: string,
+  contractAddress: string
+): Promise<VerifiedTx | null> {
   const delaysMs = [1000, 2000, 3000, 5000, 5000, 8000, 8000, 10000, 10000, 10000];
   for (let attempt = 0; attempt <= delaysMs.length; attempt++) {
-    const result = await verifyTransactionOnce(txIdentifier);
+    const result = await verifyTransactionOnce(txIdentifier, indexerHttp, contractAddress);
     if (result) return result;
     if (attempt < delaysMs.length) await sleep(delaysMs[attempt]);
   }
@@ -207,6 +216,7 @@ type RecordActivityBody = {
   txId: string;
   txType: TxType;
   wallet: string;
+  network: NetworkKey;
   amountIn?: string;
   amountOut?: string;
   tokenIn?: string;
@@ -223,6 +233,7 @@ function isValidBody(body: unknown): body is RecordActivityBody {
     (ALLOWED_TX_TYPES as readonly string[]).includes(b.txType) &&
     typeof b.wallet === 'string' &&
     b.wallet.length > 0 &&
+    (b.network === 'preview' || b.network === 'preprod') &&
     (b.amountIn === undefined || typeof b.amountIn === 'string') &&
     (b.amountOut === undefined || typeof b.amountOut === 'string') &&
     (b.tokenIn === undefined || typeof b.tokenIn === 'string') &&
@@ -254,9 +265,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid activity payload' }, { status: 400 });
   }
 
+  const net = NETWORKS[body.network];
+
   let verified: VerifiedTx | null;
   try {
-    verified = await verifyTransaction(body.txId);
+    verified = await verifyTransaction(body.txId, net.indexerHttp, net.contractAddress);
   } catch (err) {
     console.error('[POST /api/activity] indexer verification failed', err);
     return NextResponse.json({ error: 'Could not verify transaction against the indexer' }, { status: 502 });
@@ -285,6 +298,7 @@ export async function POST(request: NextRequest) {
         tx_type: body.txType,
         wallet_address: body.wallet,
         tx_hash: verified!.hash,
+        network: body.network,
         amount_in: body.amountIn ?? null,
         amount_out: body.amountOut ?? null,
         token_in: body.tokenIn ?? null,

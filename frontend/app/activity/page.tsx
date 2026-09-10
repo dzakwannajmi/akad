@@ -30,7 +30,16 @@ const TX_TYPE_LABEL: Record<ActivityTxType, string> = {
   claimFaucet: 'Claim Faucet',
 };
 
-const explorerTxUrl = (hash: string) => `https://explorer.1am.xyz/tx/${hash}?network=preview`;
+// Rows written before the network toggle shipped have no recorded network;
+// default the explorer link to Preview since that's the only network Akad
+// ran on before this feature existed.
+const explorerTxUrl = (hash: string, network: string | null) =>
+  `https://explorer.1am.xyz/tx/${hash}?network=${network ?? 'preview'}`;
+
+const NETWORK_LABEL: Record<string, string> = {
+  preview: 'Preview',
+  preprod: 'Preprod',
+};
 
 function truncate(value: string, lead = 8, tail = 6): string {
   if (value.length <= lead + tail + 1) return value;
@@ -214,6 +223,7 @@ export default function ActivityPage() {
             <TableHeader>
               <TableRow className="border-white/10 hover:bg-transparent">
                 <TableHead className="text-white/40">Type</TableHead>
+                <TableHead className="text-white/40">Network</TableHead>
                 <TableHead className="text-white/40">Wallet</TableHead>
                 <TableHead className="text-white/40">Amount</TableHead>
                 <TableHead className="text-white/40">Transaction</TableHead>
@@ -224,7 +234,7 @@ export default function ActivityPage() {
               {rows === null && (
                 <TableRow className="border-white/5 hover:bg-transparent">
                   <TableCell
-                    colSpan={5}
+                    colSpan={6}
                     className="py-8 text-center font-mono text-xs text-white/25"
                   >
                     <span className="inline-flex items-center gap-2">
@@ -237,7 +247,7 @@ export default function ActivityPage() {
               {rows !== null && rows.length === 0 && (
                 <TableRow className="border-white/5 hover:bg-transparent">
                   <TableCell
-                    colSpan={5}
+                    colSpan={6}
                     className="py-8 text-center font-mono text-xs text-white/25"
                   >
                     No activity yet. Be the first, try a swap.
@@ -249,6 +259,9 @@ export default function ActivityPage() {
                   <TableCell className="text-sm text-white/80">
                     {TX_TYPE_LABEL[row.tx_type]}
                   </TableCell>
+                  <TableCell className="text-xs text-white/50">
+                    {row.network ? NETWORK_LABEL[row.network] ?? row.network : '—'}
+                  </TableCell>
                   <TableCell className="font-mono text-xs text-white/50">
                     {truncate(row.wallet_address)}
                   </TableCell>
@@ -258,7 +271,7 @@ export default function ActivityPage() {
                   </TableCell>
                   <TableCell className="font-mono text-xs">
                     <a
-                      href={explorerTxUrl(row.tx_hash)}
+                      href={explorerTxUrl(row.tx_hash, row.network)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1 text-white/50 transition-colors hover:text-white"

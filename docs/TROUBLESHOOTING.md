@@ -16,7 +16,11 @@ Notes from building Akad on Compact/Midnight, kept here so the main README stays
 
 ## Network: Preview vs Preprod
 
-Per guidance from a Midnight developer during this build, Preprod was still under active development and not reliable for contract deployment at the time. Akad targets **Preview** — indexer, node, and proof server endpoints are all `*.preview.midnight.network`.
+Akad launched on **Preview** — early in this build, a Midnight developer's guidance was that Preprod was still under active development and not reliable for contract deployment.
+
+That guidance is now stale. Midnight's own docs (checked September 2026) describe Preprod as the network that "tracks mainnet most closely" and recommend it as the final validation environment before production launch — a real shift from what it was when Akad started. A Preprod network reset happened March 21, 2026, with some intermittent downtime around that reset; we have not run a live deployment on it ourselves to confirm current day-to-day stability, so treat "more stable now" as documented, not as something this project has verified firsthand.
+
+To act on this without committing to Preprod before it's actually been exercised, the app now has a **network toggle** (`components/brand/network-toggle.tsx`, backed by `lib/networks.ts` + `contexts/NetworkContext.tsx`) so Preview and Preprod can both be tested from the same deployed site, switched with a button instead of editing env vars and redeploying. Preview stays the default. The Akad contract has only been deployed to Preview so far — `NEXT_PUBLIC_AKAD_CONTRACT_ADDRESS_PREPROD` is empty until someone deploys it fresh to Preprod via the `/deploy` page's network switcher (see `.env.example` and the main README's Roadmap).
 
 ## Why we don't run a local Docker proof server
 

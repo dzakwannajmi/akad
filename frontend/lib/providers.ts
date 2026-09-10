@@ -1,20 +1,19 @@
 import { setNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
-import { NETWORK_ID } from './wallet-constants';
-setNetworkId(NETWORK_ID); // NetworkId is just a string in this SDK version (4.1.1), not an enum
-
 import { indexerPublicDataProvider } from '@midnight-ntwrk/midnight-js-indexer-public-data-provider';
 import { FetchZkConfigProvider } from '@midnight-ntwrk/midnight-js-fetch-zk-config-provider';
 import { dappConnectorProofProvider } from '@midnight-ntwrk/midnight-js-dapp-connector-proof-provider';
 import { createMemoryPrivateStateProvider } from './memory-private-state-provider';
 import { toHex, fromHex } from '@midnight-ntwrk/midnight-js-utils';
 import { Transaction, CostModel } from '@midnight-ntwrk/ledger-v8';
-import {
-  INDEXER_HTTP,
-  INDEXER_WS,
-  CONTRACT_PATH,
-  PRIVATE_STATE_ID,
-  PRIVATE_STATE_PASSWORD,
-} from './wallet-constants';
+import { CONTRACT_PATH } from './wallet-constants';
+import { getCurrentNetwork } from './networks';
+
+// NetworkId used to be set once at module load from a static env var. Now
+// that the network is user-selectable at runtime (see NetworkContext),
+// setNetworkId() has to run fresh on every buildProviders() call for
+// whichever network is currently selected -- it's a global SDK setting,
+// so a stale call here would silently point proving/tx-building at the
+// wrong network after a toggle.
 
 // Assembles every provider Midnight.js needs to deploy/interact with a contract,
 // delegating proof generation to the connected wallet (not our local proof server).
@@ -35,6 +34,9 @@ export async function buildProviders(
   contractAddress?: string,
   zkContractPath: string = CONTRACT_PATH
 ) {
+  const network = getCurrentNetwork();
+  setNetworkId(network.id);
+
   const zkConfigProvider = new FetchZkConfigProvider(
     `${window.location.origin}${zkContractPath}`,
     fetch.bind(window)
@@ -48,7 +50,7 @@ export async function buildProviders(
 
   return {
     privateStateProvider,
-    publicDataProvider: indexerPublicDataProvider(INDEXER_HTTP, INDEXER_WS),
+    publicDataProvider: indexerPublicDataProvider(network.indexerHttp, network.indexerWs),
     zkConfigProvider,
     proofProvider: await dappConnectorProofProvider(
       connectedApi,

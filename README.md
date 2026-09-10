@@ -2,7 +2,7 @@
 
 # Akad
 
-![Network](https://img.shields.io/badge/network-Preview%20(Preprod%20pending)-blue)
+![Network](https://img.shields.io/badge/network-Preview%20live%2C%20Preprod%20toggle-blue)
 ![Chain](https://img.shields.io/badge/chain-Midnight-6f42c1)
 [![CI](https://github.com/dzakwannajmi/akad/actions/workflows/ci.yml/badge.svg)](https://github.com/dzakwannajmi/akad/actions/workflows/ci.yml)
 [![X](https://img.shields.io/badge/X-@akadtok-000000?logo=x&logoColor=white)](https://x.com/akadtok)
@@ -20,6 +20,7 @@ Privacy-optional AMM on Midnight Network, built for Rise In × Midnight "New Moo
 - [What is Akad](#what-is-akad)
 - [Live Demo & Deployed Contracts](#live-demo--deployed-contracts)
 - [Trying the App](#trying-the-app)
+- [Network Toggle](#network-toggle)
 - [Architecture](#architecture)
 - [Design Notes](#design-notes)
 - [End-to-End Flows](#end-to-end-flows)
@@ -39,7 +40,7 @@ The idea behind the name: "Akad" is an agreement between two parties — every s
 
 **App:** https://akad-dzakwannajmis-projects.vercel.app/
 
-**Network:** Midnight Preview testnet
+**Network:** Midnight Preview testnet (default). A network toggle in the app also supports **Preprod** — see [Network Toggle](#network-toggle) below; no contract is deployed there yet.
 
 **Contracts:**
 
@@ -71,6 +72,10 @@ Token and swap logic were originally two separate contracts; they were merged in
 7. Unwrap sends it back the other way, crediting your public balance again.
 
 > **Wallet note:** `unwrap()` is verified on 1AM. On Lace, the shielded-receive transaction hangs inside the wallet's own `balanceUnsealedTransaction` and never returns — use 1AM for the full round trip.
+
+## Network Toggle
+
+Akad can run against **Preview** or **Preprod** from the same deployed site — a toggle switches the active network (indexer endpoints, wallet `connect()` target, and contract address) without editing env vars or redeploying. Preview is the default and the only network with a deployed contract right now; Preprod is wired up and selectable in the UI, but `NEXT_PUBLIC_AKAD_CONTRACT_ADDRESS_PREPROD` is empty until the contract is deployed there via the `/deploy` page. See [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md#network-preview-vs-preprod) for why Preprod was avoided early on and what's changed since, and `frontend/.env.example` for the full list of per-network env vars.
 
 ## Architecture
 
@@ -152,6 +157,7 @@ The honest boundary: swap trade amounts remain public (structural to any public-
 - [ ] Mobile-responsive UI
 - [ ] Multi-provider liquidity (LP tokens) — currently a single fixed liquidity seed from the builder
 - [ ] Reserve-delta privacy research — batching or delayed settlement to reduce what's inferable from public reserve changes
+- [ ] Deploy the contract to Preprod and verify a full swap/wrap/unwrap cycle there (the toggle is ready; the deployment itself is not done)
 
 ## Testing & CI
 

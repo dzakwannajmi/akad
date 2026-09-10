@@ -1,6 +1,7 @@
 import semver from 'semver';
 import type { InitialAPI } from '@midnight-ntwrk/dapp-connector-api';
-import { COMPATIBLE_CONNECTOR_API_VERSION, NETWORK_ID } from './wallet-constants';
+import { COMPATIBLE_CONNECTOR_API_VERSION } from './wallet-constants';
+import { getCurrentNetwork } from './networks';
 
 // Finds installed wallet extensions compatible with connector API v4.x.
 export function getCompatibleWallets(): InitialAPI[] {
@@ -15,9 +16,11 @@ export function getCompatibleWallets(): InitialAPI[] {
   );
 }
 
-// Connects to a specific wallet (e.g. Lace) on the Preview network.
+// Connects to a specific wallet (e.g. Lace or 1AM) on whichever network is
+// currently selected (see NetworkContext / lib/networks.ts) -- not fixed
+// to Preview anymore.
 export async function connectWallet(wallet: InitialAPI) {
-  const connectedApi = await wallet.connect(NETWORK_ID);  
+  const connectedApi = await wallet.connect(getCurrentNetwork().id);
   const status = await connectedApi.getConnectionStatus();
 
   if (status.status !== 'connected') {

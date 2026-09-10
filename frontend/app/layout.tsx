@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist_Mono } from "next/font/google";
+import { NetworkProvider } from "@/contexts/NetworkContext";
 import "./globals.css";
 
 // Body/heading font is Switzer, loaded via the @import in globals.css (see
@@ -28,7 +29,9 @@ export default function RootLayout({
       lang="en"
       className={`${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <NetworkProvider>{children}</NetworkProvider>
+      </body>
     </html>
   );
 }
