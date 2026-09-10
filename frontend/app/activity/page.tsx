@@ -28,6 +28,8 @@ const TX_TYPE_LABEL: Record<ActivityTxType, string> = {
   swapAkdToNight: 'Swap AKD → NIGHT',
   swapNightToAkd: 'Swap NIGHT → AKD',
   claimFaucet: 'Claim Faucet',
+  privateSwapAkdToNight: 'Private Swap AKD → NIGHT',
+  privateSwapNightToAkd: 'Private Swap NIGHT → AKD',
 };
 
 // Rows written before the network toggle shipped have no recorded network;

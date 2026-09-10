@@ -2,7 +2,16 @@
 
 import Link from 'next/link';
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { getReserves, executeSwap, wrapTokens, unwrapTokens, getTokenColor, claimFaucet } from '@/lib/akad-api';
+import {
+  getReserves,
+  executeSwap,
+  wrapTokens,
+  unwrapTokens,
+  getTokenColor,
+  claimFaucet,
+  privateSwapAkdToNight,
+  privateSwapNightToAkd,
+} from '@/lib/akad-api';
 import { computeSwapOutput, applySlippage } from '@/lib/bonding-curve';
 import { recordActivity } from '@/lib/activity-api';
 import { useNetwork } from '@/contexts/NetworkContext';
@@ -30,6 +39,7 @@ export default function SwapPage() {
   const wallet = useWalletConnect();
   const { connectedApi, addresses } = wallet;
   const [direction, setDirection] = useState<Direction>('AkdToNight');
+  const [privateMode, setPrivateMode] = useState(false);
   const [amountIn, setAmountIn] = useState('');
   const [amountOut, setAmountOut] = useState<bigint | null>(null);
   const [reserves, setReserves] = useState<{ reserveAKD: bigint; reserveNight: bigint } | null>(null);
@@ -46,6 +56,10 @@ export default function SwapPage() {
 
   const fromToken = direction === 'AkdToNight' ? 'AKD' : 'NIGHT';
   const toToken = direction === 'AkdToNight' ? 'NIGHT' : 'AKD';
+  // Private AKD -> NIGHT spends the whole wrapped coin as-is (no
+  // change-making in privateSwapAkdToNight()), so the "You send" amount
+  // isn't freely typed in that mode -- it's locked to wrappedCoin.value.
+  const privateAkdInputLocked = privateMode && direction === 'AkdToNight';
 
   // Skips the reset on the very first render (there's nothing to reset
   // yet) and fires only on an actual network change after that.
@@ -96,13 +110,22 @@ export default function SwapPage() {
     refreshReserves();
   }, [refreshReserves]);
 
+  // In private AKD -> NIGHT mode the input isn't free-typed -- dx is fixed
+  // to whatever's already wrapped, since privateSwapAkdToNight() spends the
+  // whole coin (no change-making). Every other mode keeps using amountIn.
   useEffect(() => {
-    if (!reserves || !amountIn) {
+    if (!reserves) {
+      setAmountOut(null);
+      return;
+    }
+    const dxSource =
+      privateMode && direction === 'AkdToNight' ? wrappedCoin?.value.toString() : amountIn;
+    if (!dxSource) {
       setAmountOut(null);
       return;
     }
     try {
-      const dx = BigInt(amountIn);
+      const dx = BigInt(dxSource);
       const [reserveIn, reserveOut] =
         direction === 'AkdToNight'
           ? [reserves.reserveAKD, reserves.reserveNight]
@@ -111,7 +134,7 @@ export default function SwapPage() {
     } catch {
       setAmountOut(null);
     }
-  }, [amountIn, direction, reserves]);
+  }, [amountIn, direction, reserves, privateMode, wrappedCoin]);
 
 
   // Bootstraps a wallet that has never held AKD before with a one-time 50
@@ -221,8 +244,71 @@ export default function SwapPage() {
     setStatus('swapping');
     setError(null);
     try {
-      const dx = BigInt(amountIn);
       const minOut = applySlippage(amountOut, 50); // 0.5% slippage tolerance
+
+      if (privateMode && direction === 'AkdToNight') {
+        if (!wrappedCoin) return;
+        const color = await getTokenColor(
+          connectedApi,
+          addresses.shieldedCoinPublicKey,
+          addresses.shieldedEncryptionPublicKey,
+          CONTRACT_ADDRESS
+        );
+        const { txId } = await privateSwapAkdToNight(
+          connectedApi,
+          addresses.shieldedCoinPublicKey,
+          addresses.shieldedEncryptionPublicKey,
+          CONTRACT_ADDRESS,
+          { nonce: wrappedCoin.nonce, color, value: wrappedCoin.value },
+          amountOut,
+          minOut
+        );
+        setStatus('swapped');
+        recordActivity({
+          txId,
+          txType: 'privateSwapAkdToNight',
+          wallet: addresses.unshieldedAddress,
+          amountIn: wrappedCoin.value.toString(),
+          amountOut: amountOut.toString(),
+          tokenIn: 'AKD (shielded)',
+          tokenOut: toToken,
+          network: networkKey,
+        }).catch((err) => console.error('[Activity] Failed to record privateSwapAkdToNight:', err));
+        setWrappedCoin(null);
+        await refreshReserves();
+        return;
+      }
+
+      if (privateMode && direction === 'NightToAkd') {
+        const dx = BigInt(amountIn);
+        const { nonce, value, txId } = await privateSwapNightToAkd(
+          connectedApi,
+          addresses.shieldedCoinPublicKey,
+          addresses.shieldedEncryptionPublicKey,
+          CONTRACT_ADDRESS,
+          dx,
+          amountOut,
+          minOut
+        );
+        setStatus('swapped');
+        recordActivity({
+          txId,
+          txType: 'privateSwapNightToAkd',
+          wallet: addresses.unshieldedAddress,
+          amountIn,
+          amountOut: value.toString(),
+          tokenIn: fromToken,
+          tokenOut: 'AKD (shielded)',
+          network: networkKey,
+        }).catch((err) => console.error('[Activity] Failed to record privateSwapNightToAkd:', err));
+        setWrappedCoin({ nonce, value });
+        setUnwrapStatus('idle');
+        setAmountIn('');
+        await refreshReserves();
+        return;
+      }
+
+      const dx = BigInt(amountIn);
       const { txId } = await executeSwap(
         connectedApi,
         addresses.shieldedCoinPublicKey,
@@ -368,19 +454,33 @@ export default function SwapPage() {
                 Privacy mode
               </div>
               <div className="mt-3 grid grid-cols-2 gap-1 rounded-full bg-white/[0.06] p-1">
-                <button className="rounded-full bg-white py-2 text-xs font-medium text-black">
+                <button
+                  onClick={() => setPrivateMode(false)}
+                  className={
+                    !privateMode
+                      ? 'rounded-full bg-white py-2 text-xs font-medium text-black'
+                      : 'rounded-full py-2 text-xs text-white/45 transition-colors hover:text-white'
+                  }
+                >
                   Public
                 </button>
                 <button
-                  disabled
-                  title="Shielded swaps are on the roadmap — see README"
-                  className="cursor-not-allowed rounded-full py-2 text-xs text-white/25"
+                  onClick={() => setPrivateMode(true)}
+                  className={
+                    privateMode
+                      ? 'rounded-full bg-white py-2 text-xs font-medium text-black'
+                      : 'rounded-full py-2 text-xs text-white/45 transition-colors hover:text-white'
+                  }
                 >
-                  Private (soon)
+                  Private
                 </button>
               </div>
               <p className="mt-3 text-xs leading-relaxed text-white/35">
-                Swaps are public — reserves have to be, for pricing. Use Wrap to hold AKD privately.
+                {privateMode
+                  ? direction === 'AkdToNight'
+                    ? 'Spends a shielded AKD coin directly -- wrap AKD first, then swap it here without a public balance ever being touched.'
+                    : 'Your AKD output is minted as a fresh shielded coin instead of a public credit -- unwrap it afterward from the Unwrap tab.'
+                  : 'Swaps are public -- reserves have to be, for pricing. Use Wrap to hold AKD privately.'}
               </p>
             </div>
           )}
@@ -391,18 +491,38 @@ export default function SwapPage() {
                 <div className="p-5 pb-6">
                   <div className="text-sm text-white/45">You send</div>
                   <div className="mt-2 flex items-center justify-between gap-3">
-                    <input
-                      type="number"
-                      value={amountIn}
-                      onChange={(e) => setAmountIn(e.target.value)}
-                      placeholder="0"
-                      className="w-full bg-transparent text-4xl font-medium tracking-tight outline-none placeholder:text-white/20"
-                    />
+                    {privateAkdInputLocked ? (
+                      <span className="text-4xl font-medium tracking-tight">
+                        {wrappedCoin ? wrappedCoin.value.toString() : '0'}
+                      </span>
+                    ) : (
+                      <input
+                        type="number"
+                        value={amountIn}
+                        onChange={(e) => setAmountIn(e.target.value)}
+                        placeholder="0"
+                        className="w-full bg-transparent text-4xl font-medium tracking-tight outline-none placeholder:text-white/20"
+                      />
+                    )}
                     <span className="flex items-center gap-2 whitespace-nowrap rounded-full bg-white/10 py-2 pl-2 pr-4 font-mono text-sm">
                       <TokenPillIcon token={fromToken} />
                       {fromToken}
                     </span>
                   </div>
+                  {privateAkdInputLocked && !wrappedCoin && (
+                    <p className="mt-2 text-xs leading-relaxed text-white/35">
+                      Nothing wrapped yet.{' '}
+                      <button onClick={() => setTab('wrap')} className="underline hover:text-white">
+                        Wrap some AKD
+                      </button>{' '}
+                      first, then come back here to spend it privately.
+                    </p>
+                  )}
+                  {privateAkdInputLocked && wrappedCoin && (
+                    <p className="mt-2 text-xs leading-relaxed text-white/35">
+                      Spends your whole wrapped coin -- wrap a different amount first to change this.
+                    </p>
+                  )}
                 </div>
 
                 <div className="h-px bg-white/[0.06]" />
@@ -433,11 +553,16 @@ export default function SwapPage() {
 
               <button
                 onClick={handleSwap}
-                disabled={!connectedApi || amountOut === null || status === 'swapping'}
+                disabled={
+                  !connectedApi ||
+                  amountOut === null ||
+                  status === 'swapping' ||
+                  (privateAkdInputLocked && !wrappedCoin)
+                }
                 className="mt-1 flex w-full items-center justify-center gap-2 rounded-2xl bg-akd-accent py-4 text-base font-medium text-black disabled:cursor-not-allowed disabled:opacity-25"
               >
                 {status === 'swapping' && <Spinner className="h-4 w-4" />}
-                {status === 'swapping' ? 'Swapping…' : 'Swap'}
+                {status === 'swapping' ? 'Swapping…' : privateMode ? 'Swap privately' : 'Swap'}
               </button>
 
               <div className="mt-4 flex items-center justify-between font-mono text-xs text-white/30">
@@ -489,9 +614,25 @@ export default function SwapPage() {
                 {wrapStatus === 'wrapping' ? 'Wrapping…' : 'Wrap'}
               </button>
               {wrapStatus === 'wrapped' && (
-                <p className="mt-4 font-mono text-xs text-green-400">
-                  Wrapped — check your wallet for the shielded balance.
-                </p>
+                <div className="mt-4 space-y-2">
+                  <p className="font-mono text-xs text-green-400">
+                    Wrapped — check your wallet for the shielded balance.
+                  </p>
+                  <p className="text-xs leading-relaxed text-white/35">
+                    Spend it directly in a{' '}
+                    <button
+                      onClick={() => {
+                        setTab('swap');
+                        setDirection('AkdToNight');
+                        setPrivateMode(true);
+                      }}
+                      className="underline hover:text-white"
+                    >
+                      private swap
+                    </button>
+                    , or unwrap it back to public AKD from the Unwrap tab.
+                  </p>
+                </div>
               )}
             </div>
           )}

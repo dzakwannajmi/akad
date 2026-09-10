@@ -404,3 +404,85 @@ export async function executeSwap(
 
   return { txId: result.txId };
 }
+
+// Private swap AKD -> tNIGHT: spends a shielded AKD coin directly as the
+// swap's input instead of debiting a public balance (see
+// contracts/src/akad.compact privateSwapAkdToNight()). The caller's wallet
+// identity never touches the public balances map for this trade. `coin`
+// must already carry the correct color (fetch via getTokenColor(), same
+// as unwrapTokens() above) -- the circuit asserts it on-chain and rejects
+// anything else. dy must be pre-computed client-side via
+// computeSwapOutput(), same convention as executeSwap().
+export async function privateSwapAkdToNight(
+  connectedApi: any,
+  coinPublicKey: string,
+  encryptionPublicKey: string,
+  contractAddress: string,
+  coin: { nonce: Uint8Array; color: Uint8Array; value: bigint },
+  dy: bigint,
+  minOut: bigint
+): Promise<{ txId: string }> {
+  const { submitCallTxAsync } = await import('@midnight-ntwrk/midnight-js-contracts');
+
+  const providers = await buildProviders(connectedApi, coinPublicKey, encryptionPublicKey, contractAddress, AKAD_CONTRACT_PATH);
+
+  const existing = await providers.privateStateProvider.get(PRIVATE_STATE_ID);
+  if (existing === null) {
+    await providers.privateStateProvider.set(PRIVATE_STATE_ID, createInitialPrivateState());
+  }
+  await providers.privateStateProvider.setContractAddress(contractAddress);
+
+  const compiledContract = await loadCompiledContract();
+
+  const result = await (submitCallTxAsync as any)(providers, {
+    compiledContract,
+    contractAddress,
+    circuitId: 'privateSwapAkdToNight',
+    args: [coin, dy, minOut],
+    privateStateId: PRIVATE_STATE_ID,
+  });
+
+  return { txId: result.txId };
+}
+
+// Private swap tNIGHT -> AKD: instead of crediting the trader's public
+// balance, mints their AKD output as a fresh shielded coin (see
+// contracts/src/akad.compact privateSwapNightToAkd()), same pattern as
+// wrapTokens() above. The caller's wallet identity never touches the
+// public balances map on this side either. dx/dy/minOut follow the same
+// convention as executeSwap(); the returned coin can be unwrapped later
+// via unwrapTokens() exactly like a coin from wrapTokens().
+export async function privateSwapNightToAkd(
+  connectedApi: any,
+  coinPublicKey: string,
+  encryptionPublicKey: string,
+  contractAddress: string,
+  dx: bigint,
+  dy: bigint,
+  minOut: bigint
+): Promise<{ nonce: Uint8Array; value: bigint; txId: string }> {
+  const { submitCallTxAsync } = await import('@midnight-ntwrk/midnight-js-contracts');
+
+  const providers = await buildProviders(connectedApi, coinPublicKey, encryptionPublicKey, contractAddress, AKAD_CONTRACT_PATH);
+
+  const existing = await providers.privateStateProvider.get(PRIVATE_STATE_ID);
+  if (existing === null) {
+    await providers.privateStateProvider.set(PRIVATE_STATE_ID, createInitialPrivateState());
+  }
+  await providers.privateStateProvider.setContractAddress(contractAddress);
+
+  const compiledContract = await loadCompiledContract();
+
+  // Random 32-byte nonce for the newly minted coin, same as wrapTokens().
+  const nonce = crypto.getRandomValues(new Uint8Array(32));
+
+  const result = await (submitCallTxAsync as any)(providers, {
+    compiledContract,
+    contractAddress,
+    circuitId: 'privateSwapNightToAkd',
+    args: [dx, dy, minOut, nonce],
+    privateStateId: PRIVATE_STATE_ID,
+  });
+
+  return { nonce, value: dy, txId: result.txId };
+}

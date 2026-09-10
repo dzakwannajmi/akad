@@ -21,6 +21,16 @@ import CompactStandardLibrary;
 // Wiring real tNIGHT settlement needs Compact's unshielded-token primitives
 // (sendUnshielded / receiveUnshielded), which are not yet compile-verified
 // against this toolchain. See README/FAQ for the current disclosure.
+//
+// privateSwapAkdToNight / privateSwapNightToAkd let a trader spend or
+// receive the AKD leg of a swap as a shielded coin directly, instead of
+// going through a public balances entry (wrap -> public swap -> unwrap).
+// Their wallet identity never touches the `balances` map for that trade.
+// Both circuits assert coin.color == tokenColor before accepting a
+// shielded coin as input, closing a gap unwrap() had: receiveShielded()
+// only verifies a coin is authentic and unspent, not which token it is,
+// so without that check any wallet could "unwrap" a shielded coin of a
+// different color/type and still be credited 1:1 as AKD.
 
 // AKD balance ledger: maps an account identifier to its public AKD balance.
 export ledger balances: Map<Bytes<32>, Uint<128>>;
@@ -181,6 +191,7 @@ export circuit wrap(amount: Uint<128>, nonce: Bytes<32>): [] {
 // Unwrap: receive a shielded AKD coin back into the contract, credit the
 // same amount to the caller's public balance. 1:1 backed, same invariant.
 export circuit unwrap(coin: ShieldedCoinInfo): [] {
+  assert(coin.color == tokenColor.read(), "wrong token color");
   receiveShielded(disclose(coin));
 
   const caller = callerKey();
@@ -300,4 +311,92 @@ export circuit swapNightToAkd(dx: Uint<128>, dy: Uint<128>, minOut: Uint<128>): 
 
   reserveNight.write(disclose((x + dx) as Uint<128>));
   reserveAKD.write(disclose((y - dy) as Uint<128>));
+}
+
+// Private swap AKD -> tNIGHT: the trader spends a shielded AKD coin
+// directly as input instead of debiting a public balances entry, so their
+// wallet identity never touches `balances` for this trade (unlike
+// swapAkdToNight() above). dx is the coin's own value, not a
+// caller-supplied parameter, so it can't be spoofed independently of what
+// is actually being spent. The pool's own custody stays public (reserves
+// must be, for price discovery), and the tNIGHT leg is still simulated,
+// same as the public circuit (see file header) -- this only changes how
+// the AKD *input* side is sourced.
+export circuit privateSwapAkdToNight(coin: ShieldedCoinInfo, dy: Uint<128>, minOut: Uint<128>): [] {
+  assert(coin.color == tokenColor.read(), "wrong token color");
+  receiveShielded(disclose(coin));
+
+  const dx: Uint<128> = coin.value;
+  assert(dx > 0, "amount must be positive");
+
+  const x = reserveAKD.read();
+  const y = reserveNight.read();
+
+  assert(x > 0 && y > 0, "pool not initialized");
+  assert(dy > 0, "output rounds to zero");
+  assert(dy >= minOut, "slippage: insufficient output");
+  assert(dy < y, "cannot drain full reserve");
+  assert(x + dx <= 4000000000, "reserveAKD exceeds safe bound");
+  assert(y <= 4000000000, "reserveNight exceeds safe bound");
+
+  const xBig: Uint<64> = x as Uint<64>;
+  const dxBig: Uint<64> = dx as Uint<64>;
+  const yBig: Uint<64> = y as Uint<64>;
+  const dyBig: Uint<64> = dy as Uint<64>;
+
+  assert((xBig + dxBig) * (yBig - dyBig) >= xBig * yBig, "invalid swap: violates constant product invariant");
+
+  const pool = poolKey();
+  const poolBalance = balanceOf(pool);
+  const newPoolBalance: Uint<128> = (poolBalance + dx) as Uint<128>;
+  balances.insert(pool, disclose(newPoolBalance));
+
+  reserveAKD.write(disclose((x + dx) as Uint<128>));
+  reserveNight.write(disclose((y - dy) as Uint<128>));
+}
+
+// Private swap tNIGHT -> AKD: the trader receives their AKD output as a
+// freshly minted shielded coin instead of a public balances credit, so
+// this trade never touches `balances` for their identity either (unlike
+// swapNightToAkd() above). The pool's own custody debit stays public,
+// same reasoning as above, and the tNIGHT leg is still simulated. `nonce`
+// is caller-supplied randomness for the new coin, same role as wrap()'s
+// nonce parameter -- must be fresh per call, never reused. dy is already
+// bounded well under Uint<64>::MAX by the 4_000_000_000 reserve ceiling
+// asserted below (unlike wrap()'s amount parameter, which has no such
+// prior bound), so no separate shielded-mint-bound assert is needed here.
+export circuit privateSwapNightToAkd(dx: Uint<128>, dy: Uint<128>, minOut: Uint<128>, nonce: Bytes<32>): [] {
+  const x = reserveNight.read();
+  const y = reserveAKD.read();
+
+  assert(x > 0 && y > 0, "pool not initialized");
+  assert(dx > 0, "amount must be positive");
+  assert(dy > 0, "output rounds to zero");
+  assert(dy >= minOut, "slippage: insufficient output");
+  assert(dy < y, "cannot drain full reserve");
+  assert(x + dx <= 4000000000, "reserveNight exceeds safe bound");
+  assert(y <= 4000000000, "reserveAKD exceeds safe bound");
+
+  const xBig: Uint<64> = x as Uint<64>;
+  const dxBig: Uint<64> = dx as Uint<64>;
+  const yBig: Uint<64> = y as Uint<64>;
+  const dyBig: Uint<64> = dy as Uint<64>;
+
+  assert((xBig + dxBig) * (yBig - dyBig) >= xBig * yBig, "invalid swap: violates constant product invariant");
+
+  const pool = poolKey();
+  const poolBalance = balanceOf(pool);
+  assert(poolBalance >= dy, "pool has insufficient AKD custody for this swap");
+
+  const newPoolBalance: Uint<128> = (poolBalance - dy) as Uint<128>;
+  balances.insert(pool, disclose(newPoolBalance));
+
+  reserveNight.write(disclose((x + dx) as Uint<128>));
+  reserveAKD.write(disclose((y - dy) as Uint<128>));
+
+  const domainSep: Bytes<32> = persistentHash<Uint<8>>(42);
+  const value: Uint<64> = disclose(dy as Uint<64>);
+  const recipient = left<ZswapCoinPublicKey, ContractAddress>(ownPublicKey());
+
+  const coin = mintShieldedToken(domainSep, value, disclose(nonce), recipient);
 }

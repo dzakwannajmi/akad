@@ -6,7 +6,15 @@
 
 import type { NetworkKey } from './networks';
 
-export type ActivityTxType = 'wrap' | 'unwrap' | 'addLiquidity' | 'swapAkdToNight' | 'swapNightToAkd' | 'claimFaucet';
+export type ActivityTxType =
+  | 'wrap'
+  | 'unwrap'
+  | 'addLiquidity'
+  | 'swapAkdToNight'
+  | 'swapNightToAkd'
+  | 'claimFaucet'
+  | 'privateSwapAkdToNight'
+  | 'privateSwapNightToAkd';
 
 export type ActivityRow = {
   id: number;

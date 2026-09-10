@@ -18,6 +18,8 @@ const ALLOWED_TX_TYPES = [
   'swapAkdToNight',
   'swapNightToAkd',
   'claimFaucet',
+  'privateSwapAkdToNight',
+  'privateSwapNightToAkd',
 ] as const;
 type TxType = (typeof ALLOWED_TX_TYPES)[number];
 
