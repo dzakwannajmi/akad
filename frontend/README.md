@@ -25,7 +25,7 @@ Install dependencies and configure environment:
     cp .env.example .env.local
     npm run dev
 
-Requires a Lace wallet (Midnight network set to **Preview**) with some tNIGHT for gas — see the [Preview faucet](https://faucet.preview.midnight.network/).
+Requires a Lace wallet (Midnight network set to **Preview**) with some NIGHT for gas — see the [Preview faucet](https://faucet.preview.midnight.network/).
 
 ## Testing
 

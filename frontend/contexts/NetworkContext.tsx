@@ -7,6 +7,7 @@
 // reads from) -- this context just gives components a re-rendering,
 // React-friendly view of that same store plus the setter.
 import { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { toast } from 'sonner';
 import {
   DEFAULT_NETWORK,
   NETWORKS,
@@ -34,10 +35,20 @@ export function NetworkProvider({ children }: { children: React.ReactNode }) {
     setNetworkKeyState(getCurrentNetworkKey());
   }, []);
 
-  const setNetworkKey = useCallback((key: NetworkKey) => {
-    setCurrentNetwork(key);
-    setNetworkKeyState(key);
-  }, []);
+  const setNetworkKey = useCallback(
+    (key: NetworkKey) => {
+      if (key === networkKey) return;
+      setCurrentNetwork(key);
+      setNetworkKeyState(key);
+      toast(`Switched to ${NETWORKS[key].label}`, {
+        description:
+          key === 'preprod' && !NETWORKS[key].contractAddress
+            ? 'No contract deployed here yet -- see /deploy.'
+            : undefined,
+      });
+    },
+    [networkKey]
+  );
 
   return (
     <NetworkContext.Provider value={{ networkKey, network: NETWORKS[networkKey], setNetworkKey }}>

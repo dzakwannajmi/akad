@@ -369,7 +369,7 @@ export async function getReserves(
 // Executes a swap in either direction. dy must be pre-computed client-side
 // via computeSwapOutput() from bonding-curve.ts before calling this. The
 // AKD leg now moves real balance between the trader and the pool's custody
-// account; the tNIGHT leg is still simulated (see contracts/src/akad.compact).
+// account; the NIGHT leg is still simulated (see contracts/src/akad.compact).
 export async function executeSwap(
   connectedApi: any,
   coinPublicKey: string,

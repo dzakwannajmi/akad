@@ -2,23 +2,33 @@
 
 import Link from 'next/link';
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { getCompatibleWallets, connectWallet } from '@/lib/wallet';
 import { getReserves, executeSwap, wrapTokens, unwrapTokens, getTokenColor, claimFaucet } from '@/lib/akad-api';
 import { computeSwapOutput, applySlippage } from '@/lib/bonding-curve';
 import { recordActivity } from '@/lib/activity-api';
 import { useNetwork } from '@/contexts/NetworkContext';
+import { useWalletConnect } from '@/hooks/use-wallet-connect';
 import { Icon } from '@iconify/react';
 import { Spinner } from '@/components/icons/spinner';
 import { SiteHeader } from '@/components/brand/site-header';
 import { NetworkToggle } from '@/components/brand/network-toggle';
+import { WalletConnectButton } from '@/components/brand/wallet-connect-button';
+import { AkdTokenIcon, NightTokenIcon } from '@/components/icons/token-icon';
 
 type Direction = 'AkdToNight' | 'NightToAkd';
+
+function TokenPillIcon({ token }: { token: string }) {
+  return token === 'AKD' ? (
+    <AkdTokenIcon className="h-5 w-5" />
+  ) : (
+    <NightTokenIcon className="h-5 w-5" />
+  );
+}
 
 export default function SwapPage() {
   const { networkKey, network } = useNetwork();
   const CONTRACT_ADDRESS = network.contractAddress;
-  const [connectedApi, setConnectedApi] = useState<any>(null);
-  const [addresses, setAddresses] = useState<any>(null);
+  const wallet = useWalletConnect();
+  const { connectedApi, addresses } = wallet;
   const [direction, setDirection] = useState<Direction>('AkdToNight');
   const [amountIn, setAmountIn] = useState('');
   const [amountOut, setAmountOut] = useState<bigint | null>(null);
@@ -34,8 +44,8 @@ export default function SwapPage() {
   const [tradeOpen, setTradeOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fromToken = direction === 'AkdToNight' ? 'AKD' : 'tNIGHT';
-  const toToken = direction === 'AkdToNight' ? 'tNIGHT' : 'AKD';
+  const fromToken = direction === 'AkdToNight' ? 'AKD' : 'NIGHT';
+  const toToken = direction === 'AkdToNight' ? 'NIGHT' : 'AKD';
 
   // Skips the reset on the very first render (there's nothing to reset
   // yet) and fires only on an actual network change after that.
@@ -43,28 +53,17 @@ export default function SwapPage() {
   useEffect(() => {
     if (mountedNetworkRef.current === networkKey) return;
     mountedNetworkRef.current = networkKey;
-    setConnectedApi(null);
-    setAddresses(null);
     setReserves(null);
     setWrappedCoin(null);
     setError(null);
   }, [networkKey]);
 
-  const handleConnect = async () => {
-    setError(null);
-    try {
-      const wallets = getCompatibleWallets();
-      if (wallets.length === 0) {
-        setError('No compatible wallet found. Install/unlock Lace.');
-        return;
-      }
-      const { connectedApi: api, addresses: addr } = await connectWallet(wallets[0]);
-      setConnectedApi(api);
-      setAddresses(addr);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
-  };
+  // wallet.disconnect() (and the hook's own network-switch reset) clear
+  // connectedApi without knowing about this page's reserves -- drop the
+  // stale quote whenever the connection goes away.
+  useEffect(() => {
+    if (!connectedApi) setReserves(null);
+  }, [connectedApi]);
 
   const refreshReserves = useCallback(async () => {
     if (!connectedApi || !addresses) return;
@@ -256,7 +255,7 @@ export default function SwapPage() {
   };
 
   const tradeItems = [
-    { id: 'swap', label: 'Swap', desc: 'AKD ⇄ tNIGHT', icon: 'lucide:arrow-down-up' },
+    { id: 'swap', label: 'Swap', desc: 'AKD ⇄ NIGHT', icon: 'lucide:arrow-down-up' },
     { id: 'wrap', label: 'Wrap', desc: 'Public to shielded', icon: 'lucide:shield' },
     { id: 'unwrap', label: 'Unwrap', desc: 'Shielded to public', icon: 'lucide:shield-off' },
   ] as const;
@@ -327,27 +326,7 @@ export default function SwapPage() {
         right={
           <div className="flex items-center gap-3">
             <NetworkToggle />
-            {!connectedApi ? (
-              <button
-                onClick={handleConnect}
-                className="rounded-full bg-akd-accent px-6 py-2.5 text-base font-medium text-black"
-              >
-                Connect
-              </button>
-            ) : (
-              <button
-                onClick={() => {
-                  setConnectedApi(null);
-                  setAddresses(null);
-                  setReserves(null);
-                }}
-                title="Disconnect"
-                className="flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 font-mono text-xs text-white/70 transition-colors hover:bg-white/20"
-              >
-                <span className="h-1.5 w-1.5 rounded-full bg-green-400" />
-                {addresses.unshieldedAddress.slice(0, 10)}…
-              </button>
-            )}
+            <WalletConnectButton wallet={wallet} />
           </div>
         }
       />
@@ -419,7 +398,8 @@ export default function SwapPage() {
                       placeholder="0"
                       className="w-full bg-transparent text-4xl font-medium tracking-tight outline-none placeholder:text-white/20"
                     />
-                    <span className="whitespace-nowrap rounded-full bg-white/10 px-4 py-2 font-mono text-sm">
+                    <span className="flex items-center gap-2 whitespace-nowrap rounded-full bg-white/10 py-2 pl-2 pr-4 font-mono text-sm">
+                      <TokenPillIcon token={fromToken} />
                       {fromToken}
                     </span>
                   </div>
@@ -433,7 +413,8 @@ export default function SwapPage() {
                     <span className="text-4xl font-medium tracking-tight text-white/80">
                       {amountOut !== null ? amountOut.toString() : '0'}
                     </span>
-                    <span className="whitespace-nowrap rounded-full bg-white/10 px-4 py-2 font-mono text-sm">
+                    <span className="flex items-center gap-2 whitespace-nowrap rounded-full bg-white/10 py-2 pl-2 pr-4 font-mono text-sm">
+                      <TokenPillIcon token={toToken} />
                       {toToken}
                     </span>
                   </div>
@@ -523,9 +504,12 @@ export default function SwapPage() {
                   <p className="mt-2 text-sm leading-relaxed text-white/40">
                     Sends the shielded coin back to the contract and credits your public balance.
                   </p>
-                  <div className="mt-5 text-4xl font-medium tracking-tight">
-                    {wrappedCoin.value.toString()}{' '}
-                    <span className="font-mono text-base text-white/40">AKD shielded</span>
+                  <div className="mt-5 flex items-center gap-3 text-4xl font-medium tracking-tight">
+                    <span>{wrappedCoin.value.toString()}</span>
+                    <span className="flex items-center gap-1.5 font-mono text-base text-white/40">
+                      <AkdTokenIcon className="h-5 w-5" />
+                      AKD shielded
+                    </span>
                   </div>
                   <button
                     onClick={handleUnwrap}

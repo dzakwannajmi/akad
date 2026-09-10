@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { Icon } from '@iconify/react';
 import { AkdTokenIcon, NightTokenIcon } from '@/components/icons/token-icon';
 
-type Symbol = 'AKD' | 'tNIGHT';
+type Symbol = 'AKD' | 'NIGHT';
 type Leg = { symbol: Symbol; amount: string };
 
 // Two illustrative legs the card alternates between, just to animate the
@@ -14,10 +14,10 @@ type Leg = { symbol: Symbol; amount: string };
 const PAIRS: [Leg, Leg][] = [
   [
     { symbol: 'AKD', amount: '50' },
-    { symbol: 'tNIGHT', amount: '18.4' },
+    { symbol: 'NIGHT', amount: '18.4' },
   ],
   [
-    { symbol: 'tNIGHT', amount: '25' },
+    { symbol: 'NIGHT', amount: '25' },
     { symbol: 'AKD', amount: '67.9' },
   ],
 ];

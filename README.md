@@ -32,7 +32,7 @@ Privacy-optional AMM on Midnight Network, built for Rise In × Midnight "New Moo
 
 ## What is Akad
 
-Akad is a constant-product AMM (`x * y = k`) for swapping a custom fungible token (AKD) against tNIGHT on Midnight Network. Users can hold AKD publicly (standard token balance) or convert it into a genuinely private, unlinkable balance backed by Midnight's native Zswap shielded-coin infrastructure.
+Akad is a constant-product AMM (`x * y = k`) for swapping a custom fungible token (AKD) against NIGHT on Midnight Network. Users can hold AKD publicly (standard token balance) or convert it into a genuinely private, unlinkable balance backed by Midnight's native Zswap shielded-coin infrastructure.
 
 The idea behind the name: "Akad" is an agreement between two parties — every swap is exactly that, with a level of openness each trader chooses for themselves.
 
@@ -64,7 +64,7 @@ Token and swap logic were originally two separate contracts; they were merged in
 ## Trying the App
 
 1. Install a Midnight wallet — **1AM** (recommended) or [Lace](https://www.lace.io/midnight) — and switch its network to **Preview**.
-2. Get test tokens from the [Preview faucet](https://faucet.preview.midnight.network/): tNIGHT for gas, and DUST generated from it.
+2. Get test tokens from the [Preview faucet](https://faucet.preview.midnight.network/): NIGHT for gas, and DUST generated from it.
 3. Open the [live demo](https://akad-dzakwannajmis-projects.vercel.app/) and click **Launch App**.
 4. Connect your wallet on the swap page.
 5. Enter an amount, review the quote, and swap.
@@ -91,7 +91,7 @@ Akad's swap mechanics use a standard constant-product model — public reserves,
 
 The part that isn't standard is the privacy layer sitting alongside it. Rather than treating privacy as a separate product, Akad treats it as a mode a user opts into for their own holdings — public AKD behaves exactly like a normal ERC20-style balance, and `wrap` converts it into a native Zswap shielded coin whenever a user wants that balance to stop being publicly linkable. The AMM itself stays fully public (reserves have to be, for price discovery to work at all); the privacy boundary is drawn around token *custody*, not around the trade mechanism. See [Privacy Model](#privacy-model) for exactly what that boundary does and doesn't cover.
 
-**Where the AMM's settlement currently stands:** the AKD leg of every swap and of the initial liquidity seed is a real balance transfer, moving AKD between the trader (or the builder, for `addLiquidity`) and the pool's own custody account inside the contract. The tNIGHT leg is not yet real: `reserveNight` updates correctly so quoted prices stay accurate, but no tNIGHT actually changes custody on either side of a swap yet. Wiring that up needs Compact's unshielded-token primitives (`sendUnshielded` / `receiveUnshielded`), which is tracked in the [Roadmap](#roadmap) rather than shipped.
+**Where the AMM's settlement currently stands:** the AKD leg of every swap and of the initial liquidity seed is a real balance transfer, moving AKD between the trader (or the builder, for `addLiquidity`) and the pool's own custody account inside the contract. The NIGHT leg is not yet real: `reserveNight` updates correctly so quoted prices stay accurate, but no NIGHT actually changes custody on either side of a swap yet. Wiring that up needs Compact's unshielded-token primitives (`sendUnshielded` / `receiveUnshielded`), which is tracked in the [Roadmap](#roadmap) rather than shipped.
 
 ## End-to-End Flows
 
@@ -149,9 +149,9 @@ The honest boundary: swap trade amounts remain public (structural to any public-
 
 ## Roadmap
 
-- [ ] Real tNIGHT settlement: wire `sendUnshielded`/`receiveUnshielded` so the tNIGHT leg of a swap actually moves funds, not just AKD (currently simulated, see [Design Notes](#design-notes))
+- [ ] Real NIGHT settlement: wire `sendUnshielded`/`receiveUnshielded` so the NIGHT leg of a swap actually moves funds, not just AKD (currently simulated, see [Design Notes](#design-notes))
 - [ ] Private swap — spend a shielded AKD coin directly into a swap, rather than wrap to public swap to unwrap
-- [ ] Multi-token support — pools beyond AKD/tNIGHT
+- [ ] Multi-token support — pools beyond AKD/NIGHT
 - [ ] Full Lace support — `unwrap` currently requires 1AM; Lace's transaction balancing hangs on shielded receive
 - [ ] Multi-chain — beyond Midnight
 - [ ] Mobile-responsive UI

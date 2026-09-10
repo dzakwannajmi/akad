@@ -17,7 +17,7 @@ const nodes: RoadmapNodeType[] = [
     position: { x: 0, y: 140 },
     data: {
       title: 'Akad on Midnight',
-      subtitle: 'AKD ⇄ tNIGHT, live on Midnight’s Preview testnet today.',
+      subtitle: 'AKD ⇄ NIGHT, live on Midnight’s Preview testnet today.',
       status: 'Live',
       iconSrc: '/token/logo.svg',
     },

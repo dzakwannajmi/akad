@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { getCompatibleWallets, connectWallet } from '@/lib/wallet';
+import { useWalletConnect } from '@/hooks/use-wallet-connect';
+import { WalletConnectButton } from '@/components/brand/wallet-connect-button';
 import {
   deployAkadContract,
   waitForContractState,
@@ -46,8 +47,8 @@ export default function DeployPage() {
   const [wrapStatus, setWrapStatus] = useState<string>('idle');
   const [wrappedCoin, setWrappedCoin] = useState<{ nonce: Uint8Array; value: bigint } | null>(null);
   const [unwrapStatus, setUnwrapStatus] = useState<string>('idle');
-  const [connectedApi, setConnectedApi] = useState<any>(null);
-  const [addresses, setAddresses] = useState<any>(null);
+  const wallet = useWalletConnect();
+  const { connectedApi, addresses } = wallet;
   const [faucetStatus, setFaucetStatus] = useState<string>('idle');
   const [faucetBalance, setFaucetBalance] = useState<bigint | null>(null);
 
@@ -59,30 +60,12 @@ export default function DeployPage() {
     setLiquidityStatus('idle');
     setFaucetStatus('idle');
     setFaucetBalance(null);
-    setConnectedApi(null);
-    setAddresses(null);
-    // Only ever needs to react to networkKey changing.
+    // Only ever needs to react to networkKey changing. Wallet state itself
+    // is reset by useWalletConnect() on the same networkKey change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [networkKey]);
 
   const targetAddress = contractAddress || CONTRACT_ADDRESS;
-
-  const handleConnect = async () => {
-    setError(null);
-    try {
-      const wallets = getCompatibleWallets();
-      if (wallets.length === 0) {
-        setError('No compatible wallet found. Install/unlock Lace.');
-        return;
-      }
-      const { connectedApi: api, addresses: addr } = await connectWallet(wallets[0]);
-      setConnectedApi(api);
-      setAddresses(addr);
-      setStatus('connected');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
-  };
 
   // Deploys the merged Akad contract, then immediately calls init() to mint
   // the initial supply to the deployer — addLiquidity() below needs that
@@ -166,7 +149,7 @@ export default function DeployPage() {
         amountIn: '1000',
         amountOut: '1000',
         tokenIn: 'AKD',
-        tokenOut: 'tNIGHT',
+        tokenOut: 'NIGHT',
         network: networkKey,
       }).catch((err) => console.error('[Activity] Failed to record addLiquidity:', err));
       setLiquidityStatus('seeded');
@@ -331,10 +314,11 @@ export default function DeployPage() {
       <p style={{ marginBottom: 16 }}>Status: <strong>{status}</strong></p>
       {error && <p style={{ color: '#c0392b', marginBottom: 16 }}>Error: {error}</p>}
 
-      <div style={{ marginBottom: 24 }}>
-        <button style={buttonStyle} onClick={handleConnect} disabled={status === 'connected'}>
-          Connect Wallet
-        </button>
+      <div style={{ marginBottom: 24, display: 'flex', alignItems: 'center', gap: 12 }}>
+        <WalletConnectButton
+          wallet={wallet}
+          idleClassName="cursor-pointer border-none bg-[#0e0f0c] px-5 py-2.5 font-mono text-sm text-white"
+        />
         <button
           style={!connectedApi || status === 'deploying' ? disabledButtonStyle : buttonStyle}
           onClick={handleDeploy}

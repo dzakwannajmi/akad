@@ -93,7 +93,7 @@ const entries: Entry[] = [
       {
         label: 'Added',
         items: [
-          <>Compact contracts for the AKD token and a constant-product AKD ⇄ tNIGHT pool, deployed to the Midnight Preview testnet.</>,
+          <>Compact contracts for the AKD token and a constant-product AKD ⇄ NIGHT pool, deployed to the Midnight Preview testnet.</>,
           <>The first working Swap page: live reserves, bonding-curve pricing, and real on-chain swap execution.</>,
           <>A wallet connector, deploy pipeline, and a Vitest suite covering the bonding-curve math, wired into CI (typecheck, test, build).</>,
         ],

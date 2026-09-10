@@ -3,7 +3,7 @@ import { computeSwapOutput, applySlippage } from '../bonding-curve';
 
 describe('computeSwapOutput (constant product formula)', () => {
   it('computes correct output for a standard swap', () => {
-    // Pool: 1000 AKD / 1000 tNIGHT. Swap in 100 AKD.
+    // Pool: 1000 AKD / 1000 NIGHT. Swap in 100 AKD.
     // dy = (1000 * 100) / (1000 + 100) = 90.909... -> floor to 90
     const result = computeSwapOutput(1000n, 1000n, 100n);
     expect(result).toBe(90n);

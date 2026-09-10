@@ -1,5 +1,5 @@
 // Token icons used in the swap-preview animation on the landing page (and
-// anywhere else a token needs a mark). Both AKD and tNIGHT now use real
+// anywhere else a token needs a mark). Both AKD and NIGHT now use real
 // brand marks: frontend/public/token/logo.svg (Akad) and
 // frontend/public/token/midnight-token.svg (Midnight).
 
@@ -28,7 +28,7 @@ export function NightTokenIcon({
     // eslint-disable-next-line @next/next/no-img-element -- static asset from /public, no next/image optimization needed for a small SVG mark
     <img
       src="/token/midnight-token.svg"
-      alt="tNIGHT"
+      alt="NIGHT"
       aria-hidden="true"
       className={`shrink-0 rounded-2xl ring-1 ring-white/15 ${className}`}
     />

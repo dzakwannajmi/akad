@@ -25,8 +25,8 @@ const TX_TYPE_LABEL: Record<ActivityTxType, string> = {
   wrap: 'Wrap',
   unwrap: 'Unwrap',
   addLiquidity: 'Add Liquidity',
-  swapAkdToNight: 'Swap AKD → tNIGHT',
-  swapNightToAkd: 'Swap tNIGHT → AKD',
+  swapAkdToNight: 'Swap AKD → NIGHT',
+  swapNightToAkd: 'Swap NIGHT → AKD',
   claimFaucet: 'Claim Faucet',
 };
 
@@ -74,6 +74,8 @@ export default function ActivityPage() {
   const [fetchedAt, setFetchedAt] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [range, setRange] = useState<RangeKey>('30d');
+  const [pageSize, setPageSize] = useState<10 | 20>(10);
+  const [page, setPage] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -91,6 +93,13 @@ export default function ActivityPage() {
       cancelled = true;
     };
   }, []);
+
+  const pageCount = rows ? Math.max(1, Math.ceil(rows.length / pageSize)) : 1;
+  // Clamp instead of a reset effect: whenever rows/pageSize shrink the
+  // available page count below the current page, fall back to the last
+  // real page rather than rendering an out-of-range empty one.
+  const safePage = Math.min(page, pageCount - 1);
+  const pagedRows = rows ? rows.slice(safePage * pageSize, safePage * pageSize + pageSize) : [];
 
   const stats = useMemo(() => {
     if (!rows || fetchedAt === null) return null;
@@ -224,6 +233,7 @@ export default function ActivityPage() {
               <TableRow className="border-white/10 hover:bg-transparent">
                 <TableHead className="text-white/40">Type</TableHead>
                 <TableHead className="text-white/40">Network</TableHead>
+                <TableHead className="text-white/40">Status</TableHead>
                 <TableHead className="text-white/40">Wallet</TableHead>
                 <TableHead className="text-white/40">Amount</TableHead>
                 <TableHead className="text-white/40">Transaction</TableHead>
@@ -234,7 +244,7 @@ export default function ActivityPage() {
               {rows === null && (
                 <TableRow className="border-white/5 hover:bg-transparent">
                   <TableCell
-                    colSpan={6}
+                    colSpan={7}
                     className="py-8 text-center font-mono text-xs text-white/25"
                   >
                     <span className="inline-flex items-center gap-2">
@@ -247,20 +257,30 @@ export default function ActivityPage() {
               {rows !== null && rows.length === 0 && (
                 <TableRow className="border-white/5 hover:bg-transparent">
                   <TableCell
-                    colSpan={6}
+                    colSpan={7}
                     className="py-8 text-center font-mono text-xs text-white/25"
                   >
                     No activity yet. Be the first, try a swap.
                   </TableCell>
                 </TableRow>
               )}
-              {rows?.map((row) => (
+              {pagedRows.map((row) => (
                 <TableRow key={row.id} className="border-white/5 hover:bg-white/[0.03]">
                   <TableCell className="text-sm text-white/80">
                     {TX_TYPE_LABEL[row.tx_type]}
                   </TableCell>
                   <TableCell className="text-xs text-white/50">
                     {row.network ? NETWORK_LABEL[row.network] ?? row.network : '—'}
+                  </TableCell>
+                  <TableCell>
+                    {/* Every persisted row already passed server-side indexer
+                        verification (see app/api/activity/route.ts) before it
+                        was written -- there's no "pending" or "failed" state
+                        to show, a row here always means Success. */}
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-green-400/10 px-2.5 py-1 text-xs text-green-400">
+                      <span className="h-1.5 w-1.5 rounded-full bg-green-400" />
+                      Success
+                    </span>
                   </TableCell>
                   <TableCell className="font-mono text-xs text-white/50">
                     {truncate(row.wallet_address)}
@@ -287,6 +307,79 @@ export default function ActivityPage() {
               ))}
             </TableBody>
           </Table>
+
+          {rows !== null && rows.length > 0 && (
+            <div className="flex flex-col items-start justify-between gap-3 border-t border-white/10 px-5 py-4 sm:flex-row sm:items-center">
+              <span className="font-mono text-xs text-white/30">
+                Showing {safePage * pageSize + 1}
+                {'–'}
+                {Math.min((safePage + 1) * pageSize, rows.length)} of {rows.length}
+              </span>
+
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-white/40">Rows per page</span>
+                  <div className="flex items-center gap-1 rounded-full bg-white/[0.06] p-1">
+                    {([10, 20] as const).map((size) => (
+                      <button
+                        key={size}
+                        onClick={() => {
+                          setPageSize(size);
+                          setPage(0);
+                        }}
+                        className={
+                          pageSize === size
+                            ? 'rounded-full bg-white px-2.5 py-1 text-xs font-medium text-black'
+                            : 'rounded-full px-2.5 py-1 text-xs text-white/50 transition-colors hover:text-white'
+                        }
+                      >
+                        {size}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <span className="font-mono text-xs text-white/40">
+                  Page {safePage + 1} of {pageCount}
+                </span>
+
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setPage(0)}
+                    disabled={safePage === 0}
+                    aria-label="First page"
+                    className="rounded-full p-1.5 text-white/40 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent"
+                  >
+                    <Icon icon="lucide:chevrons-left" width={14} height={14} />
+                  </button>
+                  <button
+                    onClick={() => setPage((p) => Math.max(0, p - 1))}
+                    disabled={safePage === 0}
+                    aria-label="Previous page"
+                    className="rounded-full p-1.5 text-white/40 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent"
+                  >
+                    <Icon icon="lucide:chevron-left" width={14} height={14} />
+                  </button>
+                  <button
+                    onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+                    disabled={safePage >= pageCount - 1}
+                    aria-label="Next page"
+                    className="rounded-full p-1.5 text-white/40 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent"
+                  >
+                    <Icon icon="lucide:chevron-right" width={14} height={14} />
+                  </button>
+                  <button
+                    onClick={() => setPage(pageCount - 1)}
+                    disabled={safePage >= pageCount - 1}
+                    aria-label="Last page"
+                    className="rounded-full p-1.5 text-white/40 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent"
+                  >
+                    <Icon icon="lucide:chevrons-right" width={14} height={14} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </main>

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist_Mono } from "next/font/google";
 import { NetworkProvider } from "@/contexts/NetworkContext";
+import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
 // Body/heading font is Switzer, loaded via the @import in globals.css (see
@@ -31,6 +32,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <NetworkProvider>{children}</NetworkProvider>
+        <Toaster position="bottom-right" />
       </body>
     </html>
   );

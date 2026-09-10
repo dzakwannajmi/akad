@@ -18,7 +18,7 @@ Rise In × Midnight — "New Moon to Full: Monthly Moonshots" Builder Program
 
 ## 1. Executive Summary
 
-Akad is a constant-product Automated Market Maker (`x * y = k`) that lets users swap a custom fungible token, AKD, against tNIGHT on the Midnight Network. What sets Akad apart from a conventional AMM is its privacy-optional custody model: a user can hold AKD as a normal, publicly-visible balance, or convert it at will into a genuinely private, unlinkable balance backed by Midnight's native Zswap shielded-coin infrastructure.
+Akad is a constant-product Automated Market Maker (`x * y = k`) that lets users swap a custom fungible token, AKD, against NIGHT on the Midnight Network. What sets Akad apart from a conventional AMM is its privacy-optional custody model: a user can hold AKD as a normal, publicly-visible balance, or convert it at will into a genuinely private, unlinkable balance backed by Midnight's native Zswap shielded-coin infrastructure.
 
 The name "Akad" refers to an agreement between two parties. Every swap on the platform is exactly that — an agreement — and each trader chooses, independently, how much of that agreement stays visible to the outside world.
 
@@ -69,7 +69,7 @@ The system consists of three parts:
 
 - [ ] Fix `unwrap` — rebuild the shielded transfer using the wallet's `makeTransfer`/`makeIntent` API.
 - [ ] Private swap — spend a shielded AKD coin directly into a swap, without a public round-trip.
-- [ ] Multi-token and multi-pool support beyond AKD/tNIGHT.
+- [ ] Multi-token and multi-pool support beyond AKD/NIGHT.
 - [ ] Multi-wallet support beyond Lace.
 - [ ] Multi-chain expansion beyond Midnight.
 - [ ] Mobile-responsive UI.

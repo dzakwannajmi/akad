@@ -1,17 +1,19 @@
 import Link from 'next/link';
-import { Icon } from '@iconify/react';
 import { SiteHeader } from '@/components/brand/site-header';
 import { NavLogo } from '@/components/brand/nav-logo';
+import { Icon } from '@iconify/react';
 import { NightTokenIcon } from '@/components/icons/token-icon';
 import { SwapPreviewCard } from '@/components/landing/swap-preview-card';
 import CardSwap, { Card } from '@/components/landing/card-swap';
 import { LoopingWord } from '@/components/landing/looping-word';
+import { CursorGrid } from '@/components/landing/cursor-grid';
+import { PixelSwapCta } from '@/components/landing/pixel-swap-cta';
 
 const advantages = [
   {
     icon: 'lucide:repeat',
     title: 'Swap publicly',
-    body: 'AKD and tNIGHT trade on a constant-product curve. Reserves are public, so anyone can verify the price you got.',
+    body: 'AKD and NIGHT trade on a constant-product curve. Reserves are public, so anyone can verify the price you got.',
   },
   {
     icon: 'lucide:shield',
@@ -38,7 +40,7 @@ const advantages = [
 const faqs = [
   {
     q: 'What is AKD?',
-    a: 'A demo token created for this project. Akad runs on the Midnight Preview testnet — AKD and tNIGHT have no real value, and nothing here involves real money.',
+    a: 'A demo token created for this project. Akad runs on the Midnight Preview testnet — AKD and NIGHT have no real value, and nothing here involves real money.',
   },
   {
     q: 'Which wallet do I need?',
@@ -50,7 +52,7 @@ const faqs = [
   },
   {
     q: 'Does swapping move my tokens?',
-    a: 'Yes for AKD: swapping moves your real AKD balance through the pool’s custody account, the same balance ledger transfer uses. tNIGHT pricing and reserves update the same way on every trade; custody transfer for the tNIGHT leg is being finished, tracked on the changelog.',
+    a: 'Yes for AKD: swapping moves your real AKD balance through the pool’s custody account, the same balance ledger transfer uses. NIGHT pricing and reserves update the same way on every trade; custody transfer for the NIGHT leg is being finished, tracked on the changelog.',
   },
   {
     q: 'I have a new wallet with no AKD. How do I test a swap?',
@@ -62,7 +64,7 @@ const faqs = [
   },
   {
     q: 'Is this production ready?',
-    a: 'Akad runs on Midnight’s Preview testnet, so AKD and tNIGHT are demo assets with no real value by design. Every swap, wrap, and unwrap settles on-chain and is independently verified against the indexer. See the changelog for what has shipped and what is next.',
+    a: 'Akad runs on Midnight’s Preview testnet, so AKD and NIGHT are demo assets with no real value by design. Every swap, wrap, and unwrap settles on-chain and is independently verified against the indexer. See the changelog for what has shipped and what is next.',
   },
 ];
 
@@ -91,7 +93,10 @@ export default function Home() {
     <main className="min-h-screen bg-black text-white selection:bg-white selection:text-black">
       <SiteHeader />
 
-      <section className="mx-auto grid max-w-6xl items-center gap-16 px-6 pb-28 pt-24 sm:grid-cols-2 sm:px-10 sm:pb-40 sm:pt-32">
+      <section className="relative overflow-hidden">
+        <CursorGrid />
+
+        <div className="relative mx-auto grid max-w-6xl items-center gap-16 px-6 pb-28 pt-24 sm:grid-cols-2 sm:px-10 sm:pb-40 sm:pt-32">
         <div className="text-center sm:text-left">
           <h1 className="text-6xl font-medium leading-[0.9] tracking-[-0.04em] text-white sm:text-[5rem]">
             Akad
@@ -116,6 +121,7 @@ export default function Home() {
         </div>
 
         <SwapPreviewCard />
+        </div>
       </section>
 
       <section id="how-it-works" className="mx-auto max-w-6xl px-6 pb-28 sm:px-10 sm:pb-40">
@@ -175,6 +181,17 @@ export default function Home() {
             </details>
           ))}
         </div>
+      </section>
+
+      <section className="mx-auto max-w-6xl px-6 pb-28 sm:px-10 sm:pb-40">
+        <PixelSwapCta
+          heading="Ready when you are."
+          body="Connect a wallet, claim test AKD from the faucet, and make your first swap on Preview or Preprod."
+          hoverHeading="Your move."
+          hoverBody="Your wallet, your terms. Swap now."
+          href="/swap"
+          label="Launch App"
+        />
       </section>
 
       <footer className="border-t border-white/10 px-6 pb-10 pt-16 sm:px-10">

@@ -4,14 +4,14 @@ import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { SiteHeader } from '@/components/brand/site-header';
 import { Spinner } from '@/components/icons/spinner';
-import { getCompatibleWallets, connectWallet } from '@/lib/wallet';
 import { claimFaucet } from '@/lib/akad-api';
 import { recordActivity } from '@/lib/activity-api';
 import { useNetwork } from '@/contexts/NetworkContext';
+import { useWalletConnect } from '@/hooks/use-wallet-connect';
 import { NetworkToggle } from '@/components/brand/network-toggle';
+import { WalletConnectButton } from '@/components/brand/wallet-connect-button';
 
-type ConnectResult = Awaited<ReturnType<typeof connectWallet>>;
-type Status = 'idle' | 'connecting' | 'claiming' | 'claimed';
+type Status = 'idle' | 'claiming' | 'claimed';
 
 // Walks a caught error's .cause chain (up to two levels, matching how the
 // wallet/indexer errors here are actually wrapped) down to the most
@@ -29,40 +29,19 @@ function errorDetail(err: unknown): string {
 export default function FaucetPage() {
   const { networkKey, network } = useNetwork();
   const CONTRACT_ADDRESS = network.contractAddress;
-  const [connectedApi, setConnectedApi] = useState<ConnectResult['connectedApi'] | null>(null);
-  const [addresses, setAddresses] = useState<ConnectResult['addresses'] | null>(null);
+  const wallet = useWalletConnect();
+  const { connectedApi, addresses } = wallet;
   const [status, setStatus] = useState<Status>('idle');
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setConnectedApi(null);
-    setAddresses(null);
     setStatus('idle');
     setError(null);
     // Only ever needs to react to networkKey changing -- deliberately not
-    // depending on anything else here.
+    // depending on anything else here. Wallet state itself is reset by
+    // useWalletConnect() on the same networkKey change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [networkKey]);
-
-  const handleConnect = async () => {
-    setError(null);
-    setStatus('connecting');
-    try {
-      const wallets = getCompatibleWallets();
-      if (wallets.length === 0) {
-        setError('No compatible wallet found. Install/unlock 1AM or Lace.');
-        setStatus('idle');
-        return;
-      }
-      const { connectedApi: api, addresses: addr } = await connectWallet(wallets[0]);
-      setConnectedApi(api);
-      setAddresses(addr);
-      setStatus('idle');
-    } catch (err) {
-      setError(errorDetail(err));
-      setStatus('idle');
-    }
-  };
 
   const handleClaim = async () => {
     if (!connectedApi || !addresses) return;
@@ -124,14 +103,12 @@ export default function FaucetPage() {
                     Connect a Midnight wallet (1AM or Lace) on the {network.label} network to
                     claim.
                   </p>
-                  <button
-                    onClick={handleConnect}
-                    disabled={status === 'connecting'}
-                    className="mt-5 flex w-full items-center justify-center gap-2 rounded-full bg-akd-accent py-3.5 text-base font-medium text-black disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    {status === 'connecting' && <Spinner className="h-4 w-4" />}
-                    {status === 'connecting' ? 'Connecting…' : 'Connect wallet'}
-                  </button>
+                  <div className="mt-5">
+                    <WalletConnectButton
+                      wallet={wallet}
+                      idleClassName="flex w-full items-center justify-center gap-2 rounded-full bg-akd-accent py-3.5 text-base font-medium text-black disabled:cursor-not-allowed disabled:opacity-40"
+                    />
+                  </div>
                 </>
               ) : (
                 <>
