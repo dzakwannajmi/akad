@@ -15,6 +15,70 @@ type Entry = {
 // commits, not invented.
 const entries: Entry[] = [
   {
+    version: 'v0.8',
+    date: 'September 10, 2026',
+    title: 'Private swap, both directions',
+    groups: [
+      {
+        label: 'Added',
+        items: [
+          <><code>privateSwapAkdToNight</code> and <code>privateSwapNightToAkd</code>: spend or receive the AKD leg of a swap as a shielded coin directly, instead of wrap to public swap to unwrap. The swap page&apos;s existing Public/Private toggle is now live for both directions.</>,
+        ],
+      },
+      {
+        label: 'Security',
+        items: [
+          <><code>unwrap()</code> didn&apos;t check a received shielded coin&apos;s color against AKD&apos;s own, so any shielded coin of any type could be credited 1:1 as AKD. Fixed with an explicit color assertion, applied to <code>unwrap</code> and both new private-swap circuits from the start.</>,
+        ],
+      },
+    ],
+    breaking: [
+      <>The contract was redeployed for this release. Coins wrapped against the previous deployment cannot be unwrapped against this one.</>,
+    ],
+  },
+  {
+    version: 'v0.7',
+    date: 'September 10, 2026',
+    title: 'Dark-theme dropdown UI, shared wallet flow',
+    groups: [
+      {
+        label: 'Changed',
+        items: [
+          <>Network switching and wallet connect rebuilt on shadcn&apos;s select and dropdown-menu primitives, always opening below the trigger with a proper animation instead of aligning the selected item over it.</>,
+          <>Wallet connect is now a dropdown listing every detected wallet with its icon, a Detected/Active badge, and Disconnect, instead of a full-screen picker that only ever auto-connected the first wallet found.</>,
+          <>The deploy, faucet, and swap pages now share one wallet-connect hook and component instead of three separate ad-hoc flows.</>,
+          <>The activity table gained a Status column and client-side pagination.</>,
+        ],
+      },
+      {
+        label: 'Fixed',
+        items: [
+          <>The empty wallet-icon console error: a wallet with no supplied icon now falls back to a generic glyph, or to 1AM&apos;s real brand mark specifically, since its icon field is confirmed empty in practice.</>,
+        ],
+      },
+    ],
+  },
+  {
+    version: 'v0.6',
+    date: 'September 10, 2026',
+    title: 'Preview/Preprod network toggle',
+    groups: [
+      {
+        label: 'Added',
+        items: [
+          <>A network toggle so Akad can run against Midnight <strong>Preview</strong> or <strong>Preprod</strong> from the same deployed site, switching indexer endpoints, the wallet&apos;s <code>connect()</code> target, and the contract address without editing env vars or redeploying.</>,
+          <>Activity rows now record which network they were verified on, shown in the activity feed.</>,
+        ],
+      },
+      {
+        label: 'Fixed',
+        items: [
+          <>Extended the activity feed&apos;s indexer-verification retry window from ~15s to ~62s, after a real, successful transaction was still unindexed at the old cutoff and silently dropped from the feed.</>,
+        ],
+      },
+    ],
+  },
+  {
     version: 'v0.5',
     date: 'September 8, 2026',
     title: 'Brand refresh',

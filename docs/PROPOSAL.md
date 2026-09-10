@@ -16,6 +16,8 @@ Rise In × Midnight — "New Moon to Full: Monthly Moonshots" Builder Program
 
 ---
 
+> **Status update (10 September 2026):** This proposal is kept as originally submitted where it is still accurate. The sections below were updated only where the project has materially changed since: Architecture (the token and swap contracts were merged into a single `akad.compact`), Deployed Contracts (the merged contract's addresses, now live on both Preview and Preprod), wallet support (1AM added alongside Lace, and now recommended), and Roadmap (items shipped since are checked off, three new exploratory items added). See the [repository README](../README.md) for the current, complete picture.
+
 ## 1. Executive Summary
 
 Akad is a constant-product Automated Market Maker (`x * y = k`) that lets users swap a custom fungible token, AKD, against NIGHT on the Midnight Network. What sets Akad apart from a conventional AMM is its privacy-optional custody model: a user can hold AKD as a normal, publicly-visible balance, or convert it at will into a genuinely private, unlinkable balance backed by Midnight's native Zswap shielded-coin infrastructure.
@@ -36,24 +38,26 @@ Akad draws the privacy boundary around token custody rather than around the trad
 - **Wrap to Private:** a user can convert their public AKD balance into a native Zswap shielded coin. Once wrapped, that balance is unlinkable from the public balance it came from, using Midnight's own audited shielded-pool cryptography rather than a custom scheme.
 - **Slippage protection** (`minOut`) is enforced entirely on-chain via a zero-knowledge assertion — the value is never written to public state.
 
-This is an honest, scoped privacy claim: Akad protects balance ownership once a user opts to wrap, not the amount of an individual public swap.
+This is an honest, scoped privacy claim: Akad protects balance ownership once a user opts to wrap, not the amount of an individual public swap. Since this proposal was first submitted, that same custody boundary has been extended directly into a swap: a trader can now spend or receive the AKD leg as a shielded coin in the swap transaction itself, instead of wrap, swap publicly, then unwrap (see Roadmap).
 
 ## 4. Architecture
 
 The system consists of three parts:
 
-- `contracts/` — Compact smart contracts: `token.compact` (custom token ledger with wrap/unwrap) and `swap.compact` (bonding-curve swap circuit, both directions).
-- `frontend/` — Next.js + TypeScript application: landing page, swap UI, and Lace wallet integration via the DApp Connector API (v4).
+- `contracts/` — Compact smart contract: `akad.compact`, a custom token ledger (wrap/unwrap, private swap) and bonding-curve AMM (both swap directions) merged into one contract. It started as two separate contracts (`token.compact` + `swap.compact`); they were merged because a swap circuit calling into a separate token contract to move a trader's balance has no verified-safe cross-contract authorization pattern in Compact today — see `contracts/README.md`.
+- `frontend/` — Next.js + TypeScript application: landing page, swap UI, and wallet integration (1AM, recommended, and Lace) via the DApp Connector API (v4).
 - `docs/` — Build notes, troubleshooting log, and architecture documentation.
 
-**Tech stack:** Compact (Midnight's smart-contract language), Zswap for native shielding, Next.js/TypeScript, Lace wallet, shadcn/ui, Vitest, and GitHub Actions for CI/CD.
+**Tech stack:** Compact (Midnight's smart-contract language), Zswap for native shielding, Next.js/TypeScript, 1AM and Lace wallets, shadcn/ui, Vitest, and GitHub Actions for CI/CD.
 
-## 5. Deployed Contracts (Midnight Preview Testnet)
+## 5. Deployed Contracts
 
-| Contract | Address |
-|---|---|
-| Token (AKD) | `e62f476dc4194c4ea3641016f55f4eb7069ab2ead2903deb3fdfe4f5f9f63d04` |
-| Swap (AMM) | `c4831f264adc54f237823ad837733c8ccbc698218f64cf3f13e84c02b8b8b5bb` |
+| Contract | Network | Address |
+|---|---|---|
+| Akad (token + AMM, merged) | Preview | `462616f6263725ab0a22b5ffdcde5798a47c39ec72f04978c2e0bb8b9588583f` |
+| Akad (token + AMM, merged) | Preprod | `52907ea70ae01643508a270cf5592901e8b88216f1d332e953231f788b7e7975` |
+
+The two contracts listed at initial submission (`token.compact`, `swap.compact`) were since merged into the single `akad.compact` above; both addresses are from the most recent redeploy (private swap + an `unwrap` security fix, see Roadmap).
 
 ## 6. Privacy Model
 
@@ -63,18 +67,22 @@ The system consists of three parts:
 
 **What an observer CANNOT learn:**
 - Slippage tolerance (`minOut`) — proven correct via an on-chain assertion, never exposed in public state.
-- Ownership of any AKD balance moved into shielded form via Wrap — unlinkable from its originating public balance.
+- Ownership of any AKD balance moved into shielded form via Wrap, or spent/received directly in a private swap — unlinkable from its originating public balance.
 
 ## 7. Roadmap
 
-- [ ] Fix `unwrap` — rebuild the shielded transfer using the wallet's `makeTransfer`/`makeIntent` API.
-- [ ] Private swap — spend a shielded AKD coin directly into a swap, without a public round-trip.
+- [x] Fix `unwrap` — the actual cause was unrelated to the wallet's transfer API guessed here: `tokenColor` wasn't persisted to the ledger, and a stale compiled build was deployed on top of that. See `docs/TROUBLESHOOTING.md` for the post-mortem. Working and verified on 1AM.
+- [x] Private swap — spend or receive a shielded AKD coin directly in a swap, rather than wrap to public swap to unwrap. Shipped both directions, verified on Preview.
 - [ ] Multi-token and multi-pool support beyond AKD/NIGHT.
-- [ ] Multi-wallet support beyond Lace.
+- [x] Multi-wallet support — 1AM added alongside Lace, and is now the recommended wallet (`unwrap` requires it; Lace hangs on shielded receive).
 - [ ] Multi-chain expansion beyond Midnight.
 - [ ] Mobile-responsive UI.
 - [ ] Multi-provider liquidity (LP tokens) — currently a single fixed liquidity seed.
 - [ ] Research into reserve-delta privacy (batching / delayed settlement).
+- [x] Deploy the contract to Preprod and verify a full swap/wrap/unwrap cycle there.
+- [ ] Akad Explorer — a self-built block/transaction explorer scoped to the Akad contract.
+- [ ] Akad as a wallet — extend the swap app itself into a lightweight Midnight wallet.
+- [ ] Akad SDK — a published TypeScript package so other developers can integrate Akad into their own dApps.
 
 ## 8. Compliance with Program Requirements
 

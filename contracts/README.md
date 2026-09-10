@@ -16,12 +16,14 @@ This used to be two contracts (`token.compact` + `swap.compact`). They were merg
 | `init` | One-time setup: mints initial supply to the deployer, records the token's shielded color |
 | `transfer` | Public balance transfer between accounts |
 | `wrap` | Converts public AKD into a native shielded coin (Zswap) |
-| `unwrap` | Converts a shielded AKD coin back to public balance |
+| `unwrap` | Converts a shielded AKD coin back to public balance; asserts the coin's color matches AKD's own before crediting it |
 | `akdColor` | Returns AKD's collision-resistant shielded token type |
 | `addLiquidity` | Seeds the pool's initial reserves (one-time, builder-provided); moves the builder's real AKD balance into the pool's custody account |
 | `swapAkdToNight` | Swap AKD for NIGHT. The AKD leg moves a real balance from the trader to the pool; the NIGHT leg is simulated (see Design notes) |
 | `swapNightToAkd` | Swap NIGHT for AKD. The AKD leg moves a real balance from the pool to the trader; the NIGHT leg is simulated (see Design notes) |
 | `claimFaucet` | One-time-per-wallet claim of a fixed 50 AKD from the public faucet's custody account, so a wallet with no prior AKD can try a real swap |
+| `privateSwapAkdToNight` | Swap AKD for NIGHT, spending the AKD leg as a shielded coin directly instead of a public balance; the NIGHT leg is simulated (see Design notes) |
+| `privateSwapNightToAkd` | Swap NIGHT for AKD, minting the AKD leg as a fresh shielded coin instead of crediting a public balance; the NIGHT leg is simulated (see Design notes) |
 
 `callerKey()`, `poolKey()`, `faucetKey()`, `balanceOf()`, and `hasClaimedFaucet()` are internal (non-exported) helpers, not callable directly. `callerKey()` returns the caller's real wallet identity via `ownPublicKey()`; `poolKey()` and `faucetKey()` are fixed custody accounts in the same balance map (for pool reserves and the public faucet, respectively); `balanceOf()` and `hasClaimedFaucet()` are safe map reads that return a default (0, or false) for an account with no prior entry instead of letting `Map.lookup()` fail at runtime. `faucetAddress` is a ledger field (not a circuit) holding the faucet's custody account bytes, written once by `init()` so the frontend can read it without a transaction; the builder funds the faucet by calling `transfer(faucetAddress, amount)` like any other account.
 
@@ -43,4 +45,6 @@ Compiled output (`compiler/`, `contract/`, `keys/`, `zkir/`) is consumed by the 
 - Caller identity is bound to `ownPublicKey()` rather than a self-declared witness. An earlier version of this contract let the caller supply their own account identifier with no on-chain verification, which meant any client could claim to be any account and drain its balance via `transfer`.
 - `wrap`/`unwrap` bridge public AKD to Midnight's native Zswap shielded pool via `mintShieldedToken`, rather than a hand-rolled commitment scheme — this keeps the security-critical cryptography inside Midnight's audited protocol code.
 - The constant-product invariant check in both swap circuits casts reserves down to `Uint<64>` before multiplying, so both reserves are capped at 4,000,000,000 base units each to stay under `Uint<64>::MAX` with room for a trade on top.
+- `unwrap`, `privateSwapAkdToNight`, and `privateSwapNightToAkd` all assert a shielded coin's color matches `tokenColor` before crediting or spending it as AKD. `unwrap` originally had no such check — `receiveShielded`/`createZswapInput` verify a coin is authentic and unspent, but not its token type, so any shielded coin of any color could be unwrapped into fraudulent AKD balance and re-wrapped into an indistinguishable real AKD coin. Fixed by asserting `coin.color == tokenColor.read()` as the first line of `unwrap`, and built into the private-swap circuits from the start.
+- `privateSwapAkdToNight`/`privateSwapNightToAkd` let a trader move the AKD leg of a swap through Zswap directly, instead of `wrap` → `swapAkdToNight`/`swapNightToAkd` → `unwrap`. The pool's own reserves and custody stay public (still required for the constant-product invariant check); only the trader's own AKD balance moves as a shielded coin instead of through the `balances` map.
 - See [docs/TROUBLESHOOTING.md](../docs/TROUBLESHOOTING.md) for Compact language quirks encountered while building this.
