@@ -460,7 +460,8 @@ export default function SwapPage() {
         direction,
         dx,
         amountOut,
-        minOut
+        minOut,
+        addresses.unshieldedAddress
       );
       setStatus('swapped');
       recordActivity({

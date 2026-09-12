@@ -21,7 +21,8 @@ export type ImpureCircuits<PS> = {
   swapAkdToNight(context: __compactRuntime.CircuitContext<PS>,
                  dx_0: bigint,
                  dy_0: bigint,
-                 minOut_0: bigint): __compactRuntime.CircuitResults<PS, []>;
+                 minOut_0: bigint,
+                 recipient_0: { bytes: Uint8Array }): __compactRuntime.CircuitResults<PS, []>;
   swapNightToAkd(context: __compactRuntime.CircuitContext<PS>,
                  dx_0: bigint,
                  dy_0: bigint,
@@ -58,7 +59,8 @@ export type ProvableCircuits<PS> = {
   swapAkdToNight(context: __compactRuntime.CircuitContext<PS>,
                  dx_0: bigint,
                  dy_0: bigint,
-                 minOut_0: bigint): __compactRuntime.CircuitResults<PS, []>;
+                 minOut_0: bigint,
+                 recipient_0: { bytes: Uint8Array }): __compactRuntime.CircuitResults<PS, []>;
   swapNightToAkd(context: __compactRuntime.CircuitContext<PS>,
                  dx_0: bigint,
                  dy_0: bigint,
@@ -98,7 +100,8 @@ export type Circuits<PS> = {
   swapAkdToNight(context: __compactRuntime.CircuitContext<PS>,
                  dx_0: bigint,
                  dy_0: bigint,
-                 minOut_0: bigint): __compactRuntime.CircuitResults<PS, []>;
+                 minOut_0: bigint,
+                 recipient_0: { bytes: Uint8Array }): __compactRuntime.CircuitResults<PS, []>;
   swapNightToAkd(context: __compactRuntime.CircuitContext<PS>,
                  dx_0: bigint,
                  dy_0: bigint,

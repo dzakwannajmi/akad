@@ -183,6 +183,22 @@
             "type-name": "Uint",
             "maxval": 340282366920938463463374607431768211455
           }
+        },
+        {
+          "name": "recipient",
+          "type": {
+            "type-name": "Struct",
+            "name": "UserAddress",
+            "elements": [
+              {
+                "name": "bytes",
+                "type": {
+                  "type-name": "Bytes",
+                  "length": 32
+                }
+              }
+            ]
+          }
         }
       ],
       "result-type": {

@@ -1,7 +1,8 @@
 import { buildProviders } from './providers';
 import { PRIVATE_STATE_ID } from './wallet-constants';
 import { getNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
-import { MidnightBech32m, ShieldedCoinPublicKey } from '@midnight-ntwrk/wallet-sdk-address-format';
+import { MidnightBech32m, ShieldedCoinPublicKey, UnshieldedAddress } from '@midnight-ntwrk/wallet-sdk-address-format';
+import { encodeUserAddress } from '@midnight-ntwrk/ledger-v8';
 
 // akad.compact has no witness functions — caller identity comes from
 // ownPublicKey() inside the circuits, not a self-declared witness — and no
@@ -238,9 +239,12 @@ export async function transferTokens(
 }
 
 // Seeds the pool's initial liquidity. Call once, right after init(). This
-// now moves amountAKD out of the caller's own public balance into the
-// pool's on-chain custody (see contracts/src/akad.compact) — the caller
-// needs at least that much AKD balance already, e.g. from init()'s mint.
+// moves amountAKD out of the caller's own public balance into the pool's
+// on-chain custody, and pulls amountNight of real tNIGHT into the pool's
+// own native-token custody via receiveUnshielded (see
+// contracts/src/akad.compact) -- the caller's wallet needs at least that
+// much AKD balance (e.g. from init()'s mint) AND at least that much real
+// tNIGHT on hand, or the transaction fails during wallet balancing.
 export async function addLiquidity(
   connectedApi: any,
   coinPublicKey: string,
@@ -414,9 +418,19 @@ export async function getMyAkdBalance(
 }
 
 // Executes a swap in either direction. dy must be pre-computed client-side
-// via computeSwapOutput() from bonding-curve.ts before calling this. The
-// AKD leg now moves real balance between the trader and the pool's custody
-// account; the NIGHT leg is still simulated (see contracts/src/akad.compact).
+// via computeSwapOutput() from bonding-curve.ts before calling this. Both
+// legs now move real value (see contracts/src/akad.compact): the AKD leg
+// moves balance between the trader and the pool's custody account, and the
+// tNIGHT leg moves real native-token custody via sendUnshielded /
+// receiveUnshielded.
+//
+// unshieldedAddress is required for the AkdToNight direction only --
+// swapAkdToNight() pays real tNIGHT out to that address via sendUnshielded,
+// which (unlike receiveShielded/receiveUnshielded) needs a concrete
+// destination rather than implicitly paying whoever is calling. Pass the
+// connected wallet's own getUnshieldedAddress() value (Bech32m string,
+// e.g. mn_addr_...) -- swapNightToAkd() doesn't need it and it's ignored
+// for that direction.
 export async function executeSwap(
   connectedApi: any,
   coinPublicKey: string,
@@ -425,7 +439,8 @@ export async function executeSwap(
   direction: 'AkdToNight' | 'NightToAkd',
   dx: bigint,
   dy: bigint,
-  minOut: bigint
+  minOut: bigint,
+  unshieldedAddress?: string
 ): Promise<{ txId: string }> {
   const { submitCallTxAsync } = await import('@midnight-ntwrk/midnight-js-contracts');
 
@@ -441,11 +456,27 @@ export async function executeSwap(
 
   const circuitId = direction === 'AkdToNight' ? 'swapAkdToNight' : 'swapNightToAkd';
 
+  const args: unknown[] = [dx, dy, minOut];
+  if (direction === 'AkdToNight') {
+    if (!unshieldedAddress) {
+      throw new Error('unshieldedAddress is required for an AKD -> tNIGHT swap (sendUnshielded needs a real payout destination).');
+    }
+    // getUnshieldedAddress() comes back Bech32m-encoded (e.g. mn_addr_...),
+    // not raw hex -- same class of bug as the shielded coin public key fix
+    // in getMyAkdBalance() above. Decode it to the ledger's own UserAddress
+    // hex-string form, then encode that into the Uint8Array Compact's
+    // UserAddress circuit type expects.
+    const parsedAddress = MidnightBech32m.parse(unshieldedAddress);
+    const decodedAddress = UnshieldedAddress.codec.decode(getNetworkId(), parsedAddress);
+    const recipientBytes = new Uint8Array(encodeUserAddress(decodedAddress.hexString));
+    args.push(recipientBytes);
+  }
+
   const result = await (submitCallTxAsync as any)(providers, {
     compiledContract,
     contractAddress,
     circuitId,
-    args: [dx, dy, minOut],
+    args,
     privateStateId: PRIVATE_STATE_ID,
   });
 

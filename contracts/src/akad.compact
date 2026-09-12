@@ -16,11 +16,24 @@ import CompactStandardLibrary;
 // gap present in the previous token.compact, where any client could supply
 // an arbitrary accountKey with no on-chain verification.
 //
-// tNIGHT remains simulated on both swap legs for now: reserveNight tracks
-// the AMM's quoted price correctly, but no real tNIGHT changes custody yet.
-// Wiring real tNIGHT settlement needs Compact's unshielded-token primitives
-// (sendUnshielded / receiveUnshielded), which are not yet compile-verified
-// against this toolchain. See README/FAQ for the current disclosure.
+// tNIGHT settlement is real on the public swap path: swapAkdToNight() pays
+// the trader out of the pool's own native-token custody via sendUnshielded,
+// swapNightToAkd() takes the trader's tNIGHT into that same custody via
+// receiveUnshielded, and addLiquidity() funds the pool's initial tNIGHT
+// custody the same way. All three use nativeToken() as the color, since
+// this contract cannot mint real tNIGHT, only move tNIGHT that already
+// exists in a wallet.
+//
+// The private swap circuits below are the one place tNIGHT is still
+// simulated. sendUnshielded/receiveUnshielded are transparent by design --
+// the recipient address and amount land on-chain in the clear -- so wiring
+// them into a "private" swap would publicly reveal exactly who traded
+// tNIGHT with this pool and for how much, defeating the point of the
+// private path. Making that leg real without that leak needs a genuinely
+// shielded representation of tNIGHT, which this contract has no way to
+// create (minting only works for a color this contract owns, not the
+// network's native token). Left as an open research question, not solved
+// here -- see README roadmap.
 //
 // privateSwapAkdToNight / privateSwapNightToAkd let a trader spend or
 // receive the AKD leg of a swap as a shielded coin directly, instead of
@@ -231,15 +244,24 @@ export circuit addLiquidity(amountAKD: Uint<128>, amountNight: Uint<128>): [] {
   const newPoolBalance: Uint<128> = (poolBalance + amountAKD) as Uint<128>;
   balances.insert(pool, disclose(newPoolBalance));
 
+  // Pull the matching tNIGHT amount into the pool's own on-chain custody --
+  // a real native-token balance, not just a ledger number. This only
+  // declares the contract's intent to receive it; the wallet's own
+  // transaction-balancing step sources the actual tNIGHT from the
+  // builder's wallet.
+  receiveUnshielded(nativeToken(), disclose(amountNight));
+
   reserveAKD.write(disclose(amountAKD));
   reserveNight.write(disclose(amountNight));
 }
 
-// Swap AKD -> tNIGHT. The AKD leg is real: dx moves from the trader's
-// balance into the pool's custody. The tNIGHT leg is still simulated (see
-// file header) — reserveNight updates for correct pricing, but no real
-// tNIGHT is paid out to the trader yet.
-export circuit swapAkdToNight(dx: Uint<128>, dy: Uint<128>, minOut: Uint<128>): [] {
+// Swap AKD -> tNIGHT. Both legs are real: dx moves from the trader's AKD
+// balance into the pool's custody, and dy is paid out of the pool's own
+// tNIGHT custody straight to the trader's wallet via sendUnshielded.
+// `recipient` must be the caller's own unshielded address (UserAddress) --
+// sendUnshielded needs a concrete destination; unlike receiveShielded /
+// receiveUnshielded, there is no "pay whoever's calling" primitive.
+export circuit swapAkdToNight(dx: Uint<128>, dy: Uint<128>, minOut: Uint<128>, recipient: UserAddress): [] {
   const x = reserveAKD.read();
   const y = reserveNight.read();
 
@@ -250,6 +272,7 @@ export circuit swapAkdToNight(dx: Uint<128>, dy: Uint<128>, minOut: Uint<128>): 
   assert(dy < y, "cannot drain full reserve");
   assert(x + dx <= 4000000000, "reserveAKD exceeds safe bound");
   assert(y <= 4000000000, "reserveNight exceeds safe bound");
+  assert(unshieldedBalanceGte(nativeToken(), disclose(dy)), "pool has insufficient tNIGHT custody for this swap");
 
   const xBig: Uint<64> = x as Uint<64>;
   const dxBig: Uint<64> = dx as Uint<64>;
@@ -272,12 +295,13 @@ export circuit swapAkdToNight(dx: Uint<128>, dy: Uint<128>, minOut: Uint<128>): 
 
   reserveAKD.write(disclose((x + dx) as Uint<128>));
   reserveNight.write(disclose((y - dy) as Uint<128>));
+
+  sendUnshielded(nativeToken(), disclose(dy), right<ContractAddress, UserAddress>(disclose(recipient)));
 }
 
-// Swap tNIGHT -> AKD. The AKD leg is real: dy moves from the pool's
-// custody to the trader's balance. The tNIGHT leg is still simulated (see
-// file header) — reserveNight updates for correct pricing, but no real
-// tNIGHT is collected from the trader yet.
+// Swap tNIGHT -> AKD. Both legs are real: dx moves the trader's tNIGHT
+// into the pool's own native-token custody via receiveUnshielded, and dy
+// moves from the pool's AKD custody to the trader's balance.
 export circuit swapNightToAkd(dx: Uint<128>, dy: Uint<128>, minOut: Uint<128>): [] {
   const x = reserveNight.read();
   const y = reserveAKD.read();
@@ -296,6 +320,11 @@ export circuit swapNightToAkd(dx: Uint<128>, dy: Uint<128>, minOut: Uint<128>): 
   const dyBig: Uint<64> = dy as Uint<64>;
 
   assert((xBig + dxBig) * (yBig - dyBig) >= xBig * yBig, "invalid swap: violates constant product invariant");
+
+  // Pull the trader's real tNIGHT into the pool's custody first. This only
+  // declares the contract's intent to receive it; the wallet's own
+  // transaction-balancing step sources it from the trader's wallet.
+  receiveUnshielded(nativeToken(), disclose(dx));
 
   const pool = poolKey();
   const poolBalance = balanceOf(pool);
@@ -320,8 +349,8 @@ export circuit swapNightToAkd(dx: Uint<128>, dy: Uint<128>, minOut: Uint<128>): 
 // caller-supplied parameter, so it can't be spoofed independently of what
 // is actually being spent. The pool's own custody stays public (reserves
 // must be, for price discovery), and the tNIGHT leg is still simulated,
-// same as the public circuit (see file header) -- this only changes how
-// the AKD *input* side is sourced.
+// unlike the now-real public circuit above -- see the file header for why.
+// This only changes how the AKD *input* side is sourced.
 export circuit privateSwapAkdToNight(coin: ShieldedCoinInfo, dy: Uint<128>, minOut: Uint<128>): [] {
   assert(coin.color == tokenColor.read(), "wrong token color");
   receiveShielded(disclose(coin));
@@ -365,6 +394,8 @@ export circuit privateSwapAkdToNight(coin: ShieldedCoinInfo, dy: Uint<128>, minO
 // bounded well under Uint<64>::MAX by the 4_000_000_000 reserve ceiling
 // asserted below (unlike wrap()'s amount parameter, which has no such
 // prior bound), so no separate shielded-mint-bound assert is needed here.
+// The tNIGHT leg here is also still simulated, same reasoning as
+// privateSwapAkdToNight() above and the file header.
 export circuit privateSwapNightToAkd(dx: Uint<128>, dy: Uint<128>, minOut: Uint<128>, nonce: Bytes<32>): [] {
   const x = reserveNight.read();
   const y = reserveAKD.read();
