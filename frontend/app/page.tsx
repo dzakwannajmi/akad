@@ -18,7 +18,7 @@ const advantages = [
   {
     icon: 'lucide:shield',
     title: 'Wrap to private',
-    body: 'Burn a public AKD balance and mint a shielded coin to yourself. Once wrapped, that balance is no longer linkable to you.',
+    body: 'Burn a public AKD balance and mint a shielded coin to yourself. While wrapped, that balance is no longer a public ledger row tied to your address.',
   },
   {
     icon: 'lucide:unlock',
@@ -27,8 +27,8 @@ const advantages = [
   },
   {
     icon: 'lucide:eye-off',
-    title: 'Ownership stays private',
-    body: 'A shielded balance is not linkable to the public balance it came from, and your slippage tolerance is proven without ever being published.',
+    title: 'Holdings leave the public ledger',
+    body: 'Wrapping takes your AKD out of the public balance map, so nobody can read what you hold. It does not hide the transaction graph: a coin nonce is published when you wrap and again when you spend.',
   },
   {
     icon: 'lucide:globe',
@@ -48,11 +48,11 @@ const faqs = [
   },
   {
     q: 'What stays private, and what does not?',
-    a: 'Ownership of a wrapped balance is private — a shielded coin is not linkable to the public balance it came from. Your slippage tolerance is proven correct without ever being published. Trade sizes and pool reserves are public, because a constant-product AMM cannot price trades without them.',
+    a: 'Private: what you hold. While AKD is wrapped there is no public ledger row tying that balance to your address. Public: trade sizes, pool reserves, and your slippage tolerance, because every argument passed to a Compact circuit is part of the public transcript. A shielded coin nonce is also published both when you wrap and when you spend it, so the two can be linked by an observer. The full boundary is written up in hackathon/SECURITY_AUDIT.md in the repo.',
   },
   {
     q: 'Does swapping move my tokens?',
-    a: 'Yes for AKD: swapping moves your real AKD balance through the pool’s custody account, the same balance ledger transfer uses. NIGHT pricing and reserves update the same way on every trade; custody transfer for the NIGHT leg is being finished, tracked on the changelog.',
+    a: 'Yes, both legs. AKD moves through the pool’s custody account in the same balance ledger that transfer uses, and the NIGHT leg moves real tNIGHT in and out of the contract’s own custody through Midnight’s native unshielded-token primitives.',
   },
   {
     q: 'I have a new wallet with no AKD. How do I test a swap?',
@@ -200,8 +200,9 @@ export default function Home() {
             <div>
               <NavLogo imgClassName="h-11 w-auto" />
               <p className="mt-6 max-w-xs text-base leading-relaxed text-white/50">
-                One AMM, two ways to hold AKD: public in your wallet, or wrapped and unlinkable.
-                Every trade proves its own slippage, on-chain.
+                One AMM, two ways to hold AKD: as a public balance, or as a shielded coin
+                that leaves the public ledger. Every trade is checked against the
+                constant-product invariant, on-chain.
               </p>
             </div>
 

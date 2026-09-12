@@ -10,9 +10,15 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![X](https://img.shields.io/badge/X-@akadtok-000000?logo=x&logoColor=white)](https://x.com/akadtok)
 
-Privacy-optional AMM on Midnight Network, built for Rise In × Midnight "New Moon to Full: Monthly Moonshots"
+Privacy-optional AMM on Midnight Network, submitted to the Midnight Korea Hackathon 2026
 
 [Live Demo](https://akad-dzakwannajmis-projects.vercel.app) · [Demo Video](https://youtu.be/NAkaJpubq-U) · [@akadtok](https://x.com/akadtok) · [See Full Proposal](docs/PROPOSAL.md) · [Feedback & Testing](docs/FEEDBACK.md) · [Troubleshooting & Build Notes](docs/TROUBLESHOOTING.md)
+
+</div>
+
+> **Reviewing this for the hackathon?** Everything you need is in [`hackathon/`](hackathon/), written for someone seeing the project for the first time: [ARCHITECTURE.md](hackathon/ARCHITECTURE.md) for the contract, [MIDNIGHT_IMPLEMENTATION.md](hackathon/MIDNIGHT_IMPLEMENTATION.md) for exactly what is proven, disclosed, and kept private, [SECURITY_AUDIT.md](hackathon/SECURITY_AUDIT.md) for an independent adversarial audit of this contract (findings and all), and [HOW_TO_RUN.md](hackathon/HOW_TO_RUN.md) to compile it yourself in about five minutes.
+
+<div align="center">
 
 </div>
 
@@ -48,6 +54,8 @@ The idea behind the name: "Akad" is an agreement between two parties — every s
 **Network:** Midnight Preview testnet (default), with **Preprod** also live and verified — see [Network Toggle](#network-toggle) below.
 
 **Contracts:**
+
+> ⚠️ The addresses below are the **pre-audit** deployment. The post-audit contract (constructor replacing `init()`, real tNIGHT settlement on the private path) has not been redeployed yet, so these addresses do not match the source in this branch. New addresses land here once the redeploy is verified.
 
 | Contract | Network | Address |
 |---|---|---|
@@ -108,7 +116,11 @@ The part that isn't standard is the privacy layer sitting alongside it. Rather t
 
 Private swap builds on that same boundary rather than adding a new one: `privateSwapAkdToNight` and `privateSwapNightToAkd` let a trader spend or receive the AKD leg of a trade as a shielded Zswap coin in the same transaction as the swap itself, instead of wrapping first, swapping publicly, then unwrapping. The AMM's public reserves and pricing don't change; only which ledger structure the trader's own AKD balance touches differs — a public map entry keyed to their address, versus a shielded coin nobody but the holder can link to a wallet.
 
-**Where the AMM's settlement currently stands:** the AKD leg of every swap and of the initial liquidity seed is a real balance transfer, moving AKD between the trader (or the builder, for `addLiquidity`) and the pool's own custody account inside the contract. The tNIGHT leg of the *public* swap circuits (`swapAkdToNight`, `swapNightToAkd`) and of `addLiquidity` is now written to be real too, using Compact's unshielded-token primitives (`sendUnshielded` / `receiveUnshielded` with `nativeToken()` as the color) so real tNIGHT moves in and out of the pool's own on-chain custody instead of `reserveNight` being a number nobody actually backs. This is implemented in source but not yet compiled, redeployed, and confirmed against a live transaction — treat it as pending verification, not shipped, until that happens (see [Roadmap](#roadmap)). The two *private* swap circuits are the one place tNIGHT settlement stays intentionally simulated: `sendUnshielded`/`receiveUnshielded` are transparent by design, so wiring them into a private swap would publicly reveal exactly who traded tNIGHT with this pool and for how much, defeating the reason to use the private path at all. A real and private tNIGHT leg would need a genuinely shielded representation of tNIGHT, which this contract has no way to create.
+**Where the AMM's settlement stands:** both legs are real, in all four swap circuits. The AKD leg moves a real balance between the trader (or the builder, for `addLiquidity`) and the pool's own custody account inside the contract. The tNIGHT leg uses Compact's unshielded-token primitives (`sendUnshielded` / `receiveUnshielded`, with `nativeToken()` as the color) so real tNIGHT moves in and out of the pool's on-chain custody, and `swapAkdToNight` checks `unshieldedBalanceGte` before promising a payout it cannot make.
+
+The two private swap circuits used to be the exception: their tNIGHT leg was left out entirely, on the reasoning that `sendUnshielded`/`receiveUnshielded` are transparent and would reveal who traded with the pool. The reasoning about transparency was right, but the conclusion was wrong, and the audit is blunt about why: a circuit that moves real AKD in one direction and nothing in the other is not a privacy tradeoff, it is `privateSwapAkdToNight` taking a trader's AKD and paying nothing back, and `privateSwapNightToAkd` minting real AKD to anyone who asks. Both now settle tNIGHT for real, at the cost of a transparent tNIGHT leg on the private path.
+
+A tNIGHT leg that is both real *and* private would need a genuinely shielded representation of the native token, which a contract cannot create: minting only works for a color the contract itself owns. That remains an open research question, not something solved here.
 
 ## End-to-End Flows
 
@@ -171,23 +183,29 @@ Both circuits assert the spent or minted coin's color matches AKD's own shielded
 
 ## Privacy Model
 
-What an observer **can** learn from the public contract state:
+In Compact, **every argument to an exported circuit is part of the public transcript**. That is a property of the execution model, not a choice this contract makes, and it sets the ceiling on what any Midnight contract can hide behind its interface. An earlier version of this section claimed more than the code delivers; it has been rewritten against the audit.
 
-- Pool reserves at any point in time, and every individual swap's size and direction (reserve deltas are public — required for AMM price discovery, true of any chain).
-- Public AKD balances, keyed by a hashed (not plaintext) wallet identifier.
+What an observer **can** learn from public state:
+
+- Pool reserves at any moment, and every individual swap's size and direction. Reserve deltas are public because a constant-product AMM cannot price trades without them. True on any chain.
+- Public AKD balances, keyed by the holder's Zswap coin public key. The key is the wallet's real identifier, not a hash of it.
+- Every circuit argument: `dx`, `dy`, `minOut`, `recipient`, `nonce`, and the full `coin` struct (nonce, color, value). Slippage tolerance is included in that list and is **not** private.
+- A shielded coin's nonce, published both when `wrap` mints it and when `unwrap` or `privateSwapAkdToNight` spends it. Matching the two occurrences links a coin's spend back to the wallet that created it.
 
 What an observer **cannot** learn:
 
-- Slippage tolerance (`minOut`) — used only in an on-chain assertion, never written to public state. A value proven correct without ever being shown.
-- **Ownership of any AKD balance held in shielded form.** `wrap` burns a public balance and mints a native Zswap shielded coin to the caller; `unwrap` returns that coin to the contract and credits the public balance back. `privateSwapAkdToNight` and `privateSwapNightToAkd` extend the same boundary directly into a swap, spending or receiving the AKD leg as a shielded coin without ever writing a balance keyed to the trader's address. While shielded, the AKD is unlinkable from the public balance it came from, using Midnight's own shielded-pool cryptography rather than a hand-rolled scheme.
+- **What you hold, while you hold it wrapped.** `wrap` burns a public balance and mints a native Zswap shielded coin to the caller, so there is no ledger row tying that balance to your address for as long as it stays shielded. `unwrap` reverses it. `privateSwapAkdToNight` and `privateSwapNightToAkd` extend the same boundary into a swap, spending or receiving the AKD leg as a shielded coin rather than writing a balance keyed to the trader.
+- The contents of the shielded pool itself, which is Midnight's own audited cryptography rather than a hand-rolled commitment scheme.
 
-All four circuits (`wrap`, `unwrap`, `privateSwapAkdToNight`, `privateSwapNightToAkd`) assert the coin's color matches AKD's own shielded color before moving it, so shielded supply stays 1:1 backed by locked public balance and can't be inflated by feeding in a different token's shielded coin.
+The honest boundary, stated once: **Akad gives you privacy of custody, not privacy of the trade.** Trade amounts are public, your slippage tolerance is public, and a determined observer can link a shielded coin back to the wrap that created it. What wrapping buys you is that your position stops being a standing public row anyone can read. That is a real and useful property, and it is the only one claimed here.
 
-The honest boundary: swap trade amounts remain public (structural to any public-reserve AMM); balance ownership is private while wrapped. Akad does not claim trade-amount privacy during a swap.
+All four coin-handling circuits (`wrap`, `unwrap`, `privateSwapAkdToNight`, `privateSwapNightToAkd`) assert the coin's color matches AKD's own shielded color before moving it, so shielded supply stays 1:1 backed by locked public balance and cannot be inflated by feeding in a different token's shielded coin.
+
+The full reasoning, including the transaction-graph linkage and how to close it, is in [hackathon/SECURITY_AUDIT.md](hackathon/SECURITY_AUDIT.md) (finding H-02).
 
 ## Roadmap
 
-- [x] Real NIGHT settlement: `sendUnshielded`/`receiveUnshielded` are wired into `addLiquidity`, `swapAkdToNight`, and `swapNightToAkd`, confirmed working on-chain on Preprod (see the verified-transactions table above -- both swap directions move real tNIGHT, not a simulated balance). Preview and the wrap/unwrap/private-swap circuits are pending re-verification against the redeployed contract, tracked in the same table. The private swap circuits keep tNIGHT simulated on purpose (see [Design Notes](#design-notes)); making that leg both real and private is a separate, still-open research item.
+- [x] Real NIGHT settlement in **all four** swap circuits: `sendUnshielded`/`receiveUnshielded` are wired into `addLiquidity`, `swapAkdToNight`, `swapNightToAkd`, and (since the audit) `privateSwapAkdToNight` and `privateSwapNightToAkd` too. Confirmed on-chain on Preprod for the public path; the post-audit contract is pending redeploy and re-verification, tracked in the transaction table above. Making the private path's tNIGHT leg both real and private remains a separate, still-open research item.
 - [x] Private swap — spend or receive a shielded AKD coin directly in a swap, rather than wrap to public swap to unwrap. Shipped both directions (`privateSwapAkdToNight`, `privateSwapNightToAkd`), verified on Preview.
 - [ ] Multi-token support — pools beyond AKD/NIGHT
 - [ ] Full Lace support — `unwrap` currently requires 1AM; Lace's transaction balancing hangs on shielded receive
