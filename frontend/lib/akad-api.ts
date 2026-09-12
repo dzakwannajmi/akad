@@ -469,7 +469,14 @@ export async function executeSwap(
     const parsedAddress = MidnightBech32m.parse(unshieldedAddress);
     const decodedAddress = UnshieldedAddress.codec.decode(getNetworkId(), parsedAddress);
     const recipientBytes = new Uint8Array(encodeUserAddress(decodedAddress.hexString));
-    args.push(recipientBytes);
+    // The compiled contract's generated bindings expect Compact's
+    // UserAddress type as { bytes: Uint8Array }, not a bare Uint8Array --
+    // confirmed directly from lib/contracts/akad/contract/index.d.ts
+    // (same wrapped shape as ZswapCoinPublicKey/ContractAddress elsewhere
+    // in this contract, e.g. ownPublicKey() in wrap()). Passing the raw
+    // array here throws "Cannot read properties of undefined (reading
+    // 'buffer')" deep in the runtime's argument encoder.
+    args.push({ bytes: recipientBytes });
   }
 
   const result = await (submitCallTxAsync as any)(providers, {
