@@ -51,38 +51,29 @@ The idea behind the name: "Akad" is an agreement between two parties — every s
 
 | Contract | Network | Address |
 |---|---|---|
-| Akad (token + AMM) | Preview | `69637ed3acebec446aab0a6b7029542ce9fdaf63eea275ff033783a069e59f40` |
-| Akad (token + AMM) | Preprod | `55f49f1cb90332976244a358be62a894d8370295f362254f630dd86025f6d9ce` |
+| Akad (token + AMM) | Preview | `2ec37a07a9bce3da3058bd45d4ddbc0f6bc392f2056aefe8d00b13013a0b8896` |
+| Akad (token + AMM) | Preprod | `81182dd2e98bf62c4148a7c0b96d1154779a10093cf911706da5986ab067e1b7` |
 
-[View Preview contract on Night Scan](https://explorer.preview.midnight.network/contracts/stream/69637ed3acebec446aab0a6b7029542ce9fdaf63eea275ff033783a069e59f40)
+[View Preview contract on Night Scan](https://explorer.preview.midnight.network/contracts/stream/2ec37a07a9bce3da3058bd45d4ddbc0f6bc392f2056aefe8d00b13013a0b8896)
 
-Token and swap logic were originally two separate contracts; they were merged into one so swap circuits could move a trader's real AKD balance without relying on an unverified cross-contract authorization pattern. See [contracts/README.md](contracts/README.md) for why. Both addresses above are from the redeploy that fixed `claimFaucet()` to actually grant 50 AKD at the token's 6-decimal scale (50_000_000 base units, not 50) instead of a leftover pre-decimals amount; coins wrapped against an older deployment cannot be unwrapped against this one.
+Token and swap logic were originally two separate contracts; they were merged into one so swap circuits could move a trader's real AKD balance without relying on an unverified cross-contract authorization pattern. See [contracts/README.md](contracts/README.md) for why. Both addresses above are from the redeploy that wired real tNIGHT settlement into `addLiquidity`/`swapAkdToNight`/`swapNightToAkd` via `sendUnshielded`/`receiveUnshielded` (see [Design Notes](#design-notes)) — `swapAkdToNight` also gained a new `recipient: UserAddress` parameter, which is itself an interface change that forces a fresh deployment. Coins wrapped against an older deployment cannot be unwrapped against this one.
 
 **Verified transactions**, on-chain, on the contract addresses above, one of each circuit on each network:
 
-Preview:
-
-| Action | Transaction |
-|---|---|
-| `swapAkdToNight()` | [`e8b715e8…b925cd3`](https://explorer.1am.xyz/tx/e8b715e872d63d0dc573a44c07ce2785f9b8a7d4c933efc9d62a3c8e1b925cd3?network=preview) |
-| `swapNightToAkd()` | [`ab12661d…0b15bf9`](https://explorer.1am.xyz/tx/ab12661d560a7ea0ab76e4b9ccb071fb13cc2937551ed083973f095070b15bf9?network=preview) |
-| `wrap()` | [`e0afe019…698ca3a`](https://explorer.1am.xyz/tx/e0afe0195ea8bdb1ea44640aeba2a0faaf09210f0bfee824856887296698ca3a?network=preview) |
-| `unwrap()` | [`27b02bf2…5c0b59f`](https://explorer.1am.xyz/tx/27b02bf2085f88ebc22cc08e007e305bf550eaf6ec9ce3c1513b904e25c0b59f?network=preview) |
-| `privateSwapAkdToNight()` | [`0ea5d06d…4310bba`](https://explorer.1am.xyz/tx/0ea5d06da7d3dd69a5f31ddddac9b817a7941dde45836452304cc3b804310bba?network=preview) |
-| `privateSwapNightToAkd()` | [`d60c058d…9ed33ba`](https://explorer.1am.xyz/tx/d60c058d08d19492989214d0c4b9d5dc6951fc01b4e6ffedd3fcb6da49ed33ba?network=preview) |
+Preview: pending re-verification on the redeployed contract above (`2ec37a07…`). The six hashes previously listed here (one per circuit) are real, but they were run against the superseded Preview deployment, not this one -- listed under "Previous deployment" below instead of implying they prove anything about the current address.
 
 Preprod:
 
 | Action | Transaction |
 |---|---|
-| `swapAkdToNight()` | [`62de96af…1a3bb76`](https://explorer.1am.xyz/tx/62de96afc9684d749ab206f832b39175cb105c4190ec14d921de9e0f31a3bb76?network=preprod) |
-| `swapNightToAkd()` | [`341a8361…18b3691`](https://explorer.1am.xyz/tx/341a8361fb1560aea1b4a9bf2d0f92474c690df009324987110c1fdbd18b3691?network=preprod) |
-| `wrap()` | [`a3eaca37…6d7c8b3`](https://explorer.1am.xyz/tx/a3eaca376205800047ab8d86afcbc2132d5797c1b2d12e854ff426a906d7c8b3?network=preprod) |
-| `unwrap()` | [`a63ee30c…fbdd22d`](https://explorer.1am.xyz/tx/a63ee30c2ad941cb688df6d15c8be5725cd8a55b89159f0bbe2fc165cfbdd22d?network=preprod) |
-| `privateSwapAkdToNight()` | [`3d0f4b58…d60dffd`](https://explorer.1am.xyz/tx/3d0f4b58c26ed5491ceacf5284ce097e31e29e01d2e57d387b6d62b56d60dffd?network=preprod) |
-| `privateSwapNightToAkd()` | [`9b06237a…e54bac0`](https://explorer.1am.xyz/tx/9b06237aa80ccbe28dfd3b99c4d1e41513633ebebb09e3fbdbd900495e54bac0?network=preprod) |
+| `swapAkdToNight()` | [`1a288d1c…12fc`](https://explorer.1am.xyz/tx/1a288d1c8f258611b117c9bef02945f6d04789a3cb804d9964121a4bb5e612fc?network=preprod) -- real tNIGHT paid out of pool custody via `sendUnshielded` |
+| `swapNightToAkd()` | [`30f614c8…6e07a`](https://explorer.1am.xyz/tx/30f614c88dd46e903c3b8626e24a745d3a17c9ecd645423cfc8f935750d6e07a?network=preprod) -- real tNIGHT pulled from the trader into pool custody via `receiveUnshielded` |
+| `wrap()` | pending re-verification on this redeployed contract |
+| `unwrap()` | pending re-verification on this redeployed contract |
+| `privateSwapAkdToNight()` | pending re-verification on this redeployed contract |
+| `privateSwapNightToAkd()` | pending re-verification on this redeployed contract |
 
-Previous deployment (superseded by the redeploy above, kept for history): Preview `462616f6263725ab0a22b5ffdcde5798a47c39ec72f04978c2e0bb8b9588583f`, Preprod `52907ea70ae01643508a270cf5592901e8b88216f1d332e953231f788b7e7975`.
+Previous deployments (superseded, kept for history): Preview `462616f6263725ab0a22b5ffdcde5798a47c39ec72f04978c2e0bb8b9588583f` then `69637ed3acebec446aab0a6b7029542ce9fdaf63eea275ff033783a069e59f40`; Preprod `52907ea70ae01643508a270cf5592901e8b88216f1d332e953231f788b7e7975` then `55f49f1cb90332976244a358be62a894d8370295f362254f630dd86025f6d9ce`. The six per-circuit hashes previously verified against the two most-recent superseded addresses (`69637ed3…` Preview, `55f49f1c…` Preprod) are: `swapAkdToNight` [`e8b715e8…b925cd3`](https://explorer.1am.xyz/tx/e8b715e872d63d0dc573a44c07ce2785f9b8a7d4c933efc9d62a3c8e1b925cd3?network=preview) (Preview) / [`62de96af…1a3bb76`](https://explorer.1am.xyz/tx/62de96afc9684d749ab206f832b39175cb105c4190ec14d921de9e0f31a3bb76?network=preprod) (Preprod), `swapNightToAkd` [`ab12661d…0b15bf9`](https://explorer.1am.xyz/tx/ab12661d560a7ea0ab76e4b9ccb071fb13cc2937551ed083973f095070b15bf9?network=preview) (Preview) / [`341a8361…18b3691`](https://explorer.1am.xyz/tx/341a8361fb1560aea1b4a9bf2d0f92474c690df009324987110c1fdbd18b3691?network=preprod) (Preprod), `wrap` [`e0afe019…698ca3a`](https://explorer.1am.xyz/tx/e0afe0195ea8bdb1ea44640aeba2a0faaf09210f0bfee824856887296698ca3a?network=preview) (Preview) / [`a3eaca37…6d7c8b3`](https://explorer.1am.xyz/tx/a3eaca376205800047ab8d86afcbc2132d5797c1b2d12e854ff426a906d7c8b3?network=preprod) (Preprod), `unwrap` [`27b02bf2…5c0b59f`](https://explorer.1am.xyz/tx/27b02bf2085f88ebc22cc08e007e305bf550eaf6ec9ce3c1513b904e25c0b59f?network=preview) (Preview) / [`a63ee30c…fbdd22d`](https://explorer.1am.xyz/tx/a63ee30c2ad941cb688df6d15c8be5725cd8a55b89159f0bbe2fc165cfbdd22d?network=preprod) (Preprod), `privateSwapAkdToNight` [`0ea5d06d…4310bba`](https://explorer.1am.xyz/tx/0ea5d06da7d3dd69a5f31ddddac9b817a7941dde45836452304cc3b804310bba?network=preview) (Preview) / [`3d0f4b58…d60dffd`](https://explorer.1am.xyz/tx/3d0f4b58c26ed5491ceacf5284ce097e31e29e01d2e57d387b6d62b56d60dffd?network=preprod) (Preprod), `privateSwapNightToAkd` [`d60c058d…9ed33ba`](https://explorer.1am.xyz/tx/d60c058d08d19492989214d0c4b9d5dc6951fc01b4e6ffedd3fcb6da49ed33ba?network=preview) (Preview) / [`9b06237a…e54bac0`](https://explorer.1am.xyz/tx/9b06237aa80ccbe28dfd3b99c4d1e41513633ebebb09e3fbdbd900495e54bac0?network=preprod) (Preprod).
 
 ## Trying the App
 
@@ -196,7 +187,7 @@ The honest boundary: swap trade amounts remain public (structural to any public-
 
 ## Roadmap
 
-- [ ] Real NIGHT settlement: `sendUnshielded`/`receiveUnshielded` are wired into `addLiquidity`, `swapAkdToNight`, and `swapNightToAkd` in source, so the public swap path's tNIGHT leg should move real funds, not just AKD -- pending a fresh compile, redeploy, and an on-chain test before this is confirmed working and checked off. The private swap circuits keep tNIGHT simulated on purpose (see [Design Notes](#design-notes)); making that leg both real and private is a separate, still-open research item.
+- [x] Real NIGHT settlement: `sendUnshielded`/`receiveUnshielded` are wired into `addLiquidity`, `swapAkdToNight`, and `swapNightToAkd`, confirmed working on-chain on Preprod (see the verified-transactions table above -- both swap directions move real tNIGHT, not a simulated balance). Preview and the wrap/unwrap/private-swap circuits are pending re-verification against the redeployed contract, tracked in the same table. The private swap circuits keep tNIGHT simulated on purpose (see [Design Notes](#design-notes)); making that leg both real and private is a separate, still-open research item.
 - [x] Private swap — spend or receive a shielded AKD coin directly in a swap, rather than wrap to public swap to unwrap. Shipped both directions (`privateSwapAkdToNight`, `privateSwapNightToAkd`), verified on Preview.
 - [ ] Multi-token support — pools beyond AKD/NIGHT
 - [ ] Full Lace support — `unwrap` currently requires 1AM; Lace's transaction balancing hangs on shielded receive
