@@ -4,18 +4,6 @@
   "runtime-version": "0.16.0",
   "circuits": [
     {
-      "name": "init",
-      "pure": false,
-      "proof": true,
-      "arguments": [
-      ],
-      "result-type": {
-        "type-name": "Tuple",
-        "types": [
-        ]
-      }
-    },
-    {
       "name": "transfer",
       "pure": false,
       "proof": true,
@@ -287,6 +275,22 @@
           "type": {
             "type-name": "Uint",
             "maxval": 340282366920938463463374607431768211455
+          }
+        },
+        {
+          "name": "recipient",
+          "type": {
+            "type-name": "Struct",
+            "name": "UserAddress",
+            "elements": [
+              {
+                "name": "bytes",
+                "type": {
+                  "type-name": "Bytes",
+                  "length": 32
+                }
+              }
+            ]
           }
         }
       ],

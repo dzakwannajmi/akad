@@ -392,7 +392,8 @@ export default function SwapPage() {
           CONTRACT_ADDRESS,
           { nonce: wrappedCoin.nonce, color, value: wrappedCoin.value },
           amountOut,
-          minOut
+          minOut,
+          addresses.unshieldedAddress
         );
         setStatus('swapped');
         recordActivity({

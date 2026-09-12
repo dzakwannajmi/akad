@@ -4,7 +4,6 @@ export type Witnesses<PS> = {
 }
 
 export type ImpureCircuits<PS> = {
-  init(context: __compactRuntime.CircuitContext<PS>): __compactRuntime.CircuitResults<PS, []>;
   transfer(context: __compactRuntime.CircuitContext<PS>,
            to_0: Uint8Array,
            amount_0: bigint): __compactRuntime.CircuitResults<PS, []>;
@@ -33,7 +32,8 @@ export type ImpureCircuits<PS> = {
                                   value: bigint
                                 },
                         dy_0: bigint,
-                        minOut_0: bigint): __compactRuntime.CircuitResults<PS, []>;
+                        minOut_0: bigint,
+                        recipient_0: { bytes: Uint8Array }): __compactRuntime.CircuitResults<PS, []>;
   privateSwapNightToAkd(context: __compactRuntime.CircuitContext<PS>,
                         dx_0: bigint,
                         dy_0: bigint,
@@ -42,7 +42,6 @@ export type ImpureCircuits<PS> = {
 }
 
 export type ProvableCircuits<PS> = {
-  init(context: __compactRuntime.CircuitContext<PS>): __compactRuntime.CircuitResults<PS, []>;
   transfer(context: __compactRuntime.CircuitContext<PS>,
            to_0: Uint8Array,
            amount_0: bigint): __compactRuntime.CircuitResults<PS, []>;
@@ -71,7 +70,8 @@ export type ProvableCircuits<PS> = {
                                   value: bigint
                                 },
                         dy_0: bigint,
-                        minOut_0: bigint): __compactRuntime.CircuitResults<PS, []>;
+                        minOut_0: bigint,
+                        recipient_0: { bytes: Uint8Array }): __compactRuntime.CircuitResults<PS, []>;
   privateSwapNightToAkd(context: __compactRuntime.CircuitContext<PS>,
                         dx_0: bigint,
                         dy_0: bigint,
@@ -83,7 +83,6 @@ export type PureCircuits = {
 }
 
 export type Circuits<PS> = {
-  init(context: __compactRuntime.CircuitContext<PS>): __compactRuntime.CircuitResults<PS, []>;
   transfer(context: __compactRuntime.CircuitContext<PS>,
            to_0: Uint8Array,
            amount_0: bigint): __compactRuntime.CircuitResults<PS, []>;
@@ -112,7 +111,8 @@ export type Circuits<PS> = {
                                   value: bigint
                                 },
                         dy_0: bigint,
-                        minOut_0: bigint): __compactRuntime.CircuitResults<PS, []>;
+                        minOut_0: bigint,
+                        recipient_0: { bytes: Uint8Array }): __compactRuntime.CircuitResults<PS, []>;
   privateSwapNightToAkd(context: __compactRuntime.CircuitContext<PS>,
                         dx_0: bigint,
                         dy_0: bigint,

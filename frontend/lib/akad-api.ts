@@ -103,32 +103,11 @@ export async function waitForContractState(
   );
 }
 
-// Step 2: call init() on the freshly deployed contract to mint the initial supply.
-export async function initAkadContract(
-  connectedApi: any,
-  coinPublicKey: string,
-  encryptionPublicKey: string,
-  contractAddress: string
-): Promise<void> {
-  const { submitCallTxAsync } = await import('@midnight-ntwrk/midnight-js-contracts');
-
-  const providers = await buildProviders(connectedApi, coinPublicKey, encryptionPublicKey, contractAddress, AKAD_CONTRACT_PATH);
-
-  const existing = await providers.privateStateProvider.get(PRIVATE_STATE_ID);
-  if (!existing) {
-    await providers.privateStateProvider.set(PRIVATE_STATE_ID, createInitialPrivateState());
-  }
-
-  const compiledContract = await loadCompiledContract();
-
-  await (submitCallTxAsync as any)(providers, {
-    compiledContract,
-    contractAddress,
-    circuitId: 'init',
-    args: [],
-    privateStateId: PRIVATE_STATE_ID,
-  });
-}
+// There is no init() step any more. The contract's constructor mints the
+// initial supply to the deployer as part of the deploy transaction, so a
+// freshly deployed contract is already fully set up. See
+// contracts/src/akad.compact for why (the old init() circuit was
+// front-runnable between deploy and the first call).
 
 // Wraps a public AKD amount into a native shielded coin sent to the caller.
 export async function wrapTokens(
@@ -498,6 +477,11 @@ export async function executeSwap(
 // as unwrapTokens() above) -- the circuit asserts it on-chain and rejects
 // anything else. dy must be pre-computed client-side via
 // computeSwapOutput(), same convention as executeSwap().
+//
+// unshieldedAddress is now required: this circuit's tNIGHT leg is real and
+// pays out via sendUnshielded, which needs a concrete destination, exactly
+// like swapAkdToNight(). Pass the connected wallet's own
+// getUnshieldedAddress() value (Bech32m, e.g. mn_addr_...).
 export async function privateSwapAkdToNight(
   connectedApi: any,
   coinPublicKey: string,
@@ -505,7 +489,8 @@ export async function privateSwapAkdToNight(
   contractAddress: string,
   coin: { nonce: Uint8Array; color: Uint8Array; value: bigint },
   dy: bigint,
-  minOut: bigint
+  minOut: bigint,
+  unshieldedAddress: string
 ): Promise<{ txId: string }> {
   const { submitCallTxAsync } = await import('@midnight-ntwrk/midnight-js-contracts');
 
@@ -519,11 +504,20 @@ export async function privateSwapAkdToNight(
 
   const compiledContract = await loadCompiledContract();
 
+  // Same Bech32m -> UserAddress decode as executeSwap()'s AkdToNight
+  // branch, and the same { bytes } wrapper the generated bindings expect.
+  if (!unshieldedAddress) {
+    throw new Error('unshieldedAddress is required for a private AKD -> tNIGHT swap (sendUnshielded needs a real payout destination).');
+  }
+  const parsedAddress = MidnightBech32m.parse(unshieldedAddress);
+  const decodedAddress = UnshieldedAddress.codec.decode(getNetworkId(), parsedAddress);
+  const recipientBytes = new Uint8Array(encodeUserAddress(decodedAddress.hexString));
+
   const result = await (submitCallTxAsync as any)(providers, {
     compiledContract,
     contractAddress,
     circuitId: 'privateSwapAkdToNight',
-    args: [coin, dy, minOut],
+    args: [coin, dy, minOut, { bytes: recipientBytes }],
     privateStateId: PRIVATE_STATE_ID,
   });
 

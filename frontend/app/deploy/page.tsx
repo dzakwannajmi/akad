@@ -5,7 +5,6 @@ import { WalletConnectButton } from '@/components/brand/wallet-connect-button';
 import {
   deployAkadContract,
   waitForContractState,
-  initAkadContract,
   addLiquidity,
   wrapTokens,
   unwrapTokens,
@@ -42,7 +41,7 @@ export default function DeployPage() {
   const [status, setStatus] = useState<string>('idle');
   const [error, setError] = useState<string | null>(null);
   const [contractAddress, setContractAddress] = useState<string | null>(null);
-  const [initStatus, setInitStatus] = useState<string>('idle');
+  const [readyStatus, setReadyStatus] = useState<string>('idle');
   const [liquidityStatus, setLiquidityStatus] = useState<string>('idle');
   const [wrapStatus, setWrapStatus] = useState<string>('idle');
   const [wrappedCoin, setWrappedCoin] = useState<{ nonce: Uint8Array; value: bigint } | null>(null);
@@ -56,7 +55,7 @@ export default function DeployPage() {
     setStatus('idle');
     setError(null);
     setContractAddress(null);
-    setInitStatus('idle');
+    setReadyStatus('idle');
     setLiquidityStatus('idle');
     setFaucetStatus('idle');
     setFaucetBalance(null);
@@ -67,9 +66,10 @@ export default function DeployPage() {
 
   const targetAddress = contractAddress || CONTRACT_ADDRESS;
 
-  // Deploys the merged Akad contract, then immediately calls init() to mint
-  // the initial supply to the deployer — addLiquidity() below needs that
-  // balance to actually be there before it can seed the pool.
+  // Deploys the merged Akad contract. The contract's constructor mints the
+  // initial supply to the deployer as part of this same transaction, so
+  // there is no separate init() step, and addLiquidity() below already has
+  // the balance it needs once the indexer catches up.
   const handleDeploy = async () => {
     if (!connectedApi || !addresses) {
       setError('Connect wallet first');
@@ -86,9 +86,9 @@ export default function DeployPage() {
       setContractAddress(addr);
       setStatus('deployed');
 
-      // Deploying then immediately calling init() can race the indexer on
-      // Preview — wait until the indexer actually has state at this
-      // address before submitting the next transaction.
+      // Submitting the next transaction immediately after a deploy can
+      // race the indexer on Preview — wait until the indexer actually has
+      // state at this address before continuing.
       setStatus('waiting for indexer');
       await waitForContractState(
         connectedApi,
@@ -97,16 +97,8 @@ export default function DeployPage() {
         addr
       );
 
-      setInitStatus('initializing');
-      setStatus('initializing');
-      await initAkadContract(
-        connectedApi,
-        addresses.shieldedCoinPublicKey,
-        addresses.shieldedEncryptionPublicKey,
-        addr
-      );
-      setInitStatus('initialized');
-      setStatus('initialized');
+      setReadyStatus('ready');
+      setStatus('ready');
     } catch (err: any) {
       console.error('[Deploy] Error:', err);
       console.error('[Deploy] Cause:', err?.cause);
@@ -121,12 +113,12 @@ export default function DeployPage() {
     }
   };
 
-  // Seeds the pool. This now moves real AKD out of the deployer's own
-  // balance (from init()'s mint) into the pool's on-chain custody — the
-  // deployer needs at least this much AKD, so run this after init().
+  // Seeds the pool. This moves real AKD out of the deployer's own balance
+  // (minted by the constructor at deploy time) into the pool's on-chain
+  // custody, so the deployer needs at least this much AKD.
   const handleSeedLiquidity = async () => {
     if (!connectedApi || !addresses || !targetAddress) {
-      setError('Deploy and init the contract first');
+      setError('Deploy the contract first');
       return;
     }
     setLiquidityStatus('seeding');
@@ -175,7 +167,7 @@ export default function DeployPage() {
   // Safe to call again later to top the faucet back up once it runs low.
   const handleFundFaucet = async () => {
     if (!connectedApi || !addresses || !targetAddress) {
-      setError('Deploy and init the contract first');
+      setError('Deploy the contract first');
       return;
     }
     setFaucetStatus('funding');
@@ -342,21 +334,21 @@ export default function DeployPage() {
           Contract address: <code>{contractAddress}</code>
         </p>
       )}
-      <p style={{ marginTop: 16 }}>Init status: <strong>{initStatus}</strong></p>
+      <p style={{ marginTop: 16 }}>Contract status: <strong>{readyStatus}</strong></p>
 
       <button
-        style={!targetAddress || initStatus !== 'initialized' || liquidityStatus === 'seeding' ? disabledButtonStyle : buttonStyle}
+        style={!targetAddress || readyStatus !== 'ready' || liquidityStatus === 'seeding' ? disabledButtonStyle : buttonStyle}
         onClick={handleSeedLiquidity}
-        disabled={!targetAddress || initStatus !== 'initialized' || liquidityStatus === 'seeding'}
+        disabled={!targetAddress || readyStatus !== 'ready' || liquidityStatus === 'seeding'}
       >
         Seed Liquidity (1000/1000)
       </button>
       <p style={{ marginTop: 16, marginBottom: 16 }}>Liquidity status: <strong>{liquidityStatus}</strong></p>
 
       <button
-        style={!targetAddress || initStatus !== 'initialized' || faucetStatus === 'funding' ? disabledButtonStyle : buttonStyle}
+        style={!targetAddress || readyStatus !== 'ready' || faucetStatus === 'funding' ? disabledButtonStyle : buttonStyle}
         onClick={handleFundFaucet}
-        disabled={!targetAddress || initStatus !== 'initialized' || faucetStatus === 'funding'}
+        disabled={!targetAddress || readyStatus !== 'ready' || faucetStatus === 'funding'}
       >
         Fund Faucet (5000 AKD)
       </button>
