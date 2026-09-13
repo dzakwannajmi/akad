@@ -9,6 +9,7 @@ export type ImpureCircuits<PS> = {
            amount_0: bigint): __compactRuntime.CircuitResults<PS, []>;
   claimFaucet(context: __compactRuntime.CircuitContext<PS>): __compactRuntime.CircuitResults<PS, []>;
   akdColor(context: __compactRuntime.CircuitContext<PS>): __compactRuntime.CircuitResults<PS, Uint8Array>;
+  recordTokenColor(context: __compactRuntime.CircuitContext<PS>): __compactRuntime.CircuitResults<PS, []>;
   wrap(context: __compactRuntime.CircuitContext<PS>,
        amount_0: bigint,
        nonce_0: Uint8Array): __compactRuntime.CircuitResults<PS, []>;
@@ -47,6 +48,7 @@ export type ProvableCircuits<PS> = {
            amount_0: bigint): __compactRuntime.CircuitResults<PS, []>;
   claimFaucet(context: __compactRuntime.CircuitContext<PS>): __compactRuntime.CircuitResults<PS, []>;
   akdColor(context: __compactRuntime.CircuitContext<PS>): __compactRuntime.CircuitResults<PS, Uint8Array>;
+  recordTokenColor(context: __compactRuntime.CircuitContext<PS>): __compactRuntime.CircuitResults<PS, []>;
   wrap(context: __compactRuntime.CircuitContext<PS>,
        amount_0: bigint,
        nonce_0: Uint8Array): __compactRuntime.CircuitResults<PS, []>;
@@ -88,6 +90,7 @@ export type Circuits<PS> = {
            amount_0: bigint): __compactRuntime.CircuitResults<PS, []>;
   claimFaucet(context: __compactRuntime.CircuitContext<PS>): __compactRuntime.CircuitResults<PS, []>;
   akdColor(context: __compactRuntime.CircuitContext<PS>): __compactRuntime.CircuitResults<PS, Uint8Array>;
+  recordTokenColor(context: __compactRuntime.CircuitContext<PS>): __compactRuntime.CircuitResults<PS, []>;
   wrap(context: __compactRuntime.CircuitContext<PS>,
        amount_0: bigint,
        nonce_0: Uint8Array): __compactRuntime.CircuitResults<PS, []>;

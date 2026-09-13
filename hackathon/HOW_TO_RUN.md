@@ -162,6 +162,8 @@ What the private path buys you, stated precisely: your AKD moves as a shielded Z
 
 ### B6. Verify on chain
 
+**Do this rather than trusting the app's status text.** The frontend reports success as soon as the wallet returns a transaction id, which is before the chain has executed anything. A transaction can land as `PARTIAL_SUCCESS`, with its contract effects rolled back, and still look successful in the interface. On the explorer, three fields tell you what really happened: `STATUS`, `EXECUTION SEGMENTS` (any `FAILED` segment means the effects were reverted), and `SPENT INPUTS` (an unshielded token movement that shows zero spent inputs never actually moved anything).
+
 Every action produces a transaction hash. Check it on:
 
 - Night Scan: `https://explorer.preview.midnight.network/`
@@ -185,6 +187,8 @@ The root `README.md` keeps a table of verified transactions, one per circuit per
 | "faucet is empty, ask the deployer to top it up" | The on-chain faucet custody account has run dry. The deployer must refund it with `transfer(faucetAddress, amount)` |
 | "pool has insufficient tNIGHT custody for this swap" | The pool's recorded `reserveNight` exceeds the tNIGHT it actually holds. See finding M-03 |
 | "reserveAKD exceeds safe bound" | Reserves are capped at 4,000,000,000 base units (4,000 AKD). The AKD-in direction is blocked until someone trades the other way. See finding M-05 |
+| The app says a transaction succeeded, but nothing changed on chain | Check the transaction on the explorer before believing the UI. The frontend reports success as soon as it receives a transaction id, so a `PARTIAL_SUCCESS` transaction whose effects were rolled back looks exactly like a real one in the interface. On the explorer, look at `STATUS`, `EXECUTION SEGMENTS` and `SPENT INPUTS`. |
+| Seed Liquidity reports success but reserves stay at 0 and no NIGHT leaves the wallet | The transaction landed as `PARTIAL_SUCCESS` with `SPENT INPUTS: 0`: the wallet attached no unshielded NIGHT, so `receiveUnshielded` went unsatisfied and everything rolled back. This was hit three times during development and the root cause was never identified. It is not an amount problem and not a balance problem (both were ruled out by testing). The remedy that worked was a clean redeploy running the steps strictly in order: deploy, record token colour, seed liquidity, fund faucet. `addLiquidity` can be retried on the same deployment after a rollback, since a failed attempt leaves the reserves untouched. |
 
 ---
 

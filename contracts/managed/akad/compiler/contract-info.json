@@ -53,6 +53,18 @@
       }
     },
     {
+      "name": "recordTokenColor",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+      ],
+      "result-type": {
+        "type-name": "Tuple",
+        "types": [
+        ]
+      }
+    },
+    {
       "name": "wrap",
       "pure": false,
       "proof": true,

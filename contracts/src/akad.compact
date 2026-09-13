@@ -103,6 +103,24 @@ circuit faucetKey(): Bytes<32> {
   return persistentHash<Uint<8>>(11);
 }
 
+// AKD's shielded token type ("colour"), derived from a fixed domain
+// separator and this contract's own address.
+//
+// This MUST be computed inside a circuit. kernel.self() does not return the
+// deployed contract's address when it runs in a constructor, so a colour
+// derived there is identical for every deployment and never matches what
+// mintShieldedToken() stamps on a coin at circuit runtime. Confirmed on a
+// live Preprod deployment: the constructor stored
+// 41be7ea9e356e3caff7d27d1f36b7074581c009063450e1a5d3da25c4566a888 while a
+// real wrap() on that same contract minted a coin coloured
+// cae5ab8a811a7aeb0bc6d9f9744c57226d48752de4953a0d613e51f14c68da3f. Every
+// consumer of the colour goes through this helper so the two can never
+// drift apart again.
+circuit currentTokenColor(): Bytes<32> {
+  const domainSep: Bytes<32> = persistentHash<Uint<8>>(42);
+  return tokenType(domainSep, kernel.self());
+}
+
 // Safe balance read. `balances` only gets a map entry for an account once
 // that account has been credited at least once (init, transfer, unwrap, or
 // a swap). Calling Map.lookup() on a key with no entry yet fails at
@@ -142,9 +160,9 @@ constructor() {
   balances.insert(owner, 1000000000000);
   totalSupply.write(1000000000000);
 
-  const domainSep: Bytes<32> = persistentHash<Uint<8>>(42);
-  const color = tokenType(domainSep, kernel.self());
-  tokenColor.write(disclose(color));
+  // faucetKey() is a plain hash of a constant, so it is safe to derive
+  // here. tokenColor is not: see currentTokenColor() above. It is written
+  // by recordTokenColor() instead.
   faucetAddress.write(disclose(faucetKey()));
 }
 
@@ -189,12 +207,26 @@ export circuit claimFaucet(): [] {
   faucetClaimed.insert(caller, true);
 }
 
-// AKD domain separator — used to derive a collision-resistant shielded
-// token type ("color") for this contract, so our shielded AKD cannot be
-// confused with any other contract's shielded token.
+// Returns AKD's collision-resistant shielded token type, so our shielded
+// AKD cannot be confused with any other contract's shielded token.
 export circuit akdColor(): Bytes<32> {
-  const domainSep: Bytes<32> = persistentHash<Uint<8>>(42);
-  return tokenType(domainSep, kernel.self());
+  return currentTokenColor();
+}
+
+// Records AKD's shielded token type into ledger state, so the frontend can
+// read it straight from public state instead of paying for a transaction.
+//
+// Deliberately has no access control and no one-shot guard. The value is a
+// pure function of this contract's address and a fixed domain separator, so
+// every caller writes byte-identical data: there is nothing to gain by
+// front-running this and nothing to corrupt by repeating it.
+//
+// Correctness never depends on this having been called. unwrap() and
+// privateSwapAkdToNight() compute the colour themselves through
+// currentTokenColor() rather than trusting this field, so an unrecorded or
+// stale ledger value can cost a caller a wasted read, never a wrong coin.
+export circuit recordTokenColor(): [] {
+  tokenColor.write(disclose(currentTokenColor()));
 }
 
 // Wrap: lock public AKD balance, mint the same amount as a native shielded
@@ -220,7 +252,7 @@ export circuit wrap(amount: Uint<128>, nonce: Bytes<32>): [] {
 // Unwrap: receive a shielded AKD coin back into the contract, credit the
 // same amount to the caller's public balance. 1:1 backed, same invariant.
 export circuit unwrap(coin: ShieldedCoinInfo): [] {
-  assert(coin.color == tokenColor.read(), "wrong token color");
+  assert(coin.color == currentTokenColor(), "wrong token color");
   receiveShielded(disclose(coin));
 
   const caller = callerKey();
@@ -377,7 +409,7 @@ export circuit swapNightToAkd(dx: Uint<128>, dy: Uint<128>, minOut: Uint<128>): 
 // receiveShielded() claims the coin, so a failed check can never consume
 // the trader's coin without paying them.
 export circuit privateSwapAkdToNight(coin: ShieldedCoinInfo, dy: Uint<128>, minOut: Uint<128>, recipient: UserAddress): [] {
-  assert(coin.color == tokenColor.read(), "wrong token color");
+  assert(coin.color == currentTokenColor(), "wrong token color");
 
   const dx: Uint<128> = coin.value;
   assert(dx > 0, "amount must be positive");

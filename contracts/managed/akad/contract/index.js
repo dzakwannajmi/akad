@@ -176,21 +176,21 @@ export class Contract {
         if (!(typeof(contextOrig_0) === 'object' && contextOrig_0.currentQueryContext != undefined)) {
           __compactRuntime.typeError('transfer',
                                      'argument 1 (as invoked from Typescript)',
-                                     'akad.compact line 152 char 1',
+                                     'akad.compact line 170 char 1',
                                      'CircuitContext',
                                      contextOrig_0)
         }
         if (!(to_0.buffer instanceof ArrayBuffer && to_0.BYTES_PER_ELEMENT === 1 && to_0.length === 32)) {
           __compactRuntime.typeError('transfer',
                                      'argument 1 (argument 2 as invoked from Typescript)',
-                                     'akad.compact line 152 char 1',
+                                     'akad.compact line 170 char 1',
                                      'Bytes<32>',
                                      to_0)
         }
         if (!(typeof(amount_0) === 'bigint' && amount_0 >= 0n && amount_0 <= 340282366920938463463374607431768211455n)) {
           __compactRuntime.typeError('transfer',
                                      'argument 2 (argument 3 as invoked from Typescript)',
-                                     'akad.compact line 152 char 1',
+                                     'akad.compact line 170 char 1',
                                      'Uint<0..340282366920938463463374607431768211456>',
                                      amount_0)
         }
@@ -219,7 +219,7 @@ export class Contract {
         if (!(typeof(contextOrig_0) === 'object' && contextOrig_0.currentQueryContext != undefined)) {
           __compactRuntime.typeError('claimFaucet',
                                      'argument 1 (as invoked from Typescript)',
-                                     'akad.compact line 174 char 1',
+                                     'akad.compact line 192 char 1',
                                      'CircuitContext',
                                      contextOrig_0)
         }
@@ -242,7 +242,7 @@ export class Contract {
         if (!(typeof(contextOrig_0) === 'object' && contextOrig_0.currentQueryContext != undefined)) {
           __compactRuntime.typeError('akdColor',
                                      'argument 1 (as invoked from Typescript)',
-                                     'akad.compact line 195 char 1',
+                                     'akad.compact line 212 char 1',
                                      'CircuitContext',
                                      contextOrig_0)
         }
@@ -257,6 +257,29 @@ export class Contract {
         partialProofData.output = { value: _descriptor_1.toValue(result_0), alignment: _descriptor_1.alignment() };
         return { result: result_0, context: context, proofData: partialProofData, gasCost: context.gasCost };
       },
+      recordTokenColor: (...args_1) => {
+        if (args_1.length !== 1) {
+          throw new __compactRuntime.CompactError(`recordTokenColor: expected 1 argument (as invoked from Typescript), received ${args_1.length}`);
+        }
+        const contextOrig_0 = args_1[0];
+        if (!(typeof(contextOrig_0) === 'object' && contextOrig_0.currentQueryContext != undefined)) {
+          __compactRuntime.typeError('recordTokenColor',
+                                     'argument 1 (as invoked from Typescript)',
+                                     'akad.compact line 228 char 1',
+                                     'CircuitContext',
+                                     contextOrig_0)
+        }
+        const context = { ...contextOrig_0, gasCost: __compactRuntime.emptyRunningCost() };
+        const partialProofData = {
+          input: { value: [], alignment: [] },
+          output: undefined,
+          publicTranscript: [],
+          privateTranscriptOutputs: []
+        };
+        const result_0 = this._recordTokenColor_0(context, partialProofData);
+        partialProofData.output = { value: [], alignment: [] };
+        return { result: result_0, context: context, proofData: partialProofData, gasCost: context.gasCost };
+      },
       wrap: (...args_1) => {
         if (args_1.length !== 3) {
           throw new __compactRuntime.CompactError(`wrap: expected 3 arguments (as invoked from Typescript), received ${args_1.length}`);
@@ -267,21 +290,21 @@ export class Contract {
         if (!(typeof(contextOrig_0) === 'object' && contextOrig_0.currentQueryContext != undefined)) {
           __compactRuntime.typeError('wrap',
                                      'argument 1 (as invoked from Typescript)',
-                                     'akad.compact line 202 char 1',
+                                     'akad.compact line 234 char 1',
                                      'CircuitContext',
                                      contextOrig_0)
         }
         if (!(typeof(amount_0) === 'bigint' && amount_0 >= 0n && amount_0 <= 340282366920938463463374607431768211455n)) {
           __compactRuntime.typeError('wrap',
                                      'argument 1 (argument 2 as invoked from Typescript)',
-                                     'akad.compact line 202 char 1',
+                                     'akad.compact line 234 char 1',
                                      'Uint<0..340282366920938463463374607431768211456>',
                                      amount_0)
         }
         if (!(nonce_0.buffer instanceof ArrayBuffer && nonce_0.BYTES_PER_ELEMENT === 1 && nonce_0.length === 32)) {
           __compactRuntime.typeError('wrap',
                                      'argument 2 (argument 3 as invoked from Typescript)',
-                                     'akad.compact line 202 char 1',
+                                     'akad.compact line 234 char 1',
                                      'Bytes<32>',
                                      nonce_0)
         }
@@ -311,14 +334,14 @@ export class Contract {
         if (!(typeof(contextOrig_0) === 'object' && contextOrig_0.currentQueryContext != undefined)) {
           __compactRuntime.typeError('unwrap',
                                      'argument 1 (as invoked from Typescript)',
-                                     'akad.compact line 222 char 1',
+                                     'akad.compact line 254 char 1',
                                      'CircuitContext',
                                      contextOrig_0)
         }
         if (!(typeof(coin_0) === 'object' && coin_0.nonce.buffer instanceof ArrayBuffer && coin_0.nonce.BYTES_PER_ELEMENT === 1 && coin_0.nonce.length === 32 && coin_0.color.buffer instanceof ArrayBuffer && coin_0.color.BYTES_PER_ELEMENT === 1 && coin_0.color.length === 32 && typeof(coin_0.value) === 'bigint' && coin_0.value >= 0n && coin_0.value <= 340282366920938463463374607431768211455n)) {
           __compactRuntime.typeError('unwrap',
                                      'argument 1 (argument 2 as invoked from Typescript)',
-                                     'akad.compact line 222 char 1',
+                                     'akad.compact line 254 char 1',
                                      'struct ShieldedCoinInfo<nonce: Bytes<32>, color: Bytes<32>, value: Uint<0..340282366920938463463374607431768211456>>',
                                      coin_0)
         }
@@ -346,21 +369,21 @@ export class Contract {
         if (!(typeof(contextOrig_0) === 'object' && contextOrig_0.currentQueryContext != undefined)) {
           __compactRuntime.typeError('addLiquidity',
                                      'argument 1 (as invoked from Typescript)',
-                                     'akad.compact line 238 char 1',
+                                     'akad.compact line 270 char 1',
                                      'CircuitContext',
                                      contextOrig_0)
         }
         if (!(typeof(amountAKD_0) === 'bigint' && amountAKD_0 >= 0n && amountAKD_0 <= 340282366920938463463374607431768211455n)) {
           __compactRuntime.typeError('addLiquidity',
                                      'argument 1 (argument 2 as invoked from Typescript)',
-                                     'akad.compact line 238 char 1',
+                                     'akad.compact line 270 char 1',
                                      'Uint<0..340282366920938463463374607431768211456>',
                                      amountAKD_0)
         }
         if (!(typeof(amountNight_0) === 'bigint' && amountNight_0 >= 0n && amountNight_0 <= 340282366920938463463374607431768211455n)) {
           __compactRuntime.typeError('addLiquidity',
                                      'argument 2 (argument 3 as invoked from Typescript)',
-                                     'akad.compact line 238 char 1',
+                                     'akad.compact line 270 char 1',
                                      'Uint<0..340282366920938463463374607431768211456>',
                                      amountNight_0)
         }
@@ -393,35 +416,35 @@ export class Contract {
         if (!(typeof(contextOrig_0) === 'object' && contextOrig_0.currentQueryContext != undefined)) {
           __compactRuntime.typeError('swapAkdToNight',
                                      'argument 1 (as invoked from Typescript)',
-                                     'akad.compact line 280 char 1',
+                                     'akad.compact line 312 char 1',
                                      'CircuitContext',
                                      contextOrig_0)
         }
         if (!(typeof(dx_0) === 'bigint' && dx_0 >= 0n && dx_0 <= 340282366920938463463374607431768211455n)) {
           __compactRuntime.typeError('swapAkdToNight',
                                      'argument 1 (argument 2 as invoked from Typescript)',
-                                     'akad.compact line 280 char 1',
+                                     'akad.compact line 312 char 1',
                                      'Uint<0..340282366920938463463374607431768211456>',
                                      dx_0)
         }
         if (!(typeof(dy_0) === 'bigint' && dy_0 >= 0n && dy_0 <= 340282366920938463463374607431768211455n)) {
           __compactRuntime.typeError('swapAkdToNight',
                                      'argument 2 (argument 3 as invoked from Typescript)',
-                                     'akad.compact line 280 char 1',
+                                     'akad.compact line 312 char 1',
                                      'Uint<0..340282366920938463463374607431768211456>',
                                      dy_0)
         }
         if (!(typeof(minOut_0) === 'bigint' && minOut_0 >= 0n && minOut_0 <= 340282366920938463463374607431768211455n)) {
           __compactRuntime.typeError('swapAkdToNight',
                                      'argument 3 (argument 4 as invoked from Typescript)',
-                                     'akad.compact line 280 char 1',
+                                     'akad.compact line 312 char 1',
                                      'Uint<0..340282366920938463463374607431768211456>',
                                      minOut_0)
         }
         if (!(typeof(recipient_0) === 'object' && recipient_0.bytes.buffer instanceof ArrayBuffer && recipient_0.bytes.BYTES_PER_ELEMENT === 1 && recipient_0.bytes.length === 32)) {
           __compactRuntime.typeError('swapAkdToNight',
                                      'argument 4 (argument 5 as invoked from Typescript)',
-                                     'akad.compact line 280 char 1',
+                                     'akad.compact line 312 char 1',
                                      'struct UserAddress<bytes: Bytes<32>>',
                                      recipient_0)
         }
@@ -455,28 +478,28 @@ export class Contract {
         if (!(typeof(contextOrig_0) === 'object' && contextOrig_0.currentQueryContext != undefined)) {
           __compactRuntime.typeError('swapNightToAkd',
                                      'argument 1 (as invoked from Typescript)',
-                                     'akad.compact line 321 char 1',
+                                     'akad.compact line 353 char 1',
                                      'CircuitContext',
                                      contextOrig_0)
         }
         if (!(typeof(dx_0) === 'bigint' && dx_0 >= 0n && dx_0 <= 340282366920938463463374607431768211455n)) {
           __compactRuntime.typeError('swapNightToAkd',
                                      'argument 1 (argument 2 as invoked from Typescript)',
-                                     'akad.compact line 321 char 1',
+                                     'akad.compact line 353 char 1',
                                      'Uint<0..340282366920938463463374607431768211456>',
                                      dx_0)
         }
         if (!(typeof(dy_0) === 'bigint' && dy_0 >= 0n && dy_0 <= 340282366920938463463374607431768211455n)) {
           __compactRuntime.typeError('swapNightToAkd',
                                      'argument 2 (argument 3 as invoked from Typescript)',
-                                     'akad.compact line 321 char 1',
+                                     'akad.compact line 353 char 1',
                                      'Uint<0..340282366920938463463374607431768211456>',
                                      dy_0)
         }
         if (!(typeof(minOut_0) === 'bigint' && minOut_0 >= 0n && minOut_0 <= 340282366920938463463374607431768211455n)) {
           __compactRuntime.typeError('swapNightToAkd',
                                      'argument 3 (argument 4 as invoked from Typescript)',
-                                     'akad.compact line 321 char 1',
+                                     'akad.compact line 353 char 1',
                                      'Uint<0..340282366920938463463374607431768211456>',
                                      minOut_0)
         }
@@ -510,35 +533,35 @@ export class Contract {
         if (!(typeof(contextOrig_0) === 'object' && contextOrig_0.currentQueryContext != undefined)) {
           __compactRuntime.typeError('privateSwapAkdToNight',
                                      'argument 1 (as invoked from Typescript)',
-                                     'akad.compact line 379 char 1',
+                                     'akad.compact line 411 char 1',
                                      'CircuitContext',
                                      contextOrig_0)
         }
         if (!(typeof(coin_0) === 'object' && coin_0.nonce.buffer instanceof ArrayBuffer && coin_0.nonce.BYTES_PER_ELEMENT === 1 && coin_0.nonce.length === 32 && coin_0.color.buffer instanceof ArrayBuffer && coin_0.color.BYTES_PER_ELEMENT === 1 && coin_0.color.length === 32 && typeof(coin_0.value) === 'bigint' && coin_0.value >= 0n && coin_0.value <= 340282366920938463463374607431768211455n)) {
           __compactRuntime.typeError('privateSwapAkdToNight',
                                      'argument 1 (argument 2 as invoked from Typescript)',
-                                     'akad.compact line 379 char 1',
+                                     'akad.compact line 411 char 1',
                                      'struct ShieldedCoinInfo<nonce: Bytes<32>, color: Bytes<32>, value: Uint<0..340282366920938463463374607431768211456>>',
                                      coin_0)
         }
         if (!(typeof(dy_0) === 'bigint' && dy_0 >= 0n && dy_0 <= 340282366920938463463374607431768211455n)) {
           __compactRuntime.typeError('privateSwapAkdToNight',
                                      'argument 2 (argument 3 as invoked from Typescript)',
-                                     'akad.compact line 379 char 1',
+                                     'akad.compact line 411 char 1',
                                      'Uint<0..340282366920938463463374607431768211456>',
                                      dy_0)
         }
         if (!(typeof(minOut_0) === 'bigint' && minOut_0 >= 0n && minOut_0 <= 340282366920938463463374607431768211455n)) {
           __compactRuntime.typeError('privateSwapAkdToNight',
                                      'argument 3 (argument 4 as invoked from Typescript)',
-                                     'akad.compact line 379 char 1',
+                                     'akad.compact line 411 char 1',
                                      'Uint<0..340282366920938463463374607431768211456>',
                                      minOut_0)
         }
         if (!(typeof(recipient_0) === 'object' && recipient_0.bytes.buffer instanceof ArrayBuffer && recipient_0.bytes.BYTES_PER_ELEMENT === 1 && recipient_0.bytes.length === 32)) {
           __compactRuntime.typeError('privateSwapAkdToNight',
                                      'argument 4 (argument 5 as invoked from Typescript)',
-                                     'akad.compact line 379 char 1',
+                                     'akad.compact line 411 char 1',
                                      'struct UserAddress<bytes: Bytes<32>>',
                                      recipient_0)
         }
@@ -573,35 +596,35 @@ export class Contract {
         if (!(typeof(contextOrig_0) === 'object' && contextOrig_0.currentQueryContext != undefined)) {
           __compactRuntime.typeError('privateSwapNightToAkd',
                                      'argument 1 (as invoked from Typescript)',
-                                     'akad.compact line 433 char 1',
+                                     'akad.compact line 465 char 1',
                                      'CircuitContext',
                                      contextOrig_0)
         }
         if (!(typeof(dx_0) === 'bigint' && dx_0 >= 0n && dx_0 <= 340282366920938463463374607431768211455n)) {
           __compactRuntime.typeError('privateSwapNightToAkd',
                                      'argument 1 (argument 2 as invoked from Typescript)',
-                                     'akad.compact line 433 char 1',
+                                     'akad.compact line 465 char 1',
                                      'Uint<0..340282366920938463463374607431768211456>',
                                      dx_0)
         }
         if (!(typeof(dy_0) === 'bigint' && dy_0 >= 0n && dy_0 <= 340282366920938463463374607431768211455n)) {
           __compactRuntime.typeError('privateSwapNightToAkd',
                                      'argument 2 (argument 3 as invoked from Typescript)',
-                                     'akad.compact line 433 char 1',
+                                     'akad.compact line 465 char 1',
                                      'Uint<0..340282366920938463463374607431768211456>',
                                      dy_0)
         }
         if (!(typeof(minOut_0) === 'bigint' && minOut_0 >= 0n && minOut_0 <= 340282366920938463463374607431768211455n)) {
           __compactRuntime.typeError('privateSwapNightToAkd',
                                      'argument 3 (argument 4 as invoked from Typescript)',
-                                     'akad.compact line 433 char 1',
+                                     'akad.compact line 465 char 1',
                                      'Uint<0..340282366920938463463374607431768211456>',
                                      minOut_0)
         }
         if (!(nonce_0.buffer instanceof ArrayBuffer && nonce_0.BYTES_PER_ELEMENT === 1 && nonce_0.length === 32)) {
           __compactRuntime.typeError('privateSwapNightToAkd',
                                      'argument 4 (argument 5 as invoked from Typescript)',
-                                     'akad.compact line 433 char 1',
+                                     'akad.compact line 465 char 1',
                                      'Bytes<32>',
                                      nonce_0)
         }
@@ -629,6 +652,7 @@ export class Contract {
       transfer: this.circuits.transfer,
       claimFaucet: this.circuits.claimFaucet,
       akdColor: this.circuits.akdColor,
+      recordTokenColor: this.circuits.recordTokenColor,
       wrap: this.circuits.wrap,
       unwrap: this.circuits.unwrap,
       addLiquidity: this.circuits.addLiquidity,
@@ -641,6 +665,7 @@ export class Contract {
       transfer: this.circuits.transfer,
       claimFaucet: this.circuits.claimFaucet,
       akdColor: this.circuits.akdColor,
+      recordTokenColor: this.circuits.recordTokenColor,
       wrap: this.circuits.wrap,
       unwrap: this.circuits.unwrap,
       addLiquidity: this.circuits.addLiquidity,
@@ -677,6 +702,7 @@ export class Contract {
     state_0.setOperation('transfer', new __compactRuntime.ContractOperation());
     state_0.setOperation('claimFaucet', new __compactRuntime.ContractOperation());
     state_0.setOperation('akdColor', new __compactRuntime.ContractOperation());
+    state_0.setOperation('recordTokenColor', new __compactRuntime.ContractOperation());
     state_0.setOperation('wrap', new __compactRuntime.ContractOperation());
     state_0.setOperation('unwrap', new __compactRuntime.ContractOperation());
     state_0.setOperation('addLiquidity', new __compactRuntime.ContractOperation());
@@ -792,30 +818,6 @@ export class Contract {
                                        { push: { storage: true,
                                                  value: __compactRuntime.StateValue.newCell({ value: _descriptor_0.toValue(tmp_1),
                                                                                               alignment: _descriptor_0.alignment() }).encode() } },
-                                       { ins: { cached: false, n: 1 } }]);
-    const domainSep_0 = this._persistentHash_0(42n);
-    const color_0 = this._tokenType_0(domainSep_0,
-                                      _descriptor_5.fromValue(__compactRuntime.queryLedgerState(context,
-                                                                                                partialProofData,
-                                                                                                [
-                                                                                                 { dup: { n: 2 } },
-                                                                                                 { idx: { cached: true,
-                                                                                                          pushPath: false,
-                                                                                                          path: [
-                                                                                                                 { tag: 'value',
-                                                                                                                   value: { value: _descriptor_11.toValue(0n),
-                                                                                                                            alignment: _descriptor_11.alignment() } }] } },
-                                                                                                 { popeq: { cached: true,
-                                                                                                            result: undefined } }]).value));
-    __compactRuntime.queryLedgerState(context,
-                                      partialProofData,
-                                      [
-                                       { push: { storage: false,
-                                                 value: __compactRuntime.StateValue.newCell({ value: _descriptor_11.toValue(2n),
-                                                                                              alignment: _descriptor_11.alignment() }).encode() } },
-                                       { push: { storage: true,
-                                                 value: __compactRuntime.StateValue.newCell({ value: _descriptor_1.toValue(color_0),
-                                                                                              alignment: _descriptor_1.alignment() }).encode() } },
                                        { ins: { cached: false, n: 1 } }]);
     const tmp_2 = this._faucetKey_0();
     __compactRuntime.queryLedgerState(context,
@@ -1236,6 +1238,22 @@ export class Contract {
   }
   _poolKey_0() { return this._persistentHash_0(7n); }
   _faucetKey_0() { return this._persistentHash_0(11n); }
+  _currentTokenColor_0(context, partialProofData) {
+    const domainSep_0 = this._persistentHash_0(42n);
+    return this._tokenType_0(domainSep_0,
+                             _descriptor_5.fromValue(__compactRuntime.queryLedgerState(context,
+                                                                                       partialProofData,
+                                                                                       [
+                                                                                        { dup: { n: 2 } },
+                                                                                        { idx: { cached: true,
+                                                                                                 pushPath: false,
+                                                                                                 path: [
+                                                                                                        { tag: 'value',
+                                                                                                          value: { value: _descriptor_11.toValue(0n),
+                                                                                                                   alignment: _descriptor_11.alignment() } }] } },
+                                                                                        { popeq: { cached: true,
+                                                                                                   result: undefined } }]).value));
+  }
   _balanceOf_0(context, partialProofData, account_0) {
     if (!_descriptor_4.fromValue(__compactRuntime.queryLedgerState(context,
                                                                    partialProofData,
@@ -1347,7 +1365,7 @@ export class Contract {
     const recipientBalance_0 = this._balanceOf_0(context, partialProofData, to_0);
     const newRecipientBalance_0 = ((t1) => {
                                     if (t1 > 340282366920938463463374607431768211455n) {
-                                      throw new __compactRuntime.CompactError('akad.compact line 162 char 42: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 340282366920938463463374607431768211455');
+                                      throw new __compactRuntime.CompactError('akad.compact line 180 char 42: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 340282366920938463463374607431768211455');
                                     }
                                     return t1;
                                   })(recipientBalance_0 + amount_0);
@@ -1409,7 +1427,7 @@ export class Contract {
                                               caller_0);
     const newCallerBalance_0 = ((t1) => {
                                  if (t1 > 340282366920938463463374607431768211455n) {
-                                   throw new __compactRuntime.CompactError('akad.compact line 186 char 39: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 340282366920938463463374607431768211455');
+                                   throw new __compactRuntime.CompactError('akad.compact line 204 char 39: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 340282366920938463463374607431768211455');
                                  }
                                  return t1;
                                })(callerBalance_0 + 50000000n);
@@ -1450,20 +1468,21 @@ export class Contract {
     return [];
   }
   _akdColor_0(context, partialProofData) {
-    const domainSep_0 = this._persistentHash_0(42n);
-    return this._tokenType_0(domainSep_0,
-                             _descriptor_5.fromValue(__compactRuntime.queryLedgerState(context,
-                                                                                       partialProofData,
-                                                                                       [
-                                                                                        { dup: { n: 2 } },
-                                                                                        { idx: { cached: true,
-                                                                                                 pushPath: false,
-                                                                                                 path: [
-                                                                                                        { tag: 'value',
-                                                                                                          value: { value: _descriptor_11.toValue(0n),
-                                                                                                                   alignment: _descriptor_11.alignment() } }] } },
-                                                                                        { popeq: { cached: true,
-                                                                                                   result: undefined } }]).value));
+    return this._currentTokenColor_0(context, partialProofData);
+  }
+  _recordTokenColor_0(context, partialProofData) {
+    const tmp_0 = this._currentTokenColor_0(context, partialProofData);
+    __compactRuntime.queryLedgerState(context,
+                                      partialProofData,
+                                      [
+                                       { push: { storage: false,
+                                                 value: __compactRuntime.StateValue.newCell({ value: _descriptor_11.toValue(2n),
+                                                                                              alignment: _descriptor_11.alignment() }).encode() } },
+                                       { push: { storage: true,
+                                                 value: __compactRuntime.StateValue.newCell({ value: _descriptor_1.toValue(tmp_0),
+                                                                                              alignment: _descriptor_1.alignment() }).encode() } },
+                                       { ins: { cached: false, n: 1 } }]);
+    return [];
   }
   _wrap_0(context, partialProofData, amount_0, nonce_0) {
     const caller_0 = this._callerKey_0(context, partialProofData);
@@ -1496,7 +1515,7 @@ export class Contract {
     const domainSep_0 = this._persistentHash_0(42n);
     const value_0 = ((t1) => {
                       if (t1 > 18446744073709551615n) {
-                        throw new __compactRuntime.CompactError('akad.compact line 214 char 36: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 18446744073709551615');
+                        throw new __compactRuntime.CompactError('akad.compact line 246 char 36: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 18446744073709551615');
                       }
                       return t1;
                     })(amount_0);
@@ -1512,18 +1531,8 @@ export class Contract {
   }
   _unwrap_0(context, partialProofData, coin_0) {
     __compactRuntime.assert(this._equal_2(coin_0.color,
-                                          _descriptor_1.fromValue(__compactRuntime.queryLedgerState(context,
-                                                                                                    partialProofData,
-                                                                                                    [
-                                                                                                     { dup: { n: 0 } },
-                                                                                                     { idx: { cached: false,
-                                                                                                              pushPath: false,
-                                                                                                              path: [
-                                                                                                                     { tag: 'value',
-                                                                                                                       value: { value: _descriptor_11.toValue(2n),
-                                                                                                                                alignment: _descriptor_11.alignment() } }] } },
-                                                                                                     { popeq: { cached: false,
-                                                                                                                result: undefined } }]).value)),
+                                          this._currentTokenColor_0(context,
+                                                                    partialProofData)),
                             'wrong token color');
     this._receiveShielded_0(context, partialProofData, coin_0);
     const caller_0 = this._callerKey_0(context, partialProofData);
@@ -1531,7 +1540,7 @@ export class Contract {
     const amount_0 = coin_0.value;
     const newBalance_0 = ((t1) => {
                            if (t1 > 340282366920938463463374607431768211455n) {
-                             throw new __compactRuntime.CompactError('akad.compact line 229 char 33: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 340282366920938463463374607431768211455');
+                             throw new __compactRuntime.CompactError('akad.compact line 261 char 33: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 340282366920938463463374607431768211455');
                            }
                            return t1;
                          })(balance_0 + amount_0);
@@ -1619,7 +1628,7 @@ export class Contract {
     const poolBalance_0 = this._balanceOf_0(context, partialProofData, pool_0);
     const newPoolBalance_0 = ((t1) => {
                                if (t1 > 340282366920938463463374607431768211455n) {
-                                 throw new __compactRuntime.CompactError('akad.compact line 260 char 37: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 340282366920938463463374607431768211455');
+                                 throw new __compactRuntime.CompactError('akad.compact line 292 char 37: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 340282366920938463463374607431768211455');
                                }
                                return t1;
                              })(poolBalance_0 + amountAKD_0);
@@ -1709,25 +1718,25 @@ export class Contract {
                             'pool has insufficient tNIGHT custody for this swap');
     const xBig_0 = ((t1) => {
                      if (t1 > 18446744073709551615n) {
-                       throw new __compactRuntime.CompactError('akad.compact line 293 char 26: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 18446744073709551615');
+                       throw new __compactRuntime.CompactError('akad.compact line 325 char 26: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 18446744073709551615');
                      }
                      return t1;
                    })(x_0);
     const dxBig_0 = ((t1) => {
                       if (t1 > 18446744073709551615n) {
-                        throw new __compactRuntime.CompactError('akad.compact line 294 char 27: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 18446744073709551615');
+                        throw new __compactRuntime.CompactError('akad.compact line 326 char 27: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 18446744073709551615');
                       }
                       return t1;
                     })(dx_0);
     const yBig_0 = ((t1) => {
                      if (t1 > 18446744073709551615n) {
-                       throw new __compactRuntime.CompactError('akad.compact line 295 char 26: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 18446744073709551615');
+                       throw new __compactRuntime.CompactError('akad.compact line 327 char 26: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 18446744073709551615');
                      }
                      return t1;
                    })(y_0);
     const dyBig_0 = ((t1) => {
                       if (t1 > 18446744073709551615n) {
-                        throw new __compactRuntime.CompactError('akad.compact line 296 char 27: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 18446744073709551615');
+                        throw new __compactRuntime.CompactError('akad.compact line 328 char 27: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 18446744073709551615');
                       }
                       return t1;
                     })(dy_0);
@@ -1769,7 +1778,7 @@ export class Contract {
     const poolBalance_0 = this._balanceOf_0(context, partialProofData, pool_0);
     const newPoolBalance_0 = ((t1) => {
                                if (t1 > 340282366920938463463374607431768211455n) {
-                                 throw new __compactRuntime.CompactError('akad.compact line 309 char 37: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 340282366920938463463374607431768211455');
+                                 throw new __compactRuntime.CompactError('akad.compact line 341 char 37: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 340282366920938463463374607431768211455');
                                }
                                return t1;
                              })(poolBalance_0 + dx_0);
@@ -1792,7 +1801,7 @@ export class Contract {
                                        { ins: { cached: true, n: 1 } }]);
     const tmp_0 = ((t1) => {
                     if (t1 > 340282366920938463463374607431768211455n) {
-                      throw new __compactRuntime.CompactError('akad.compact line 312 char 29: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 340282366920938463463374607431768211455');
+                      throw new __compactRuntime.CompactError('akad.compact line 344 char 29: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 340282366920938463463374607431768211455');
                     }
                     return t1;
                   })(x_0 + dx_0);
@@ -1862,25 +1871,25 @@ export class Contract {
     __compactRuntime.assert(y_0 <= 4000000000n, 'reserveAKD exceeds safe bound');
     const xBig_0 = ((t1) => {
                      if (t1 > 18446744073709551615n) {
-                       throw new __compactRuntime.CompactError('akad.compact line 333 char 26: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 18446744073709551615');
+                       throw new __compactRuntime.CompactError('akad.compact line 365 char 26: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 18446744073709551615');
                      }
                      return t1;
                    })(x_0);
     const dxBig_0 = ((t1) => {
                       if (t1 > 18446744073709551615n) {
-                        throw new __compactRuntime.CompactError('akad.compact line 334 char 27: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 18446744073709551615');
+                        throw new __compactRuntime.CompactError('akad.compact line 366 char 27: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 18446744073709551615');
                       }
                       return t1;
                     })(dx_0);
     const yBig_0 = ((t1) => {
                      if (t1 > 18446744073709551615n) {
-                       throw new __compactRuntime.CompactError('akad.compact line 335 char 26: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 18446744073709551615');
+                       throw new __compactRuntime.CompactError('akad.compact line 367 char 26: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 18446744073709551615');
                      }
                      return t1;
                    })(y_0);
     const dyBig_0 = ((t1) => {
                       if (t1 > 18446744073709551615n) {
-                        throw new __compactRuntime.CompactError('akad.compact line 336 char 27: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 18446744073709551615');
+                        throw new __compactRuntime.CompactError('akad.compact line 368 char 27: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 18446744073709551615');
                       }
                       return t1;
                     })(dy_0);
@@ -1926,7 +1935,7 @@ export class Contract {
                                               trader_0);
     const newTraderBalance_0 = ((t1) => {
                                  if (t1 > 340282366920938463463374607431768211455n) {
-                                   throw new __compactRuntime.CompactError('akad.compact line 356 char 39: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 340282366920938463463374607431768211455');
+                                   throw new __compactRuntime.CompactError('akad.compact line 388 char 39: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 340282366920938463463374607431768211455');
                                  }
                                  return t1;
                                })(traderBalance_0 + dy_0);
@@ -1949,7 +1958,7 @@ export class Contract {
                                        { ins: { cached: true, n: 1 } }]);
     const tmp_0 = ((t1) => {
                     if (t1 > 340282366920938463463374607431768211455n) {
-                      throw new __compactRuntime.CompactError('akad.compact line 359 char 31: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 340282366920938463463374607431768211455');
+                      throw new __compactRuntime.CompactError('akad.compact line 391 char 31: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 340282366920938463463374607431768211455');
                     }
                     return t1;
                   })(x_0 + dx_0);
@@ -1986,18 +1995,8 @@ export class Contract {
                            recipient_0)
   {
     __compactRuntime.assert(this._equal_5(coin_0.color,
-                                          _descriptor_1.fromValue(__compactRuntime.queryLedgerState(context,
-                                                                                                    partialProofData,
-                                                                                                    [
-                                                                                                     { dup: { n: 0 } },
-                                                                                                     { idx: { cached: false,
-                                                                                                              pushPath: false,
-                                                                                                              path: [
-                                                                                                                     { tag: 'value',
-                                                                                                                       value: { value: _descriptor_11.toValue(2n),
-                                                                                                                                alignment: _descriptor_11.alignment() } }] } },
-                                                                                                     { popeq: { cached: false,
-                                                                                                                result: undefined } }]).value)),
+                                          this._currentTokenColor_0(context,
+                                                                    partialProofData)),
                             'wrong token color');
     const dx_0 = coin_0.value;
     __compactRuntime.assert(dx_0 > 0n, 'amount must be positive');
@@ -2041,25 +2040,25 @@ export class Contract {
                             'pool has insufficient tNIGHT custody for this swap');
     const xBig_0 = ((t1) => {
                      if (t1 > 18446744073709551615n) {
-                       throw new __compactRuntime.CompactError('akad.compact line 396 char 26: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 18446744073709551615');
+                       throw new __compactRuntime.CompactError('akad.compact line 428 char 26: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 18446744073709551615');
                      }
                      return t1;
                    })(x_0);
     const dxBig_0 = ((t1) => {
                       if (t1 > 18446744073709551615n) {
-                        throw new __compactRuntime.CompactError('akad.compact line 397 char 27: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 18446744073709551615');
+                        throw new __compactRuntime.CompactError('akad.compact line 429 char 27: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 18446744073709551615');
                       }
                       return t1;
                     })(dx_0);
     const yBig_0 = ((t1) => {
                      if (t1 > 18446744073709551615n) {
-                       throw new __compactRuntime.CompactError('akad.compact line 398 char 26: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 18446744073709551615');
+                       throw new __compactRuntime.CompactError('akad.compact line 430 char 26: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 18446744073709551615');
                      }
                      return t1;
                    })(y_0);
     const dyBig_0 = ((t1) => {
                       if (t1 > 18446744073709551615n) {
-                        throw new __compactRuntime.CompactError('akad.compact line 399 char 27: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 18446744073709551615');
+                        throw new __compactRuntime.CompactError('akad.compact line 431 char 27: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 18446744073709551615');
                       }
                       return t1;
                     })(dy_0);
@@ -2076,7 +2075,7 @@ export class Contract {
     const poolBalance_0 = this._balanceOf_0(context, partialProofData, pool_0);
     const newPoolBalance_0 = ((t1) => {
                                if (t1 > 340282366920938463463374607431768211455n) {
-                                 throw new __compactRuntime.CompactError('akad.compact line 407 char 37: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 340282366920938463463374607431768211455');
+                                 throw new __compactRuntime.CompactError('akad.compact line 439 char 37: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 340282366920938463463374607431768211455');
                                }
                                return t1;
                              })(poolBalance_0 + dx_0);
@@ -2099,7 +2098,7 @@ export class Contract {
                                        { ins: { cached: true, n: 1 } }]);
     const tmp_0 = ((t1) => {
                     if (t1 > 340282366920938463463374607431768211455n) {
-                      throw new __compactRuntime.CompactError('akad.compact line 410 char 29: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 340282366920938463463374607431768211455');
+                      throw new __compactRuntime.CompactError('akad.compact line 442 char 29: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 340282366920938463463374607431768211455');
                     }
                     return t1;
                   })(x_0 + dx_0);
@@ -2175,25 +2174,25 @@ export class Contract {
     __compactRuntime.assert(y_0 <= 4000000000n, 'reserveAKD exceeds safe bound');
     const xBig_0 = ((t1) => {
                      if (t1 > 18446744073709551615n) {
-                       throw new __compactRuntime.CompactError('akad.compact line 445 char 26: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 18446744073709551615');
+                       throw new __compactRuntime.CompactError('akad.compact line 477 char 26: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 18446744073709551615');
                      }
                      return t1;
                    })(x_0);
     const dxBig_0 = ((t1) => {
                       if (t1 > 18446744073709551615n) {
-                        throw new __compactRuntime.CompactError('akad.compact line 446 char 27: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 18446744073709551615');
+                        throw new __compactRuntime.CompactError('akad.compact line 478 char 27: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 18446744073709551615');
                       }
                       return t1;
                     })(dx_0);
     const yBig_0 = ((t1) => {
                      if (t1 > 18446744073709551615n) {
-                       throw new __compactRuntime.CompactError('akad.compact line 447 char 26: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 18446744073709551615');
+                       throw new __compactRuntime.CompactError('akad.compact line 479 char 26: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 18446744073709551615');
                      }
                      return t1;
                    })(y_0);
     const dyBig_0 = ((t1) => {
                       if (t1 > 18446744073709551615n) {
-                        throw new __compactRuntime.CompactError('akad.compact line 448 char 27: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 18446744073709551615');
+                        throw new __compactRuntime.CompactError('akad.compact line 480 char 27: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 18446744073709551615');
                       }
                       return t1;
                     })(dy_0);
@@ -2235,7 +2234,7 @@ export class Contract {
                                        { ins: { cached: true, n: 1 } }]);
     const tmp_0 = ((t1) => {
                     if (t1 > 340282366920938463463374607431768211455n) {
-                      throw new __compactRuntime.CompactError('akad.compact line 464 char 31: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 340282366920938463463374607431768211455');
+                      throw new __compactRuntime.CompactError('akad.compact line 496 char 31: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 340282366920938463463374607431768211455');
                     }
                     return t1;
                   })(x_0 + dx_0);
@@ -2265,7 +2264,7 @@ export class Contract {
     const domainSep_0 = this._persistentHash_0(42n);
     const value_0 = ((t1) => {
                       if (t1 > 18446744073709551615n) {
-                        throw new __compactRuntime.CompactError('akad.compact line 468 char 36: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 18446744073709551615');
+                        throw new __compactRuntime.CompactError('akad.compact line 500 char 36: cast from Field or Uint value to smaller Uint value failed: ' + t1 + ' is greater than 18446744073709551615');
                       }
                       return t1;
                     })(dy_0);

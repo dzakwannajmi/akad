@@ -103,11 +103,44 @@ export async function waitForContractState(
   );
 }
 
-// There is no init() step any more. The contract's constructor mints the
-// initial supply to the deployer as part of the deploy transaction, so a
-// freshly deployed contract is already fully set up. See
+// There is no init() step any more: the contract's constructor mints the
+// initial supply to the deployer as part of the deploy transaction. See
 // contracts/src/akad.compact for why (the old init() circuit was
 // front-runnable between deploy and the first call).
+//
+// One post-deploy call does remain. tokenColor cannot be derived in the
+// constructor, because kernel.self() does not return the deployed
+// contract's address there, so recordTokenColor() writes it from inside a
+// circuit instead. It needs no access control and is safe to repeat: every
+// caller writes byte-identical data. Contract correctness does not depend
+// on it either, since unwrap() and privateSwapAkdToNight() derive the
+// colour themselves; this only populates the ledger field the frontend
+// reads so it does not need a transaction to learn the colour.
+export async function recordTokenColor(
+  connectedApi: any,
+  coinPublicKey: string,
+  encryptionPublicKey: string,
+  contractAddress: string
+): Promise<void> {
+  const { submitCallTxAsync } = await import('@midnight-ntwrk/midnight-js-contracts');
+
+  const providers = await buildProviders(connectedApi, coinPublicKey, encryptionPublicKey, contractAddress, AKAD_CONTRACT_PATH);
+
+  const existing = await providers.privateStateProvider.get(PRIVATE_STATE_ID);
+  if (!existing) {
+    await providers.privateStateProvider.set(PRIVATE_STATE_ID, createInitialPrivateState());
+  }
+
+  const compiledContract = await loadCompiledContract();
+
+  await (submitCallTxAsync as any)(providers, {
+    compiledContract,
+    contractAddress,
+    circuitId: 'recordTokenColor',
+    args: [],
+    privateStateId: PRIVATE_STATE_ID,
+  });
+}
 
 // Wraps a public AKD amount into a native shielded coin sent to the caller.
 export async function wrapTokens(
@@ -159,7 +192,17 @@ export async function getTokenColor(
   const contractModule = await import('./contracts/akad/contract/index.js');
   const ledgerState = (contractModule as any).ledger(contractState.data);
 
-  return ledgerState.tokenColor;
+  const color = ledgerState.tokenColor as Uint8Array;
+  // An all-zero colour means recordTokenColor() has never run against this
+  // deployment. Failing loudly here beats handing callers 32 zero bytes,
+  // which the wallet would then fail to match against any coin it holds and
+  // report only as an opaque "Balance failed: Insufficient funds".
+  if (color.every((b) => b === 0)) {
+    throw new Error(
+      'This contract has no token colour recorded yet. Call recordTokenColor() once against it (the Deploy page does this automatically for new deployments) before wrapping or unwrapping.'
+    );
+  }
+  return color;
 }
 
 // Unwraps a shielded AKD coin back to public balance.

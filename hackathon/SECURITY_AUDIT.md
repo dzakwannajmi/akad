@@ -39,6 +39,30 @@ Unlike the original audit, the remediated contract **was compiled**: compiler 0.
 - `build/akad/contract/index.d.ts` exposes `initialState(context: ConstructorContext)`, confirming the constructor is registered and that `callerKey()`, `ownPublicKey()`, `kernel.self()`, `tokenType()`, and `Map.insert` are all legal inside a Compact constructor at language version 0.23.
 - Compiled output is consistent across `build/`, `contracts/managed/`, `frontend/lib/contracts/`, and `frontend/public/contracts/`, with no stale `init.*` prover or verifier keys left anywhere.
 
+### On-chain verification of the fixes (13 Sep 2026)
+
+Compiling is not evidence that a fix works. Each remediated circuit was therefore run against live deployments on **both** networks and the resulting transactions were read on the block explorer, not trusted from the app's own UI. That distinction matters here: the frontend reports success as soon as it receives a transaction id, so a `PARTIAL_SUCCESS` transaction whose effects were rolled back looks identical to a real one in the interface. Only `STATUS`, `EXECUTION SEGMENTS` and `SPENT INPUTS` separate the two.
+
+Final deployments: Preprod `77e840accabf8b7f6301d55285218f93466e6a41c9623cb48d7529e7549eb4aa`, Preview `b889ee2cce94c04a1cfc5b4a0aea844d5167759381db11ac2cd87e93550ed53c`. Every circuit was exercised on both; the per-circuit hashes are tabulated in the root [README](../README.md#verified-transactions).
+
+The three transaction shapes that actually close the findings:
+
+| Finding | Circuit | What the chain shows |
+|---|---|---|
+| **C-01 closed** | `privateSwapNightToAkd` | `SUCCESS`, no failed segments, **`SPENT INPUTS: 1`**, 1 zswap event. Real tNIGHT entered the contract through `receiveUnshielded` and shielded AKD was minted out. The circuit can no longer mint AKD for free, so the three-transaction pool drain is gone. |
+| **H-01 closed** | `privateSwapAkdToNight` | `SUCCESS`, no failed segments, **`PUBLIC OUTPUTS: 1`** with zero spent inputs, 2 zswap events. The trader's shielded coin was consumed and real tNIGHT left the pool's own custody through `sendUnshielded`. Zero spent inputs is correct for this direction, since the payout is funded by the contract rather than the caller. |
+| **tokenColor regression closed** | `unwrap` | `SUCCESS`, no failed segments, 2 zswap events. The shielded coin was really spent and received, so the colour the ledger reports and the colour `mintShieldedToken()` stamps now agree. |
+
+Four of these transactions (`addLiquidity` and both private swaps on Preview, `addLiquidity` on Preprod) were opened and read independently during this audit; the rest are the developer's records against the same deployments and can be checked the same way from the README table.
+
+Both fund-loss findings are therefore verified against a live chain on two networks, not merely against a clean compile.
+
+### An unexplained failure worth recording
+
+Before the deployment above, three `addLiquidity` attempts on two earlier deployments all landed as `PARTIAL_SUCCESS` with `SPENT INPUTS: 0` and a failed fallible segment: the wallet attached no unshielded NIGHT at all, so `receiveUnshielded` went unsatisfied and every effect rolled back. The following were ruled out by evidence rather than by assumption: the amount (identical failure at both 1,000,000,000 and 63,000,000 base units), the balance (the wallet held roughly 1.0976e10 base units of unshielded NIGHT against a 1e9 request), and the audit fixes themselves (`addLiquidity` was the one circuit left completely untouched).
+
+A clean sequential redeploy, with deploy then `recordTokenColor` then seed then fund then wrap then unwrap run in order, resolved it, and the developer changed nothing else. **The root cause was never identified.** It is recorded here rather than quietly omitted, because an unexplained intermittent failure in the funding path is exactly the kind of thing a reviewer could hit. `hackathon/HOW_TO_RUN.md` carries the symptom and the known remedy in its troubleshooting table.
+
 Section 0 below describes the conditions of the original audit and is left unchanged.
 
 ---

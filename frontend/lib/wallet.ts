@@ -32,8 +32,6 @@ export async function connectWallet(wallet: InitialAPI) {
   const unshielded = await connectedApi.getUnshieldedAddress();
   const dust = await connectedApi.getDustAddress();
 
-  console.log('[Wallet] Configuration from wallet:', config);
-
   return {
     connectedApi,
     config,
