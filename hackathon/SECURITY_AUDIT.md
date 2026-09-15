@@ -16,10 +16,10 @@ This audit was delivered against commit `bad91f3`. The developer has since appli
 |---|---|---|
 | C-01 Critical | **FIXED** | `privateSwapNightToAkd` now calls `receiveUnshielded(nativeToken(), disclose(dx))`, so the NIGHT leg is real. The free mint, and the three-transaction drain it enabled, are both gone. |
 | H-01 High | **FIXED** | `privateSwapAkdToNight` gained a `recipient: UserAddress` parameter and pays out through `sendUnshielded`, guarded by `unshieldedBalanceGte`. It can no longer consume a coin and return nothing. |
-| H-02 High | **OPEN, now disclosed accurately** | The nonce linkage is unchanged, because it follows from circuit arguments being public and the fix needs coins and nonces sourced from a witness. What changed is the claim: "unlinkable" has been removed from the root README, the landing page, the FAQ, and the contract's own header comment, and replaced with an accurate description of the boundary. |
+| H-02 High | **REFUTED (14 Sep 2026)** | Tested on chain and the finding does not hold. Coin nonces were never published in plaintext, even as circuit arguments. The premise this audit reasoned from was wrong. Full method, controls and data in "H-02 refuted on chain" below. The witness refactor was applied anyway, for narrower reasons stated there. |
 | H-03 High | **FIXED** | `init()` is deleted. The supply mint, `tokenColor`, and `faucetAddress` now happen in a `constructor()`, which runs inside the deploy transaction. There is no entry point left to race. |
 | M-01 Medium | **OPEN** | `minOut` is still tautological. Making it real means computing `dy` on-chain, a larger change than the remaining time allows. |
-| M-02 Medium | **FIXED** | The claim that `minOut` is never shown is gone from the README, landing page, and FAQ, replaced by a plain statement of the public-transcript rule. |
+| M-02 Medium | **REASONING REFUTED (14 Sep 2026)** | M-02 rested entirely on H-02's premise, which is now disproven, so its argument does not stand either. Whether `minOut` is recoverable by some other route was never tested and remains unknown. The README edit is harmless and stays, but the finding must not be cited as established. See "H-02 refuted on chain". |
 | M-03 Medium | **FIXED** | Both circuits that could desync `reserveNight` from real custody now move real tNIGHT, so the divergence has no remaining source. |
 | M-04 Medium | **OPEN** | Unchanged, and it now applies to `privateSwapAkdToNight` too, since that circuit gained the same `recipient` parameter. Carried as a documented trust assumption rather than silently. |
 | M-05 Medium | **OPEN** | Reserve cap unchanged. Mitigated operationally by seeding the pool well under the cap. |
@@ -89,7 +89,7 @@ This is good evidence that the source at `bad91f3` compiled under 0.31.1 on the 
 |---|---|---|---|
 | C-01 | Critical | CONFIRMED | `privateSwapNightToAkd` mints real AKD without ever receiving NIGHT, and the free AKD chains into a complete drain of the pool's real tNIGHT custody |
 | H-01 | High | CONFIRMED | `privateSwapAkdToNight` consumes the caller's real shielded AKD and delivers nothing in return |
-| H-02 | High | CONFIRMED | The private path does not deliver unlinkability: shielded coin nonces and values are public circuit arguments, which links every "private" swap back to the public `wrap` that created the coin |
+| H-02 | High | **REFUTED on chain, 14 Sep 2026** | Originally filed as CONFIRMED. Testing against live transactions disproved it. Kept in place, with the refutation, rather than deleted |
 | H-03 | High | CONFIRMED | `init()` is unauthenticated and front-runnable: the first caller after deployment receives the entire 1,000,000 AKD supply |
 | M-01 | Medium | CONFIRMED | `minOut` provides no slippage protection; the assertion is tautological because the caller supplies both `dy` and `minOut` |
 | M-02 | Medium | CONFIRMED | README claims `minOut` is never revealed on-chain; circuit arguments are always part of the public transcript |
@@ -209,7 +209,9 @@ Same options as C-01, item 1 or item 3. If the circuit is kept in any form, it m
 
 ---
 
-### H-02 (High, CONFIRMED): the private path does not deliver unlinkability
+### H-02 (filed High/CONFIRMED, later REFUTED): the private path does not deliver unlinkability
+
+> **This finding is wrong.** It was filed as a confirmed High, then disproved by testing it against live transactions on 14 Sep 2026. The original text is left below exactly as written, followed by the refutation. An audit that deletes its own mistakes teaches a reader nothing about how much to trust the rest of it.
 
 **Location:** `contracts/src/akad.compact:186` (`wrap`), `206` (`unwrap`), `354` (`privateSwapAkdToNight`), `399` (`privateSwapNightToAkd`)
 
@@ -252,6 +254,78 @@ Two parts, and the second is mandatory even if the first turns out to be impossi
 
 1. **Source coin nonces and spent coins from a `witness`, not from a circuit argument.** The idiomatic Midnight pattern for this is documented: `witness myRewardCoins(): Vector<10, ShieldedCoinInfo>;`, with the coin supplied from the wallet's local private state rather than passed in publicly. Applying the same shape here means declaring, for example, `witness spendCoin(): ShieldedCoinInfo;` and `witness freshNonce(): Bytes<32>;` and calling them inside the circuit instead of taking them as parameters. Note honestly: the author's own scaffolding at `contracts/src/test/note-primitives-test.compact:19` passes a witness-derived nonce to `mintShieldedToken` and still needs `disclose()` on it, which suggests `mintShieldedToken` may structurally require a public nonce. **This audit could not compile, so I cannot tell you whether the witness form is accepted.** Try it; it is a ten minute experiment and the payoff is the project's entire headline claim.
 2. **If the compiler refuses, correct the README.** Say precisely what is hidden and what is not. Something like: "A wrapped AKD coin lives in Midnight's native shielded pool, so its balance is not a public ledger entry. The wrap and unwrap transactions do publish the coin's nonce as a circuit argument, so an observer can link a specific coin's creation and spend to the wallet that wrapped it. What the shielded form removes is a standing public balance, not transaction-graph linkability." That is a weaker claim, but it is true, and a judge who checks will respect it far more than a strong claim that does not survive inspection.
+
+---
+
+### H-02 refuted on chain (14 Sep 2026)
+
+**Verdict: the finding above is false. The attack it describes cannot be carried out, because the value it depends on is never published.**
+
+**Why it was filed in the first place**
+
+The finding rests on one premise, quoted in its own text: every argument to an exported circuit is part of the public transcript. Two Midnight reference sources state this, in nearly identical words, and the original audit cited both. It was never tested against a transaction. The whole finding is an inference from a sentence in documentation.
+
+**How it was tested**
+
+The old Preprod deployment `77e840accabf8b7f6301d55285218f93466e6a41c9623cb48d7529e7549eb4aa` used the pre-refactor contract, where `wrap(amount, nonce)` took the nonce as a circuit argument. That is the exact code path the finding accuses.
+
+A coin minted by that contract was still recorded in the developer's browser, unspent, with its nonce in full:
+
+```
+key    akad:wrappedCoin:preprod:77e840ac…eb4aa:mn_addr_preprod1xng…m0l9eh
+nonce  f4d27ff7410a26ebafe56d3ebce3690c57fba7a5c77bf3daf80fad26ec01a875
+value  22066533
+```
+
+The app writes that entry only after `wrapTokens()` returns, so the coin was minted by one of that contract's `wrap` transactions. If the finding were correct, those 32 bytes would appear in the clear in the wrap transaction, and again in any transaction spending the coin.
+
+The contract's entire life was then enumerated from the Preprod indexer, block by block, rather than sampled: 16 transactions between heights 2,526,649 and 2,527,193, three of them `wrap`. Sweeps of the 200 blocks before and the 1,300 blocks after returned nothing, so no transaction was missed.
+
+Every one of the 16 raw transactions was searched for the nonce, in forward byte order, reverse byte order, both 16 byte halves, and all four 8 byte chunks, to catch a re-encoded or split layout rather than only a verbatim match.
+
+**Control**
+
+A null result is worthless without proof the search can find anything at all. The same search, on the same bytes, was run for the contract address, a value known to be present. It was found in all three `wrap` transactions. The method works.
+
+**Result**
+
+| Height | Circuit | Contract address found (control) | Nonce found |
+|---|---|---|---|
+| 2,526,695 | `wrap` | yes | **no** |
+| 2,526,732 | `wrap` | yes | **no** |
+| 2,527,165 | `wrap` | yes | **no** |
+
+Not in the other 13 transactions either, under any of the encodings tried.
+
+**Why the premise was wrong**
+
+The ledger's own type definitions say it plainly. An on-chain `ContractCall` carries exactly six things: `address`, `entryPoint`, `guaranteedTranscript`, `fallibleTranscript`, `communicationCommitment`, and `proof`. There is no field for circuit arguments and none for witness values. The arguments are bound through `communicationCommitment(input, output, rand)`, which takes randomness and therefore hides what it commits to.
+
+"Public" in the documentation means public to the proof system, that is, a public input the verifier constrains against. It does not mean serialised in the clear into the transaction. This audit conflated the two.
+
+**What this changes**
+
+The unlinkability claim the original README made was closer to correct than this audit's rebuttal of it. Nothing in the contract needed fixing for this reason.
+
+**What it does not change**
+
+The witness refactor applied on 13 Sep stays, on narrower and honest grounds: the proof's public input count drops (`wrap` 3 to 1, `unwrap` 5 to 0, measurable with `scripts/zk-public-inputs.mjs`), the contract no longer trusts caller-supplied coin material, and no frontend defect can leak it through an argument list. Those are real, but they are hardening, not the closing of a vulnerability. **The project must not claim this refactor fixed a privacy hole.**
+
+**What the real leak turned out to be**
+
+While verifying the above, four post-refactor Preprod transactions were inspected directly. `wrap` and `unwrap` are clean: zero public outputs, zero spent inputs, no address anywhere. Both private swaps are not:
+
+```
+privateSwapAkdToNight   created output   mn_addr_prepro…9xrqm0l9eh    20.15355 NIGHT
+privateSwapNightToAkd   spent input      mn_addr_prepro…9xrqm0l9eh     1,807 NIGHT
+                        created output   mn_addr_prepro…9xrqm0l9eh     1,786 NIGHT
+```
+
+The same unshielded address in both, rendered in the clear by a public block explorer with no decoding required, and matching the wallet in the localStorage key above. Any observer can tie both "private" swaps to one identity and read their sizes. This is the genuine identity leak on the private path, it was always the real one, and it follows from `sendUnshielded` and `receiveUnshielded` being transparent by design. It is recorded in this audit under the honest caveat in section 8 rather than as a numbered finding, which understated it.
+
+**Method note for the reader**
+
+Both the original error and its correction came from the same place: a claim about runtime behaviour that was never executed. The `kernel.self()` regression found during remediation had the same shape, in the opposite direction, where code that compiled was assumed to behave correctly. Compiling is not running, and documenting is not verifying.
 
 ---
 
@@ -320,6 +394,12 @@ The README's Privacy Model section, under "What an observer **cannot** learn", s
 > Slippage tolerance (`minOut`) used only in an on-chain assertion, never written to public state. A value proven correct without ever being shown.
 
 `minOut` is a parameter of an exported circuit. Circuit arguments are always part of the public transcript, as established in H-02. It is shown. The claim is false as written.
+
+> **Correction (14 Sep 2026).** The sentence above is the only load-bearing step in this finding, and it borrows its premise from H-02, which has since been refuted on chain. Circuit arguments are not serialised in plaintext into a transaction. So this finding's argument collapses with H-02's.
+>
+> It is not being marked FIXED, because the opposite has not been shown either. What was tested is a 32 byte high-entropy value, a coin nonce. `minOut` is a small integer, and a low-entropy value can leak through channels a high-entropy one does not, so absence of the nonce proves nothing about `minOut`. The honest status is: **reasoning refuted, conclusion unverified.**
+>
+> Note also that M-01 is untouched by this. `minOut` remains tautological, and a value that is compared only against itself protects nobody whether it is public or not.
 
 Severity is Medium rather than High because the practical harm of a leaked `minOut` is small (it reveals a trader's slippage tolerance, which is mildly useful to a front-runner and nothing more). The reason it matters here is different: the hackathon's review process explicitly assesses "how clearly Midnight's privacy features are used", and this is the one sentence in the README that claims a zero-knowledge property for a specific value. A judge who knows Compact will check it first, and it is wrong. A wrong privacy claim in a privacy project costs more credibility than the leak itself costs security.
 
@@ -454,7 +534,7 @@ Explicit answers to the questions in scope, including the ones where the answer 
 **A. Privacy correctness**
 
 - *Is `disclose()` used everywhere required?* By construction yes, since a missing one is a compile error and the committed artifacts show the contract compiled. The inverse question is I-06: it may be used more broadly than the minimum.
-- *Does the private swap keep the trader's balance and swap amount off-chain?* Balance: partially. The trader's AKD does not appear in the `balances` map for that trade, which is a genuine improvement over the public path. Amount: **no**. `reserveAKD.write(disclose(x + dx))` at line 383 publishes the new reserve, and the delta from the previous public value is exactly `dx`. Identity: **no**, per H-02, because the coin nonce is a public circuit argument that links back to the `wrap` transaction. The README's own "honest boundary" paragraph at line 186 already concedes trade amounts are public, which is correct and to the author's credit; the identity claim at line 182 is the one that does not hold.
+- *Does the private swap keep the trader's balance and swap amount off-chain?* Balance: partially. The trader's AKD does not appear in the `balances` map for that trade, which is a genuine improvement over the public path. Amount: **no**. `reserveAKD.write(disclose(x + dx))` at line 383 publishes the new reserve, and the delta from the previous public value is exactly `dx`. Identity: **no**, but not for the reason first given here. H-02's nonce-matching argument was refuted on chain (see "H-02 refuted on chain"). The real exposure is `sendUnshielded` and `receiveUnshielded` publishing the trader's unshielded address in the clear, which a block explorer renders without any decoding. The README's own "honest boundary" paragraph at line 186 already concedes trade amounts are public, which is correct and to the author's credit; the identity claim at line 182 is the one that does not hold.
 - *Is the documented simulated-NIGHT limitation accurate?* The description is accurate. The framing is not. Describing it as a privacy tradeoff implies the alternative would be worse for privacy, when the actual consequence is C-01 and H-01: one circuit gives away real AKD, the other takes real AKD without paying. No code path warns the caller.
 - *Nullifier and double-spend handling for the shielded AKD coin:* **sound, no finding.** The contract does not implement its own nullifier scheme and does not need to. `receiveShielded` routes the spend through Zswap, where nullifier uniqueness is enforced at the protocol layer, so a coin cannot be spent twice or replayed against the contract. Delegating this to audited protocol code rather than hand-rolling a commitment and nullifier scheme is the correct decision and is worth saying out loud in the judge-facing docs. The one caveat is nonce freshness for minting (H-02): reusing a nonce with the same value and recipient would produce an identical commitment, which the ledger should reject as a duplicate. That is a failed transaction, not a double-mint, so it is a usability issue rather than a security one.
 
@@ -505,7 +585,11 @@ What is left is a contract where all four swap circuits settle both legs for rea
 
 The change worth highlighting to a judge is not the code, it is the reasoning. The original design deliberately omitted the private path's tNIGHT leg to avoid a transparency leak, and the reasoning behind that was correct: `sendUnshielded` and `receiveUnshielded` really do publish the counterparty and the amount. The error was in the conclusion, not the analysis. A circuit whose AKD leg moves real value and whose tNIGHT leg moves none is not a privacy tradeoff, it is a one-way transfer. Choosing a transparent tNIGHT leg over a non-settling one, and saying plainly in the docs what that costs, is the correct resolution of a genuine platform constraint.
 
-**Honest caveat on the remaining privacy story.** With the private path's tNIGHT leg now transparent, `privateSwapAkdToNight` publishes the trader's `UserAddress` as a payout destination. Combined with H-02, that direction of the private path is now only marginally more private than the public one: it avoids a `balances` write but publishes an address instead. `privateSwapNightToAkd` fares better, since the trader receives a shielded coin and the AKD side genuinely leaves the public ledger. The project should not claim the two directions are equally private, and the current documentation does not.
+**Honest caveat on the remaining privacy story.** With the private path's tNIGHT leg now transparent, `privateSwapAkdToNight` publishes the trader's `UserAddress` as a payout destination.
+
+This caveat was written as a secondary note. On-chain verification on 14 Sep showed it is the primary privacy finding of the whole audit, and that the High-severity finding it was appended to was false. Both private swaps publish the trader's unshielded address, the same address in each, and both amounts, visible in a block explorer without decoding anything. `privateSwapNightToAkd` is the better of the two only in that its AKD leg leaves the public ledger; its NIGHT leg still spends from and returns change to the trader's named address, so it identifies the trader just as plainly.
+
+The accurate summary is therefore narrower than either the README or this audit originally said: **wrapping AKD removes a standing public balance and that part works; trading through either private circuit identifies you through the NIGHT leg.** The project should not claim the two directions are equally private, and should not claim either one is anonymous.
 
 ### What remains before Sep 28
 
@@ -517,7 +601,7 @@ Ordered by judging impact. Nothing here is a security blocker.
 
 3. **Watch the first CI run on this branch.** The `contract-compile` job is new and has never executed. It installs the toolchain from scratch, which is the step most likely to need adjusting, and it is worth having green before a judge sees the badge.
 
-4. **Decide on H-02.** Either spend an hour testing whether a `witness`-sourced coin and nonce compile, which would make the strong unlinkability claim true, or leave the accurate narrower claim in place. Both are defensible; only the current honest wording is required.
+4. **Address the unshielded address leak, or document it prominently.** This replaces the old "decide on H-02" item, which is closed: H-02 was tested and refuted, and the witness refactor it recommended is already applied. The open question now is the real one. Both private swaps publish the trader's unshielded NIGHT address, and no wording change makes that untrue. Either constrain the private path to the direction that leaks least, or state the exposure plainly in the README next to the private-swap toggle so no user believes they are anonymous. A wrong belief about privacy is more dangerous than no privacy.
 
 5. **Cleanup.** I-04 and I-05: delete `akdColor()`, which is unused by the frontend and costs a prover key, and remove the leftover test scaffolding from `contracts/src/test/`.
 
@@ -528,3 +612,5 @@ Items beyond this (computing `dy` on-chain for real slippage protection, adding 
 ---
 
 *The original audit was performed by reading the complete source of `contracts/src/akad.compact`, `contracts/README.md`, the root `README.md`, the CI workflow, the build scripts, and the committed compiler artifacts. Compact execution semantics used in the privacy findings were verified against two independent Midnight reference sources, which agree that all exported circuit arguments form part of the public transcript. No transaction was submitted to any network during the audit. The remediation recorded above was applied afterwards and verified against a clean compile with compiler 0.31.1 and against the resulting artifacts, not against a live deployment: the post-audit contract has not been deployed at the time of writing.*
+
+*Postscript, 14 Sep 2026. That sentence about two independent reference sources is exactly where this audit went wrong. Both sources said the same thing, neither was a transaction, and agreement between two documents is not evidence about a running system. H-02 was built on it and is false; M-02 borrowed the same premise and no longer stands. Both are marked in place rather than removed. The findings that survived, C-01, H-01 and H-03, were each reasoned from the contract's own control flow rather than from documentation about the platform, and the first two were later confirmed fixed by live transactions. That is the dividing line worth taking from this document: the findings grounded in code held up, and the finding grounded in a quotation did not.*
