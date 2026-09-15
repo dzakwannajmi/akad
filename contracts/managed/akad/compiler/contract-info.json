@@ -42,17 +42,6 @@
       }
     },
     {
-      "name": "akdColor",
-      "pure": false,
-      "proof": true,
-      "arguments": [
-      ],
-      "result-type": {
-        "type-name": "Bytes",
-        "length": 32
-      }
-    },
-    {
       "name": "recordTokenColor",
       "pure": false,
       "proof": true,
@@ -75,13 +64,6 @@
             "type-name": "Uint",
             "maxval": 340282366920938463463374607431768211455
           }
-        },
-        {
-          "name": "nonce",
-          "type": {
-            "type-name": "Bytes",
-            "length": 32
-          }
         }
       ],
       "result-type": {
@@ -95,36 +77,6 @@
       "pure": false,
       "proof": true,
       "arguments": [
-        {
-          "name": "coin",
-          "type": {
-            "type-name": "Struct",
-            "name": "ShieldedCoinInfo",
-            "elements": [
-              {
-                "name": "nonce",
-                "type": {
-                  "type-name": "Bytes",
-                  "length": 32
-                }
-              },
-              {
-                "name": "color",
-                "type": {
-                  "type-name": "Bytes",
-                  "length": 32
-                }
-              },
-              {
-                "name": "value",
-                "type": {
-                  "type-name": "Uint",
-                  "maxval": 340282366920938463463374607431768211455
-                }
-              }
-            ]
-          }
-        }
       ],
       "result-type": {
         "type-name": "Tuple",
@@ -241,54 +193,10 @@
       }
     },
     {
-      "name": "privateSwapAkdToNight",
+      "name": "unwrapNight",
       "pure": false,
       "proof": true,
       "arguments": [
-        {
-          "name": "coin",
-          "type": {
-            "type-name": "Struct",
-            "name": "ShieldedCoinInfo",
-            "elements": [
-              {
-                "name": "nonce",
-                "type": {
-                  "type-name": "Bytes",
-                  "length": 32
-                }
-              },
-              {
-                "name": "color",
-                "type": {
-                  "type-name": "Bytes",
-                  "length": 32
-                }
-              },
-              {
-                "name": "value",
-                "type": {
-                  "type-name": "Uint",
-                  "maxval": 340282366920938463463374607431768211455
-                }
-              }
-            ]
-          }
-        },
-        {
-          "name": "dy",
-          "type": {
-            "type-name": "Uint",
-            "maxval": 340282366920938463463374607431768211455
-          }
-        },
-        {
-          "name": "minOut",
-          "type": {
-            "type-name": "Uint",
-            "maxval": 340282366920938463463374607431768211455
-          }
-        },
         {
           "name": "recipient",
           "type": {
@@ -313,17 +221,10 @@
       }
     },
     {
-      "name": "privateSwapNightToAkd",
+      "name": "shieldedSwapAkdToNight",
       "pure": false,
       "proof": true,
       "arguments": [
-        {
-          "name": "dx",
-          "type": {
-            "type-name": "Uint",
-            "maxval": 340282366920938463463374607431768211455
-          }
-        },
         {
           "name": "dy",
           "type": {
@@ -337,12 +238,31 @@
             "type-name": "Uint",
             "maxval": 340282366920938463463374607431768211455
           }
+        }
+      ],
+      "result-type": {
+        "type-name": "Tuple",
+        "types": [
+        ]
+      }
+    },
+    {
+      "name": "shieldedSwapNightToAkd",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "dy",
+          "type": {
+            "type-name": "Uint",
+            "maxval": 340282366920938463463374607431768211455
+          }
         },
         {
-          "name": "nonce",
+          "name": "minOut",
           "type": {
-            "type-name": "Bytes",
-            "length": 32
+            "type-name": "Uint",
+            "maxval": 340282366920938463463374607431768211455
           }
         }
       ],
@@ -354,6 +274,47 @@
     }
   ],
   "witnesses": [
+    {
+      "name": "coinNonce",
+      "arguments": [
+      ],
+      "result type": {
+        "type-name": "Bytes",
+        "length": 32
+      }
+    },
+    {
+      "name": "spentCoin",
+      "arguments": [
+      ],
+      "result type": {
+        "type-name": "Struct",
+        "name": "ShieldedCoinInfo",
+        "elements": [
+          {
+            "name": "nonce",
+            "type": {
+              "type-name": "Bytes",
+              "length": 32
+            }
+          },
+          {
+            "name": "color",
+            "type": {
+              "type-name": "Bytes",
+              "length": 32
+            }
+          },
+          {
+            "name": "value",
+            "type": {
+              "type-name": "Uint",
+              "maxval": 340282366920938463463374607431768211455
+            }
+          }
+        ]
+      }
+    }
   ],
   "contracts": [
   ],
@@ -423,8 +384,28 @@
       }
     },
     {
-      "name": "faucetClaimed",
+      "name": "sNightColor",
       "index": 6,
+      "exported": true,
+      "storage": "Cell",
+      "type": {
+        "type-name": "Bytes",
+        "length": 32
+      }
+    },
+    {
+      "name": "sNightSupply",
+      "index": 7,
+      "exported": true,
+      "storage": "Cell",
+      "type": {
+        "type-name": "Uint",
+        "maxval": 340282366920938463463374607431768211455
+      }
+    },
+    {
+      "name": "faucetClaimed",
+      "index": 8,
       "exported": true,
       "storage": "Map",
       "key": {

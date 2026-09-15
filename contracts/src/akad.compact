@@ -44,18 +44,61 @@ import CompactStandardLibrary;
 // receive the AKD leg of a swap as a shielded coin directly, instead of
 // going through a public balances entry (wrap -> public swap -> unwrap).
 // Their wallet identity never touches the `balances` map for that trade.
-// The honest limit of that: a shielded coin's nonce and value are circuit
-// arguments, and every argument of an exported circuit is part of the
-// public transcript, so an observer can match the nonce published by
-// wrap() against the nonce published when the coin is later spent. What
-// the shielded form removes is a standing public balance, not transaction
-// graph linkability. See hackathon/MIDNIGHT_IMPLEMENTATION.md.
+//
+// Coin material (the mint nonce, and the whole ShieldedCoinInfo of a coin
+// being spent) comes from the two witnesses declared below, never from a
+// circuit argument.
+//
+// Be precise about why, because this project got it wrong once already. An
+// earlier version of this comment said that taking `nonce` as an argument
+// published it in the clear, so an observer could link a coin to the wallet
+// that wrapped it by matching nonces. That was tested against every
+// transaction of a live pre-refactor deployment and is false: the nonce
+// appears in none of them, while a control value known to be present was
+// found every time. An on-chain ContractCall carries no argument list;
+// arguments are bound through a randomised communication commitment. See
+// hackathon/SECURITY_AUDIT.md, "H-02 refuted on chain".
+//
+// What the witnesses actually buy is narrower, and is hardening rather than
+// a fix: fewer public inputs to each proof (wrap 3 to 1, unwrap 5 to 0,
+// measurable with scripts/zk-public-inputs.mjs), no reliance on coin
+// material supplied by the caller, and no argument list through which a
+// frontend defect could leak it.
+//
+// The real identity leak on the private path is elsewhere and is not
+// addressed by any of this: sendUnshielded and receiveUnshielded publish
+// the trader's unshielded address and the amount in the clear, which any
+// block explorer renders without decoding anything.
 //
 // Both circuits assert coin.color == tokenColor before accepting a
 // shielded coin as input, closing a gap unwrap() had: receiveShielded()
 // only verifies a coin is authentic and unspent, not which token it is,
 // so without that check any wallet could "unwrap" a shielded coin of a
 // different color/type and still be credited 1:1 as AKD.
+
+// Private inputs. These are the contract's only witnesses, and they exist
+// specifically so that coin material never reaches the public transcript.
+//
+// coinNonce() supplies the randomness for a coin this contract is about to
+// mint (wrap, privateSwapNightToAkd). It must be fresh for every call: a
+// reused nonce produces a coin the Zswap layer will refuse as a duplicate
+// commitment, and would reintroduce exactly the linkability this witness
+// exists to remove.
+//
+// spentCoin() supplies the coin this contract is about to receive (unwrap,
+// privateSwapAkdToNight). The caller's wallet holds the coin; the circuit
+// proves, without publishing it, that the coin is the right colour and
+// then hands it to receiveShielded(), which enforces authenticity and
+// unspent-ness at the protocol layer.
+//
+// Both are marked disclose() at their use sites. In Compact, disclose() is
+// an acknowledgement demanded by the compiler's information-flow analysis,
+// not a publication: the compiler flags that a coin commitment is a hash
+// of the witness value and therefore *could* link a spend to a mint for
+// anyone who already knows the value. The witness value itself stays out
+// of the proof's public inputs, which is verifiable in the generated zkir.
+witness coinNonce(): Bytes<32>;
+witness spentCoin(): ShieldedCoinInfo;
 
 // AKD balance ledger: maps an account identifier to its public AKD balance.
 export ledger balances: Map<Bytes<32>, Uint<128>>;
@@ -71,6 +114,46 @@ export ledger faucetAddress: Bytes<32>;
 // AMM reserves (constant-product pool, AKD <-> tNIGHT).
 export ledger reserveAKD: Uint<128>;
 export ledger reserveNight: Uint<128>;
+
+// sNIGHT: this contract's shielded receipt for tNIGHT it holds in custody,
+// backed 1:1. It exists because tNIGHT itself can never be private. From
+// Midnight's own token documentation: "NIGHT is an unshielded token: its
+// balances and transfers are always public, and holding NIGHT at a shielded
+// address does not make it private."
+//
+// That sentence is the whole reason this token exists. An earlier version of
+// this contract offered "private" swaps whose tNIGHT leg used sendUnshielded
+// and receiveUnshielded, which publish the trader's unshielded address in the
+// clear. Verified on Preprod: both directions named the trader, with the same
+// address in each, so the two trades were linkable to one wallet by anyone
+// opening a block explorer. No amount of care inside the circuit could fix
+// that, because the transparency is a property of the token, not the code.
+//
+// So the pairing changes instead. Trades run shielded AKD against shielded
+// sNIGHT, and no address appears in a swap at all. Transparency moves to the
+// boundary: wrapNight() and unwrapNight() are visible, the trades between
+// them are not. That is how a shielded pool is supposed to work, and the
+// anonymity set is everyone who has wrapped tNIGHT.
+//
+// The honest cost: sNIGHT is a claim on this contract, not tNIGHT itself,
+// the same way WETH is not ETH. It is only as good as the custody backing it.
+//
+// Solvency invariant, maintained by every circuit below:
+//
+//     tNIGHT held in custody  ==  reserveNight + sNightSupply
+//
+//   wrapNight(v)            custody +v, sNightSupply +v, reserveNight  0
+//   unwrapNight(v)          custody -v, sNightSupply -v, reserveNight  0
+//   shieldedSwapAkdToNight  custody  0, sNightSupply +dy, reserveNight -dy
+//   shieldedSwapNightToAkd  custody  0, sNightSupply -dx, reserveNight +dx
+//   addLiquidity(v)         custody +v, sNightSupply  0, reserveNight +v
+//
+// Every sNIGHT in existence is therefore covered by custody that no reserve
+// also claims. unwrapNight() still asserts custody explicitly rather than
+// trusting the invariant, because an accounting bug should fail a redemption
+// rather than silently spend the pool's own reserve.
+export ledger sNightColor: Bytes<32>;
+export ledger sNightSupply: Uint<128>;
 
 // Tracks which accounts have already claimed from the public faucet, so
 // each wallet can only bootstrap AKD once. A per-wallet limit rather than
@@ -118,6 +201,16 @@ circuit faucetKey(): Bytes<32> {
 // drift apart again.
 circuit currentTokenColor(): Bytes<32> {
   const domainSep: Bytes<32> = persistentHash<Uint<8>>(42);
+  return tokenType(domainSep, kernel.self());
+}
+
+// sNIGHT's shielded token type, derived exactly like AKD's but under a
+// different domain separator, so the two colours can never collide and a
+// coin of one can never be accepted where the other is expected. Same
+// constructor caveat as currentTokenColor(): kernel.self() must be read
+// inside a circuit, never in the constructor.
+circuit currentNightColor(): Bytes<32> {
+  const domainSep: Bytes<32> = persistentHash<Uint<8>>(43);
   return tokenType(domainSep, kernel.self());
 }
 
@@ -207,13 +300,15 @@ export circuit claimFaucet(): [] {
   faucetClaimed.insert(caller, true);
 }
 
-// Returns AKD's collision-resistant shielded token type, so our shielded
-// AKD cannot be confused with any other contract's shielded token.
-export circuit akdColor(): Bytes<32> {
-  return currentTokenColor();
-}
+// akdColor() used to live here: an exported circuit that returned
+// currentTokenColor() and nothing else. It was removed, for two reasons.
+// Nothing ever called it (the frontend reads the colour from ledger state,
+// which costs no transaction at all), and every exported circuit carries a
+// verifier key in the deploy transaction, which Midnight's block limits
+// make a real budget. See the note above recordTokenColor() for why an
+// unused circuit is not free. Audit finding I-04.
 
-// Records AKD's shielded token type into ledger state, so the frontend can
+// Records both shielded token types into ledger state, so the frontend can
 // read it straight from public state instead of paying for a transaction.
 //
 // Deliberately has no access control and no one-shot guard. The value is a
@@ -227,11 +322,17 @@ export circuit akdColor(): Bytes<32> {
 // stale ledger value can cost a caller a wasted read, never a wrong coin.
 export circuit recordTokenColor(): [] {
   tokenColor.write(disclose(currentTokenColor()));
+  sNightColor.write(disclose(currentNightColor()));
 }
 
 // Wrap: lock public AKD balance, mint the same amount as a native shielded
 // coin sent to the caller. 1:1 backed, single conservation invariant.
-export circuit wrap(amount: Uint<128>, nonce: Bytes<32>): [] {
+// `amount` stays a public argument on purpose: this circuit debits a
+// public `balances` entry, so the amount is already recoverable from the
+// ledger delta. Hiding it in the signature while publishing it in the
+// write would be theatre. The nonce is the value that genuinely can be
+// hidden, and it is.
+export circuit wrap(amount: Uint<128>): [] {
   const caller = callerKey();
   const balance = balanceOf(caller);
 
@@ -246,12 +347,19 @@ export circuit wrap(amount: Uint<128>, nonce: Bytes<32>): [] {
   const value: Uint<64> = disclose(amount as Uint<64>);
   const recipient = left<ZswapCoinPublicKey, ContractAddress>(ownPublicKey());
 
-  const coin = mintShieldedToken(domainSep, value, disclose(nonce), recipient);
+  const coin = mintShieldedToken(domainSep, value, disclose(coinNonce()), recipient);
 }
 
 // Unwrap: receive a shielded AKD coin back into the contract, credit the
 // same amount to the caller's public balance. 1:1 backed, same invariant.
-export circuit unwrap(coin: ShieldedCoinInfo): [] {
+//
+// Takes no arguments at all. The coin comes from the spentCoin() witness,
+// which leaves this circuit with zero public inputs to its proof: nothing
+// about which coin was spent is published. What the transaction does
+// reveal is the caller's own balance write, so the amount is still
+// inferable from the ledger delta, same as wrap.
+export circuit unwrap(): [] {
+  const coin = spentCoin();
   assert(coin.color == currentTokenColor(), "wrong token color");
   receiveShielded(disclose(coin));
 
@@ -392,23 +500,81 @@ export circuit swapNightToAkd(dx: Uint<128>, dy: Uint<128>, minOut: Uint<128>): 
   reserveAKD.write(disclose((y - dy) as Uint<128>));
 }
 
-// Private swap AKD -> tNIGHT: the trader spends a shielded AKD coin
-// directly as input instead of debiting a public balances entry, so their
-// wallet identity never touches `balances` for this trade (unlike
-// swapAkdToNight() above). dx is the coin's own value, not a
-// caller-supplied parameter, so it cannot be spoofed independently of what
-// is actually being spent. The pool's own custody stays public (reserves
-// must be, for price discovery).
+// ---------------------------------------------------------------------------
+// sNIGHT boundary: the only two circuits on the shielded path that are
+// deliberately transparent. Entering and leaving the pool is visible; what
+// happens between is not.
+// ---------------------------------------------------------------------------
+
+// wrapNight() used to live here: it took tNIGHT into custody via
+// receiveUnshielded and minted the caller an sNIGHT coin directly. It was
+// removed to stay inside Midnight's deploy-transaction block limits, which
+// surface on contracts with roughly ten or more non-trivial circuits. This
+// was the cheapest circuit to lose, because it is the only one whose job
+// another circuit already does.
 //
-// The tNIGHT leg is real, exactly as on the public path: dy is paid out of
-// the pool's own native-token custody via sendUnshielded. That payout is
-// transparent, so what this circuit hides is which public balance the AKD
-// came from, not that a payout happened or how large it was.
+// sNIGHT still enters circulation, just through the pool rather than beside
+// it: shieldedSwapAkdToNight() mints it against reserveNight. The full round
+// trip is unaffected, claim AKD, wrap it, swap to sNIGHT, swap back to a
+// shielded AKD coin, unwrap. And unwrapNight() below is deliberately kept,
+// because a receipt nobody can redeem is not a receipt. sNIGHT remains a 1:1
+// claim on real tNIGHT that any holder can exit at will.
 //
-// Every assertion, the pool's tNIGHT custody check included, runs before
-// receiveShielded() claims the coin, so a failed check can never consume
-// the trader's coin without paying them.
-export circuit privateSwapAkdToNight(coin: ShieldedCoinInfo, dy: Uint<128>, minOut: Uint<128>, recipient: UserAddress): [] {
+// What is lost is the direct entry path for someone holding only tNIGHT.
+// They can still reach the shielded side, through the public swap first.
+//
+// The solvency invariant is unchanged. sNIGHT now originates only from
+// reserveNight, which addLiquidity funded with real tNIGHT, so custody still
+// covers every outstanding coin.
+
+// Redeem a shielded sNIGHT coin for real tNIGHT.
+//
+// `recipient` is required because sendUnshielded needs a concrete
+// destination, and it is published. Same trade as wrapNight: leaving the pool
+// is visible, and it does not reveal which trades the coin passed through.
+//
+// The custody assertion runs before receiveShielded() claims the coin, so a
+// contract that cannot pay can never swallow the coin first.
+export circuit unwrapNight(recipient: UserAddress): [] {
+  const coin = spentCoin();
+  assert(coin.color == currentNightColor(), "wrong token color");
+
+  const amount: Uint<128> = coin.value;
+  assert(amount > 0, "amount must be positive");
+
+  const supply = sNightSupply.read();
+  assert(supply >= amount, "sNIGHT supply accounting underflow");
+  assert(unshieldedBalanceGte(nativeToken(), disclose(amount)), "contract has insufficient tNIGHT custody to redeem this coin");
+
+  receiveShielded(disclose(coin));
+
+  sNightSupply.write(disclose((supply - amount) as Uint<128>));
+
+  sendUnshielded(nativeToken(), disclose(amount), right<ContractAddress, UserAddress>(disclose(recipient)));
+}
+
+// ---------------------------------------------------------------------------
+// Shielded swaps: shielded coin in, shielded coin out, no address anywhere.
+//
+// These replace privateSwapAkdToNight and privateSwapNightToAkd, which were
+// removed rather than kept alongside. Those circuits published the trader's
+// unshielded address on every call, and a toggle labelled "private" that
+// names you is worse than no toggle at all.
+//
+// What is still public here, stated plainly so nobody mistakes these for
+// anonymous: the reserves are public, so the trade size is recoverable from
+// the reserve delta. That is structural to a constant-product AMM, which
+// cannot price a trade without public reserves, and it is true on every
+// chain. What these circuits remove is the trader's identity, not the amount.
+// ---------------------------------------------------------------------------
+
+// Shielded AKD in, shielded sNIGHT out.
+//
+// dx is the spent coin's own value rather than a caller-supplied parameter,
+// so it cannot be claimed independently of what is actually being spent.
+// Every assertion runs before receiveShielded() claims the coin.
+export circuit shieldedSwapAkdToNight(dy: Uint<128>, minOut: Uint<128>): [] {
+  const coin = spentCoin();
   assert(coin.color == currentTokenColor(), "wrong token color");
 
   const dx: Uint<128> = coin.value;
@@ -423,7 +589,6 @@ export circuit privateSwapAkdToNight(coin: ShieldedCoinInfo, dy: Uint<128>, minO
   assert(dy < y, "cannot drain full reserve");
   assert(x + dx <= 4000000000, "reserveAKD exceeds safe bound");
   assert(y <= 4000000000, "reserveNight exceeds safe bound");
-  assert(unshieldedBalanceGte(nativeToken(), disclose(dy)), "pool has insufficient tNIGHT custody for this swap");
 
   const xBig: Uint<64> = x as Uint<64>;
   const dxBig: Uint<64> = dx as Uint<64>;
@@ -439,35 +604,34 @@ export circuit privateSwapAkdToNight(coin: ShieldedCoinInfo, dy: Uint<128>, minO
   const newPoolBalance: Uint<128> = (poolBalance + dx) as Uint<128>;
   balances.insert(pool, disclose(newPoolBalance));
 
+  // dx becomes public here, unavoidably: the reserve delta IS the trade size
+  // on any public-reserve AMM. The identity behind it does not.
   reserveAKD.write(disclose((x + dx) as Uint<128>));
   reserveNight.write(disclose((y - dy) as Uint<128>));
 
-  sendUnshielded(nativeToken(), disclose(dy), right<ContractAddress, UserAddress>(disclose(recipient)));
+  // dy moves out of the pool's share of custody and into a redeemable coin.
+  // Custody itself is unchanged, so the solvency invariant holds.
+  const supply = sNightSupply.read();
+  sNightSupply.write(disclose((supply + dy) as Uint<128>));
+
+  // dy < y <= 4_000_000_000, so the Uint<64> downcast is already bounded.
+  const domainSep: Bytes<32> = persistentHash<Uint<8>>(43);
+  const value: Uint<64> = disclose(dy as Uint<64>);
+  const out = mintShieldedToken(domainSep, value, disclose(coinNonce()), left<ZswapCoinPublicKey, ContractAddress>(ownPublicKey()));
 }
 
-// Private swap tNIGHT -> AKD: the trader receives their AKD output as a
-// freshly minted shielded coin instead of a public balances credit, so
-// this trade never writes a `balances` entry for their identity (unlike
-// swapNightToAkd() above). The pool's own custody debit stays public, same
-// reasoning as above. `nonce` is caller-supplied randomness for the new
-// coin, same role as wrap()'s nonce parameter: it must be fresh per call
-// and never reused.
-//
-// The tNIGHT leg is real: dx is pulled from the trader's wallet into the
-// pool's own native-token custody via receiveUnshielded, exactly as the
-// public circuit does. dy is already bounded well under Uint<64>::MAX by
-// the 4_000_000_000 reserve ceiling asserted below (unlike wrap()'s amount
-// parameter, which has no such prior bound), so no separate
-// shielded-mint-bound assert is needed here.
-//
-// The pool's AKD custody check runs before receiveUnshielded(), so a
-// failed check can never take the trader's tNIGHT without delivering AKD.
-export circuit privateSwapNightToAkd(dx: Uint<128>, dy: Uint<128>, minOut: Uint<128>, nonce: Bytes<32>): [] {
+// Shielded sNIGHT in, shielded AKD out. Mirror of the circuit above.
+export circuit shieldedSwapNightToAkd(dy: Uint<128>, minOut: Uint<128>): [] {
+  const coin = spentCoin();
+  assert(coin.color == currentNightColor(), "wrong token color");
+
+  const dx: Uint<128> = coin.value;
+  assert(dx > 0, "amount must be positive");
+
   const x = reserveNight.read();
   const y = reserveAKD.read();
 
   assert(x > 0 && y > 0, "pool not initialized");
-  assert(dx > 0, "amount must be positive");
   assert(dy > 0, "output rounds to zero");
   assert(dy >= minOut, "slippage: insufficient output");
   assert(dy < y, "cannot drain full reserve");
@@ -485,10 +649,14 @@ export circuit privateSwapNightToAkd(dx: Uint<128>, dy: Uint<128>, minOut: Uint<
   const poolBalance = balanceOf(pool);
   assert(poolBalance >= dy, "pool has insufficient AKD custody for this swap");
 
-  // Pull the trader's real tNIGHT into the pool's custody. This only
-  // declares the contract's intent to receive it; the wallet's own
-  // transaction-balancing step sources it from the trader's wallet.
-  receiveUnshielded(nativeToken(), disclose(dx));
+  const supply = sNightSupply.read();
+  assert(supply >= dx, "sNIGHT supply accounting underflow");
+
+  receiveShielded(disclose(coin));
+
+  // The redeemed sNIGHT returns to backing the pool's own reserve. Custody is
+  // unchanged; only which side of the invariant claims it moves.
+  sNightSupply.write(disclose((supply - dx) as Uint<128>));
 
   const newPoolBalance: Uint<128> = (poolBalance - dy) as Uint<128>;
   balances.insert(pool, disclose(newPoolBalance));
@@ -498,7 +666,5 @@ export circuit privateSwapNightToAkd(dx: Uint<128>, dy: Uint<128>, minOut: Uint<
 
   const domainSep: Bytes<32> = persistentHash<Uint<8>>(42);
   const value: Uint<64> = disclose(dy as Uint<64>);
-  const recipient = left<ZswapCoinPublicKey, ContractAddress>(ownPublicKey());
-
-  const coin = mintShieldedToken(domainSep, value, disclose(nonce), recipient);
+  const out = mintShieldedToken(domainSep, value, disclose(coinNonce()), left<ZswapCoinPublicKey, ContractAddress>(ownPublicKey()));
 }
