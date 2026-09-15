@@ -10,8 +10,10 @@ import {
   unwrapTokens,
   getTokenColor,
   claimFaucet,
-  privateSwapAkdToNight,
-  privateSwapNightToAkd,
+  unwrapNight,
+  shieldedSwapAkdToNight,
+  shieldedSwapNightToAkd,
+  getNightColor,
 } from '@/lib/akad-api';
 import { computeSwapOutput, applySlippage } from '@/lib/bonding-curve';
 import { formatBaseUnits, parseToBaseUnits } from '@/lib/decimals';
@@ -40,6 +42,13 @@ type Direction = 'AkdToNight' | 'NightToAkd';
 // today (see getShieldedBalances() usage below), which isn't available.
 function wrappedCoinStorageKey(networkKey: string, contractAddress: string, wallet: string): string {
   return `akad:wrappedCoin:${networkKey}:${contractAddress}:${wallet}`;
+}
+
+// sNIGHT coins are tracked exactly like wrapped AKD coins and for the same
+// reason: the wallet reports a shielded balance but cannot hand back the
+// nonce needed to spend a specific coin.
+function sNightCoinStorageKey(networkKey: string, contractAddress: string, wallet: string): string {
+  return `akad:sNightCoin:${networkKey}:${contractAddress}:${wallet}`;
 }
 
 function saveWrappedCoin(key: string, coin: { nonce: Uint8Array; value: bigint }): void {
@@ -103,6 +112,8 @@ export default function SwapPage() {
   const [wrapStatus, setWrapStatus] = useState<string>('idle');
   const [wrappedCoin, setWrappedCoin] = useState<{ nonce: Uint8Array; value: bigint } | null>(null);
   const [unwrapStatus, setUnwrapStatus] = useState<string>('idle');
+  const [sNightCoin, setSNightCoin] = useState<{ nonce: Uint8Array; value: bigint } | null>(null);
+  const [nightWrapStatus, setNightWrapStatus] = useState<string>('idle');
   const [tab, setTab] = useState<'swap' | 'wrap' | 'unwrap' | 'activity'>('swap');
   const [faucetStatus, setFaucetStatus] = useState<string>('idle');
   const [showSettings, setShowSettings] = useState(false);
@@ -112,10 +123,14 @@ export default function SwapPage() {
 
   const fromToken = direction === 'AkdToNight' ? 'AKD' : 'NIGHT';
   const toToken = direction === 'AkdToNight' ? 'NIGHT' : 'AKD';
-  // Private AKD -> NIGHT spends the whole wrapped coin as-is (no
-  // change-making in privateSwapAkdToNight()), so the "You send" amount
-  // isn't freely typed in that mode -- it's locked to wrappedCoin.value.
+  // Both shielded legs spend a whole coin as-is (neither circuit makes
+  // change), so the "You send" amount is never freely typed in private mode.
+  // AKD -> NIGHT is locked to the wrapped AKD coin; NIGHT -> AKD is locked to
+  // the sNIGHT coin, because the input there is sNIGHT rather than tNIGHT
+  // straight from the wallet.
   const privateAkdInputLocked = privateMode && direction === 'AkdToNight';
+  const privateNightInputLocked = privateMode && direction === 'NightToAkd';
+  const privateInputCoin = privateAkdInputLocked ? wrappedCoin : privateNightInputLocked ? sNightCoin : null;
 
   // Skips the reset on the very first render (there's nothing to reset
   // yet) and fires only on an actual network change after that.
@@ -149,6 +164,10 @@ export default function SwapPage() {
       wrappedCoinStorageKey(networkKey, CONTRACT_ADDRESS, addresses.unshieldedAddress)
     );
     if (stored) setWrappedCoin(stored);
+    const storedNight = loadWrappedCoin(
+      sNightCoinStorageKey(networkKey, CONTRACT_ADDRESS, addresses.unshieldedAddress)
+    );
+    if (storedNight) setSNightCoin(storedNight);
   }, [networkKey, CONTRACT_ADDRESS, addresses]);
 
   const refreshReserves = useCallback(async () => {
@@ -241,8 +260,7 @@ export default function SwapPage() {
       setAmountOut(null);
       return;
     }
-    const dx =
-      privateMode && direction === 'AkdToNight' ? wrappedCoin?.value ?? null : parseToBaseUnits(amountIn);
+    const dx = privateMode ? privateInputCoin?.value ?? null : parseToBaseUnits(amountIn);
     if (dx === null || dx <= 0n) {
       setAmountOut(null);
       return;
@@ -256,7 +274,7 @@ export default function SwapPage() {
     } catch {
       setAmountOut(null);
     }
-  }, [amountIn, direction, reserves, privateMode, wrappedCoin]);
+  }, [amountIn, direction, reserves, privateMode, privateInputCoin]);
 
 
   // Bootstraps a wallet that has never held AKD before with a one-time 50
@@ -370,6 +388,49 @@ export default function SwapPage() {
     }
   };
 
+  // sNIGHT -> tNIGHT. Publishes the payout address, same as any unshielded
+  // transfer, and that is the accepted cost of leaving the pool.
+  const handleUnwrapNight = async () => {
+    if (!connectedApi || !addresses || !sNightCoin) return;
+    setNightWrapStatus('unwrapping');
+    setError(null);
+    try {
+      const color = await getNightColor(
+        connectedApi,
+        addresses.shieldedCoinPublicKey,
+        addresses.shieldedEncryptionPublicKey,
+        CONTRACT_ADDRESS
+      );
+      const { txId } = await unwrapNight(
+        connectedApi,
+        addresses.shieldedCoinPublicKey,
+        addresses.shieldedEncryptionPublicKey,
+        CONTRACT_ADDRESS,
+        { nonce: sNightCoin.nonce, color, value: sNightCoin.value },
+        addresses.unshieldedAddress
+      );
+      recordActivity({
+        txId,
+        txType: 'unwrapNight',
+        wallet: addresses.unshieldedAddress,
+        amountIn: formatBaseUnits(sNightCoin.value),
+        amountOut: formatBaseUnits(sNightCoin.value),
+        tokenIn: 'sNIGHT',
+        tokenOut: 'tNIGHT',
+        network: networkKey,
+      }).catch((err) => console.error('[Activity] Failed to record unwrapNight:', err));
+      clearWrappedCoin(sNightCoinStorageKey(networkKey, CONTRACT_ADDRESS, addresses.unshieldedAddress));
+      setSNightCoin(null);
+      setNightWrapStatus('redeemed');
+      await refreshBalances();
+    } catch (err: any) {
+      console.error('[UnwrapNight]', err);
+      const detail = err?.cause?.cause?.message || err?.cause?.message || err?.message || String(err);
+      setError(detail);
+      setNightWrapStatus('error');
+    }
+  };
+
   const handleSwap = async () => {
     if (!connectedApi || !addresses || !reserves || amountOut === null) return;
     setStatus('swapping');
@@ -385,7 +446,10 @@ export default function SwapPage() {
           addresses.shieldedEncryptionPublicKey,
           CONTRACT_ADDRESS
         );
-        const { txId } = await privateSwapAkdToNight(
+        // Shielded AKD in, shielded sNIGHT out. No address is published, so
+        // unlike the removed privateSwapAkdToNight there is no unshielded
+        // payout destination to pass.
+        const { nonce, value, txId } = await shieldedSwapAkdToNight(
           connectedApi,
           addresses.shieldedCoinPublicKey,
           addresses.shieldedEncryptionPublicKey,
@@ -397,47 +461,58 @@ export default function SwapPage() {
         setStatus('swapped');
         recordActivity({
           txId,
-          txType: 'privateSwapAkdToNight',
+          txType: 'shieldedSwapAkdToNight',
           wallet: addresses.unshieldedAddress,
           amountIn: formatBaseUnits(wrappedCoin.value),
-          amountOut: formatBaseUnits(amountOut),
+          amountOut: formatBaseUnits(value),
           tokenIn: 'AKD (shielded)',
-          tokenOut: toToken,
+          tokenOut: 'sNIGHT',
           network: networkKey,
-        }).catch((err) => console.error('[Activity] Failed to record privateSwapAkdToNight:', err));
+        }).catch((err) => console.error('[Activity] Failed to record shieldedSwapAkdToNight:', err));
         clearWrappedCoin(wrappedCoinStorageKey(networkKey, CONTRACT_ADDRESS, addresses.unshieldedAddress));
         setWrappedCoin(null);
+        setSNightCoin({ nonce, value });
+        saveWrappedCoin(sNightCoinStorageKey(networkKey, CONTRACT_ADDRESS, addresses.unshieldedAddress), { nonce, value });
         await Promise.all([refreshReserves(), refreshBalances()]);
         return;
       }
 
       if (privateMode && direction === 'NightToAkd') {
-        const dx = parseToBaseUnits(amountIn);
-        if (dx === null || dx <= 0n) {
-          setError('Jumlah tidak valid.');
+        // The input is a shielded sNIGHT coin, not tNIGHT from the wallet, so
+        // the amount is the coin's own value and cannot be typed freely.
+        if (!sNightCoin) {
+          setError('No sNIGHT coin available. Wrap some tNIGHT into sNIGHT first, from the Wrap tab.');
           setStatus('idle');
           return;
         }
-        const { nonce, value, txId } = await privateSwapNightToAkd(
+        const nightColor = await getNightColor(
+          connectedApi,
+          addresses.shieldedCoinPublicKey,
+          addresses.shieldedEncryptionPublicKey,
+          CONTRACT_ADDRESS
+        );
+        const { nonce, value, txId } = await shieldedSwapNightToAkd(
           connectedApi,
           addresses.shieldedCoinPublicKey,
           addresses.shieldedEncryptionPublicKey,
           CONTRACT_ADDRESS,
-          dx,
+          { nonce: sNightCoin.nonce, color: nightColor, value: sNightCoin.value },
           amountOut,
           minOut
         );
         setStatus('swapped');
         recordActivity({
           txId,
-          txType: 'privateSwapNightToAkd',
+          txType: 'shieldedSwapNightToAkd',
           wallet: addresses.unshieldedAddress,
-          amountIn: formatBaseUnits(dx),
+          amountIn: formatBaseUnits(sNightCoin.value),
           amountOut: formatBaseUnits(value),
-          tokenIn: fromToken,
+          tokenIn: 'sNIGHT',
           tokenOut: 'AKD (shielded)',
           network: networkKey,
-        }).catch((err) => console.error('[Activity] Failed to record privateSwapNightToAkd:', err));
+        }).catch((err) => console.error('[Activity] Failed to record shieldedSwapNightToAkd:', err));
+        clearWrappedCoin(sNightCoinStorageKey(networkKey, CONTRACT_ADDRESS, addresses.unshieldedAddress));
+        setSNightCoin(null);
         setWrappedCoin({ nonce, value });
         saveWrappedCoin(wrappedCoinStorageKey(networkKey, CONTRACT_ADDRESS, addresses.unshieldedAddress), { nonce, value });
         setUnwrapStatus('idle');
@@ -838,6 +913,49 @@ export default function SwapPage() {
             </div>
           )}
 
+          {tab === 'wrap' && (
+            <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+              <div className="text-sm text-white/45">sNIGHT: shielded tNIGHT</div>
+              <p className="mt-2 text-sm leading-relaxed text-white/40">
+                tNIGHT can never be private on Midnight: its transfers are always public. A
+                shielded swap therefore trades against sNIGHT, a 1:1 claim on tNIGHT this contract
+                holds. You receive sNIGHT by running a shielded AKD swap; the swap itself publishes
+                no address, and only redeeming below does.
+              </p>
+
+              {sNightCoin ? (
+                <>
+                  <div className="mt-5 flex items-center gap-3 text-4xl font-medium tracking-tight">
+                    <span>{formatBaseUnits(sNightCoin.value)}</span>
+                    <span className="font-mono text-base text-white/40">sNIGHT</span>
+                  </div>
+                  <button
+                    onClick={handleUnwrapNight}
+                    disabled={!connectedApi || nightWrapStatus === 'unwrapping'}
+                    className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl border border-white/15 py-4 text-base font-medium text-white/80 disabled:cursor-not-allowed disabled:opacity-25"
+                  >
+                    {nightWrapStatus === 'unwrapping' && <Spinner className="h-4 w-4" />}
+                    {nightWrapStatus === 'unwrapping' ? 'Redeeming…' : 'Redeem for tNIGHT'}
+                  </button>
+                  <p className="mt-3 text-xs leading-relaxed text-white/30">
+                    Redeeming publishes your unshielded address, because the tNIGHT leg is a
+                    transparent transfer. That is the cost of leaving the pool.
+                  </p>
+                </>
+              ) : (
+                <p className="mt-5 text-sm leading-relaxed text-white/40">
+                  No sNIGHT yet. Wrap some AKD above, then run a shielded AKD swap from the Swap
+                  tab — it pays out in sNIGHT, which you can trade back or redeem for real tNIGHT
+                  here.
+                </p>
+              )}
+
+              {nightWrapStatus === 'redeemed' && (
+                <p className="mt-4 font-mono text-xs text-green-400">Redeemed for tNIGHT.</p>
+              )}
+            </div>
+          )}
+
           {tab === 'unwrap' && (
             <div className="rounded-2xl bg-white/[0.04] p-5">
               <div className="text-sm text-white/45">Unwrap to public</div>
@@ -879,14 +997,15 @@ export default function SwapPage() {
           {tab === 'activity' && (
             <div className="rounded-2xl bg-white/[0.04] p-8 text-center">
               <p className="text-sm leading-relaxed text-white/45">
-                Every wrap, unwrap, and swap made through Akad, verified against the chain
-                and shown for every user, not just this session.
+                Live pool reserves read straight from the contract, plus every wrap, unwrap and
+                swap made through Akad, verified against the chain and shown for every user, not
+                just this session.
               </p>
               <Link
-                href="/activity"
+                href="/pool"
                 className="mt-5 inline-flex items-center gap-1.5 rounded-full bg-akd-accent px-6 py-2.5 text-sm font-medium text-black transition-colors hover:bg-white"
               >
-                View Activity
+                View Pool
                 <Icon icon="lucide:arrow-up-right" width={14} height={14} />
               </Link>
             </div>

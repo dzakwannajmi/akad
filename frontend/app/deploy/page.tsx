@@ -2,10 +2,11 @@
 import { useState, useEffect } from 'react';
 import { useWalletConnect } from '@/hooks/use-wallet-connect';
 import { WalletConnectButton } from '@/components/brand/wallet-connect-button';
+import { formatBaseUnits } from '@/lib/decimals';
 import {
   deployAkadContract,
   waitForContractState,
-  initAkadContract,
+  recordTokenColor,
   addLiquidity,
   wrapTokens,
   unwrapTokens,
@@ -29,6 +30,14 @@ const buttonStyle: React.CSSProperties = {
   fontSize: 14,
 };
 
+const seedInputStyle: React.CSSProperties = {
+  fontFamily: 'var(--font-geist-mono), monospace',
+  padding: '8px 10px',
+  border: '1px solid #0e0f0c',
+  width: 200,
+  marginTop: 4,
+};
+
 const disabledButtonStyle: React.CSSProperties = {
   ...buttonStyle,
   background: '#555',
@@ -42,8 +51,14 @@ export default function DeployPage() {
   const [status, setStatus] = useState<string>('idle');
   const [error, setError] = useState<string | null>(null);
   const [contractAddress, setContractAddress] = useState<string | null>(null);
-  const [initStatus, setInitStatus] = useState<string>('idle');
+  const [readyStatus, setReadyStatus] = useState<string>('idle');
   const [liquidityStatus, setLiquidityStatus] = useState<string>('idle');
+  // Seed amounts are editable rather than hardcoded: the right size depends
+  // on how much unshielded NIGHT the seeding wallet actually holds, and
+  // addLiquidity() can only be called once per deployment, so getting it
+  // wrong means redeploying. Values are in base units at AKD's 6 decimals.
+  const [seedAkd, setSeedAkd] = useState<string>('1000000000');
+  const [seedNight, setSeedNight] = useState<string>('1000000000');
   const [wrapStatus, setWrapStatus] = useState<string>('idle');
   const [wrappedCoin, setWrappedCoin] = useState<{ nonce: Uint8Array; value: bigint } | null>(null);
   const [unwrapStatus, setUnwrapStatus] = useState<string>('idle');
@@ -56,7 +71,7 @@ export default function DeployPage() {
     setStatus('idle');
     setError(null);
     setContractAddress(null);
-    setInitStatus('idle');
+    setReadyStatus('idle');
     setLiquidityStatus('idle');
     setFaucetStatus('idle');
     setFaucetBalance(null);
@@ -67,9 +82,10 @@ export default function DeployPage() {
 
   const targetAddress = contractAddress || CONTRACT_ADDRESS;
 
-  // Deploys the merged Akad contract, then immediately calls init() to mint
-  // the initial supply to the deployer — addLiquidity() below needs that
-  // balance to actually be there before it can seed the pool.
+  // Deploys the merged Akad contract. The contract's constructor mints the
+  // initial supply to the deployer as part of this same transaction, so
+  // there is no separate init() step, and addLiquidity() below already has
+  // the balance it needs once the indexer catches up.
   const handleDeploy = async () => {
     if (!connectedApi || !addresses) {
       setError('Connect wallet first');
@@ -86,9 +102,9 @@ export default function DeployPage() {
       setContractAddress(addr);
       setStatus('deployed');
 
-      // Deploying then immediately calling init() can race the indexer on
-      // Preview — wait until the indexer actually has state at this
-      // address before submitting the next transaction.
+      // Submitting the next transaction immediately after a deploy can
+      // race the indexer on Preview — wait until the indexer actually has
+      // state at this address before continuing.
       setStatus('waiting for indexer');
       await waitForContractState(
         connectedApi,
@@ -97,16 +113,19 @@ export default function DeployPage() {
         addr
       );
 
-      setInitStatus('initializing');
-      setStatus('initializing');
-      await initAkadContract(
+      // tokenColor has to be written from inside a circuit, so this is the
+      // one step a freshly deployed contract still needs before wrap and
+      // unwrap will work. See recordTokenColor() in lib/akad-api.ts.
+      setStatus('recording token colour');
+      await recordTokenColor(
         connectedApi,
         addresses.shieldedCoinPublicKey,
         addresses.shieldedEncryptionPublicKey,
         addr
       );
-      setInitStatus('initialized');
-      setStatus('initialized');
+
+      setReadyStatus('ready');
+      setStatus('ready');
     } catch (err: any) {
       console.error('[Deploy] Error:', err);
       console.error('[Deploy] Cause:', err?.cause);
@@ -121,12 +140,12 @@ export default function DeployPage() {
     }
   };
 
-  // Seeds the pool. This now moves real AKD out of the deployer's own
-  // balance (from init()'s mint) into the pool's on-chain custody — the
-  // deployer needs at least this much AKD, so run this after init().
+  // Seeds the pool. This moves real AKD out of the deployer's own balance
+  // (minted by the constructor at deploy time) into the pool's on-chain
+  // custody, so the deployer needs at least this much AKD.
   const handleSeedLiquidity = async () => {
     if (!connectedApi || !addresses || !targetAddress) {
-      setError('Deploy and init the contract first');
+      setError('Deploy the contract first');
       return;
     }
     setLiquidityStatus('seeding');
@@ -137,20 +156,41 @@ export default function DeployPage() {
       // (1_000_000_000 base units each). Kept well under the
       // 4_000_000_000 safe bound in the contract, with 4x headroom for
       // trades on top.
+      let akdAmount: bigint;
+      let nightAmount: bigint;
+      try {
+        akdAmount = BigInt(seedAkd.trim());
+        nightAmount = BigInt(seedNight.trim());
+      } catch {
+        setError('Seed amounts must be whole numbers of base units.');
+        setLiquidityStatus('error');
+        return;
+      }
+      if (akdAmount <= 0n || nightAmount <= 0n) {
+        setError('Seed amounts must both be greater than zero.');
+        setLiquidityStatus('error');
+        return;
+      }
+      if (akdAmount > 4000000000n || nightAmount > 4000000000n) {
+        setError('Seed amounts must each stay at or under 4000000000 base units, the reserve bound the contract asserts.');
+        setLiquidityStatus('error');
+        return;
+      }
+
       const { txId } = await addLiquidity(
         connectedApi,
         addresses.shieldedCoinPublicKey,
         addresses.shieldedEncryptionPublicKey,
         targetAddress,
-        1000000000n,
-        1000000000n
+        akdAmount,
+        nightAmount
       );
       recordActivity({
         txId,
         txType: 'addLiquidity',
         wallet: addresses.unshieldedAddress,
-        amountIn: '1000',
-        amountOut: '1000',
+        amountIn: formatBaseUnits(akdAmount),
+        amountOut: formatBaseUnits(nightAmount),
         tokenIn: 'AKD',
         tokenOut: 'NIGHT',
         network: networkKey,
@@ -175,7 +215,7 @@ export default function DeployPage() {
   // Safe to call again later to top the faucet back up once it runs low.
   const handleFundFaucet = async () => {
     if (!connectedApi || !addresses || !targetAddress) {
-      setError('Deploy and init the contract first');
+      setError('Deploy the contract first');
       return;
     }
     setFaucetStatus('funding');
@@ -342,21 +382,48 @@ export default function DeployPage() {
           Contract address: <code>{contractAddress}</code>
         </p>
       )}
-      <p style={{ marginTop: 16 }}>Init status: <strong>{initStatus}</strong></p>
+      <p style={{ marginTop: 16 }}>Contract status: <strong>{readyStatus}</strong></p>
 
+      <div style={{ marginTop: 16, marginBottom: 12, display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+        <label style={{ display: 'flex', flexDirection: 'column', fontSize: 12 }}>
+          AKD (base units)
+          <input
+            style={seedInputStyle}
+            value={seedAkd}
+            onChange={(e) => setSeedAkd(e.target.value)}
+            inputMode="numeric"
+          />
+        </label>
+        <label style={{ display: 'flex', flexDirection: 'column', fontSize: 12 }}>
+          NIGHT (base units)
+          <input
+            style={seedInputStyle}
+            value={seedNight}
+            onChange={(e) => setSeedNight(e.target.value)}
+            inputMode="numeric"
+          />
+        </label>
+      </div>
+      <p style={{ fontSize: 12, marginBottom: 12, maxWidth: 620 }}>
+        6 decimals, so 1000000000 is 1000 tokens. The NIGHT side is pulled
+        from this wallet as real unshielded tNIGHT, so it must be an amount
+        the wallet can actually supply. Each side is capped at 4000000000 by
+        the contract. addLiquidity can only ever be called once per
+        deployment.
+      </p>
       <button
-        style={!targetAddress || initStatus !== 'initialized' || liquidityStatus === 'seeding' ? disabledButtonStyle : buttonStyle}
+        style={!targetAddress || readyStatus !== 'ready' || liquidityStatus === 'seeding' ? disabledButtonStyle : buttonStyle}
         onClick={handleSeedLiquidity}
-        disabled={!targetAddress || initStatus !== 'initialized' || liquidityStatus === 'seeding'}
+        disabled={!targetAddress || readyStatus !== 'ready' || liquidityStatus === 'seeding'}
       >
-        Seed Liquidity (1000/1000)
+        Seed Liquidity
       </button>
       <p style={{ marginTop: 16, marginBottom: 16 }}>Liquidity status: <strong>{liquidityStatus}</strong></p>
 
       <button
-        style={!targetAddress || initStatus !== 'initialized' || faucetStatus === 'funding' ? disabledButtonStyle : buttonStyle}
+        style={!targetAddress || readyStatus !== 'ready' || faucetStatus === 'funding' ? disabledButtonStyle : buttonStyle}
         onClick={handleFundFaucet}
-        disabled={!targetAddress || initStatus !== 'initialized' || faucetStatus === 'funding'}
+        disabled={!targetAddress || readyStatus !== 'ready' || faucetStatus === 'funding'}
       >
         Fund Faucet (5000 AKD)
       </button>

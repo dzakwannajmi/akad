@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, hackathon]
   pull_request:
-    branches: [main, master]
+    branches: [main, master, hackathon]
 
 jobs:
   frontend-checks:
@@ -34,3 +34,55 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  contract-compile:
+    name: Contract compile (akad.compact)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install the Compact developer tool
+        run: |
+          curl --proto '=https' --tlsv1.2 -LsSf \
+            https://github.com/midnightntwrk/compact/releases/latest/download/compact-installer.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Install the pinned Compact compiler
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          compact update 0.31.1
+          compact list
+
+      - name: Compile the contract
+        working-directory: ./contracts
+        run: compact compile src/akad.compact ../build/akad
+
+      - name: Report the compiled circuit set
+        run: |
+          test -f build/akad/compiler/contract-info.json
+          node -e "
+            const j = require('./build/akad/compiler/contract-info.json');
+            console.log('compiler', j['compiler-version'], '| language', j['language-version']);
+            console.log('circuits:', j.circuits.map(c => c.name).join(', '));
+            if (j.circuits.some(c => c.name === 'init')) {
+              throw new Error('init() is back: the supply mint belongs in the constructor, see hackathon/SECURITY_AUDIT.md finding H-03');
+            }
+            // Midnight rejects a deploy transaction whose weight exceeds the
+            // block limits, and every exported circuit adds a verifier key to
+            // that transaction. This project hit it at 13 circuits: the deploy
+            // failed with 'Transaction would exhaust the block limits' and the
+            // only fix was to remove circuits and redeploy. Community reports
+            // put the threshold around ten or more non-trivial circuits, so
+            // this fails the build before a deploy can, while the fix is still
+            // cheap.
+            const MAX_CIRCUITS = 11;
+            if (j.circuits.length > MAX_CIRCUITS) {
+              throw new Error(
+                'circuit count is ' + j.circuits.length + ', above the ' + MAX_CIRCUITS +
+                ' this contract is known to deploy within. Adding circuits past this point has ' +
+                'failed on chain with \'Transaction would exhaust the block limits\'. Remove a ' +
+                'circuit, or raise this cap only after a real deploy succeeds.'
+              );
+            }
+          "

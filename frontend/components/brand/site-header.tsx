@@ -10,10 +10,10 @@ import { NavLogo } from './nav-logo';
 const NAV_LINKS = [
   { href: '/#how-it-works', label: 'How it works' },
   { href: '/#faq', label: 'FAQ' },
-  { href: '/activity', label: 'Activity' },
+  { href: '/pool', label: 'Pool' },
 ];
 
-// Single header shared by every page (/, /swap, /activity, /changelog) so
+// Single header shared by every page (/, /swap, /pool, /changelog) so
 // the nav links, logo, and scroll behavior can't drift out of sync again.
 // Transparent over the hero, glassmorphic once the page scrolls. `right`
 // swaps in a page-specific action (the Swap page needs a wallet

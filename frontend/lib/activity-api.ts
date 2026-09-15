@@ -14,7 +14,14 @@ export type ActivityTxType =
   | 'swapNightToAkd'
   | 'claimFaucet'
   | 'privateSwapAkdToNight'
-  | 'privateSwapNightToAkd';
+  | 'privateSwapNightToAkd'
+  // sNIGHT boundary and the shielded swap pair that replaced the two
+  // private swaps above. The old names are kept so historical rows still
+  // parse; nothing writes them any more.
+  | 'wrapNight'
+  | 'unwrapNight'
+  | 'shieldedSwapAkdToNight'
+  | 'shieldedSwapNightToAkd';
 
 export type ActivityRow = {
   id: number;
