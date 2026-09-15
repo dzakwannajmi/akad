@@ -35,7 +35,7 @@ Privacy-optional AMM on Midnight Network, submitted to the Midnight Korea Hackat
 - [End-to-End Flows](#end-to-end-flows)
 - [Privacy Model](#privacy-model)
 - [Roadmap](#roadmap)
-- [Community Feedback](#community-feedback)
+- [Traction & User Validation](#traction--user-validation)
 - [Testing & CI](#testing--ci)
 - [Running Locally](#running-locally)
 - [Project Structure](#project-structure)
@@ -43,7 +43,7 @@ Privacy-optional AMM on Midnight Network, submitted to the Midnight Korea Hackat
 
 ## What is Akad
 
-Akad is a constant-product AMM (`x * y = k`) for swapping a custom fungible token (AKD) against NIGHT on Midnight Network. Users can hold AKD publicly (standard token balance) or convert it into a genuinely private, unlinkable balance backed by Midnight's native Zswap shielded-coin infrastructure.
+Akad is a constant-product AMM (`x * y = k`) for swapping a custom fungible token (AKD) against NIGHT on Midnight Network. Users can hold AKD publicly (standard token balance) or convert it into a shielded balance backed by Midnight's native Zswap infrastructure, which removes the public ledger row tying that holding to their wallet. See [Privacy Model](#privacy-model) for exactly what that does and does not hide.
 
 The idea behind the name: "Akad" is an agreement between two parties — every swap is exactly that, with a level of openness each trader chooses for themselves.
 
@@ -161,7 +161,7 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-  U["User<br/>(Midnight wallet)"] -->|"wrap(amount, nonce)"| TC["Akad Contract"]
+  U["User<br/>(Midnight wallet)"] -->|"wrap(amount)"| TC["Akad Contract"]
   TC -->|"burn"| PB["Public balances map"]
   TC -->|"mintShieldedToken()"| ZS["Zswap<br/>(native shielded pool)"]
   ZS -->|"shielded coin, color = AKD"| U
@@ -172,7 +172,7 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-  U["User<br/>(Midnight wallet)"] -->|"unwrap(coin)"| TC["Akad Contract"]
+  U["User<br/>(Midnight wallet)"] -->|"unwrap()"| TC["Akad Contract"]
   U -->|"spends shielded coin"| ZS["Zswap<br/>(native shielded pool)"]
   ZS -->|"receiveShielded()"| TC
   TC -->|"credit"| PB["Public balances map"]
@@ -185,7 +185,7 @@ Both directions are verified on Preview — see the transaction table under [Liv
 
 ```mermaid
 flowchart LR
-  U["User<br/>(wrapped AKD coin)"] -->|"privateSwapAkdToNight(coin, dy, minOut)"| TC["Akad Contract"]
+  U["User<br/>(wrapped AKD coin)"] -->|"privateSwapAkdToNight(dy, minOut, recipient)"| TC["Akad Contract"]
   U -->|"spends shielded coin"| ZS["Zswap<br/>(native shielded pool)"]
   ZS -->|"receiveShielded()"| TC
   TC -->|"reads / writes"| R["reserveAKD, reserveNight<br/>(public)"]
@@ -194,7 +194,7 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-  U["User"] -->|"privateSwapNightToAkd(dx, dy, minOut, nonce)"| TC["Akad Contract"]
+  U["User"] -->|"privateSwapNightToAkd(dx, dy, minOut)"| TC["Akad Contract"]
   TC -->|"reads / writes"| R["reserveAKD, reserveNight<br/>(public)"]
   TC -->|"mintShieldedToken()"| ZS["Zswap<br/>(native shielded pool)"]
   ZS -->|"shielded coin, color = AKD"| U
@@ -204,45 +204,93 @@ Both circuits assert the spent or minted coin's color matches AKD's own shielded
 
 ## Privacy Model
 
-In Compact, **every argument to an exported circuit is part of the public transcript**. That is a property of the execution model, not a choice this contract makes, and it sets the ceiling on what any Midnight contract can hide behind its interface. An earlier version of this section claimed more than the code delivers; it has been rewritten against the audit.
+Every claim in this section was checked against live transactions on Preprod, not against platform documentation. That distinction is not pedantry: an earlier version of this section, and the security audit backing it, both asserted a leak that turned out not to exist, purely because nobody had opened a transaction to look. The correction is written up in [hackathon/SECURITY_AUDIT.md](hackathon/SECURITY_AUDIT.md) under "H-02 refuted on chain".
 
 What an observer **can** learn from public state:
 
 - Pool reserves at any moment, and every individual swap's size and direction. Reserve deltas are public because a constant-product AMM cannot price trades without them. True on any chain.
 - Public AKD balances, keyed by the holder's Zswap coin public key. The key is the wallet's real identifier, not a hash of it.
-- Every circuit argument: `dx`, `dy`, `minOut`, `recipient`, `nonce`, and the full `coin` struct (nonce, color, value). Slippage tolerance is included in that list and is **not** private.
-- A shielded coin's nonce, published both when `wrap` mints it and when `unwrap` or `privateSwapAkdToNight` spends it. Matching the two occurrences links a coin's spend back to the wallet that created it.
+- The circuit you called and the contract you called it on. A block explorer labels the transaction "Wrap" or "Private swap akd to night" outright.
+- **Your unshielded NIGHT address and the NIGHT amount, on either private swap.** This is the real privacy limit of this project. `sendUnshielded` and `receiveUnshielded` are transparent by design, so both private circuits name you:
+
+  ```
+  privateSwapAkdToNight   created output   mn_addr_prepro…9xrqm0l9eh    20.15355 NIGHT
+  privateSwapNightToAkd   spent input      mn_addr_prepro…9xrqm0l9eh     1,807 NIGHT
+                          created output   mn_addr_prepro…9xrqm0l9eh     1,786 NIGHT
+  ```
+
+  The same address in both, so the two trades are linkable to each other and to one wallet, with no decoding required.
 
 What an observer **cannot** learn:
 
-- **What you hold, while you hold it wrapped.** `wrap` burns a public balance and mints a native Zswap shielded coin to the caller, so there is no ledger row tying that balance to your address for as long as it stays shielded. `unwrap` reverses it. `privateSwapAkdToNight` and `privateSwapNightToAkd` extend the same boundary into a swap, spending or receiving the AKD leg as a shielded coin rather than writing a balance keyed to the trader.
+- **What you hold, while you hold it wrapped.** `wrap` burns a public balance and mints a native Zswap shielded coin to the caller, so there is no ledger row tying that balance to your address for as long as it stays shielded. `unwrap` reverses it. Verified on Preprod: both transactions carry zero public outputs, zero spent inputs, and no address of any kind.
+- **Which coin you spent.** Coin nonces and spent coins come from `witness` functions, so they are not public inputs to the proof. `unwrap()` takes no arguments at all and its proof has zero public inputs. Circuit arguments are not serialised in plaintext into a transaction either, which was tested directly rather than assumed.
 - The contents of the shielded pool itself, which is Midnight's own audited cryptography rather than a hand-rolled commitment scheme.
 
-The honest boundary, stated once: **Akad gives you privacy of custody, not privacy of the trade.** Trade amounts are public, your slippage tolerance is public, and a determined observer can link a shielded coin back to the wrap that created it. What wrapping buys you is that your position stops being a standing public row anyone can read. That is a real and useful property, and it is the only one claimed here.
+The honest boundary, stated once: **Akad gives you privacy of custody, not privacy of the trade, and not anonymity while trading.** Holding AKD in shielded form genuinely removes your standing public row, and that part works. The moment you trade through either private circuit, the NIGHT leg publishes your address. Trade amounts are public regardless, because reserve deltas expose them. What wrapping buys you is real and worth having; it is not a cloak, and this README will not sell it as one.
 
 All four coin-handling circuits (`wrap`, `unwrap`, `privateSwapAkdToNight`, `privateSwapNightToAkd`) assert the coin's color matches AKD's own shielded color before moving it, so shielded supply stays 1:1 backed by locked public balance and cannot be inflated by feeding in a different token's shielded coin.
 
-The full reasoning, including the transaction-graph linkage and how to close it, is in [hackathon/SECURITY_AUDIT.md](hackathon/SECURITY_AUDIT.md) (finding H-02).
+Every public-input count above is reproducible from a clean clone: compile the contract, then run `node scripts/zk-public-inputs.mjs`. The full reasoning, including a finding this audit filed as High and later disproved on chain, is in [hackathon/SECURITY_AUDIT.md](hackathon/SECURITY_AUDIT.md).
 
 ## Roadmap
 
-- [x] Real NIGHT settlement in **all four** swap circuits: `sendUnshielded`/`receiveUnshielded` are wired into `addLiquidity`, `swapAkdToNight`, `swapNightToAkd`, and (since the audit) `privateSwapAkdToNight` and `privateSwapNightToAkd` too. Confirmed on-chain on Preprod for the public path; the post-audit contract is pending redeploy and re-verification, tracked in the transaction table above. Making the private path's tNIGHT leg both real and private remains a separate, still-open research item.
-- [x] Private swap — spend or receive a shielded AKD coin directly in a swap, rather than wrap to public swap to unwrap. Shipped both directions (`privateSwapAkdToNight`, `privateSwapNightToAkd`), verified on Preview.
+- [x] Real NIGHT settlement in **all four** swap circuits: `sendUnshielded`/`receiveUnshielded` are wired into `addLiquidity`, `swapAkdToNight`, `swapNightToAkd`, `privateSwapAkdToNight` and `privateSwapNightToAkd`. Verified on-chain on **both** networks against the post-audit contract, with one hash per circuit in the table above. Making the private path's tNIGHT leg both real *and* private remains a separate, still-open research item: it needs a shielded representation of the native token, which a contract cannot mint.
+- [x] Private swap: spend or receive a shielded AKD coin directly in a swap, rather than wrap, then public swap, then unwrap. Both directions shipped and verified on both networks.
 - [ ] Multi-token support — pools beyond AKD/NIGHT
 - [ ] Full Lace support — `unwrap` currently requires 1AM; Lace's transaction balancing hangs on shielded receive
 - [ ] Multi-chain — beyond Midnight
 - [ ] Mobile-responsive UI
 - [ ] Multi-provider liquidity (LP tokens) — currently a single fixed liquidity seed from the builder
 - [ ] Pool page — a dedicated page for the AKD/NIGHT pool itself (live reserves, a price chart, TVL, and volume), the way a standard DEX shows its pool view, instead of the single reserve line on the swap card today
-- [ ] Reserve-delta privacy research — batching or delayed settlement to reduce what's inferable from public reserve changes
+- [ ] Address the unshielded address exposure on the private swap path. Both private circuits publish the trader's unshielded NIGHT address in the clear, because `sendUnshielded` and `receiveUnshielded` are transparent by design. This is the project's real privacy limit and no wording change removes it. Solving it properly needs a shielded representation of the native token, which a contract cannot mint; the interim options are to constrain the private path to one direction, or to surface the exposure in the UI beside the private toggle so no user mistakes it for anonymity
+- [ ] Reserve-delta privacy research: batching or delayed settlement to reduce what is inferable from public reserve changes
 - [x] Deploy the contract to Preprod and verify a full swap/wrap/unwrap cycle there
 - [ ] Akad Explorer — a self-built block/transaction explorer scoped to the Akad contract, instead of relying on Night Scan/1AM's explorer for a full picture of pool and wallet activity
 - [ ] Akad as a wallet — extend the swap app itself into a lightweight Midnight wallet (key management, balances, shielded coins) instead of only connecting to an external one
 - [ ] Akad SDK — a published TypeScript package wrapping the contract's circuits and providers, so other developers can integrate Akad swap/wrap/unwrap into their own dApps without copying `lib/akad-api.ts`
 
-## Community Feedback
+## Traction & User Validation
 
-Real testers try the live app, then report back through a short form, real wallet address and a transaction hash from their own session included, so the feedback loop is verifiable rather than just claimed. See [`docs/FEEDBACK.md`](docs/FEEDBACK.md) for the form, the live response spreadsheet, and the demo video walkthrough.
+Real testers used the live app on Midnight Preprod, then reported back through a public form that
+asks for their wallet address and a transaction hash from their own session. That makes the
+feedback loop checkable rather than asserted.
+
+**70 responses. 70 unique wallets. 70 transaction hashes, all verified on chain. Average rating
+4.4 out of 5.**
+
+Every hash was queried against the public Preprod indexer. All 70 resolve, all 70 settled with
+status `SUCCESS`, and every one calls an Akad circuit on one of the two deployed Preprod
+contracts. Where a circuit publishes an unshielded address, the claimed wallet was compared
+against the on-chain counterparty: 15 rows could be checked that way and 15 matched. The rest
+call circuits that publish no address at all, which is the privacy property this contract exists
+for, and that limitation is stated in the user lists rather than glossed over.
+
+### Users
+
+[`USERS.md`](USERS.md) lists the first **50 wallets**, with the date, the features each tester
+tried, a link to their transaction, and its on-chain check. It also documents the verification
+method, including the exact GraphQL query, so the whole table can be re-verified independently.
+
+### Launch users
+
+[`LAUNCH_USERS.md`](LAUNCH_USERS.md) lists a further **20 wallets** from the launch session, none
+of which appears in `USERS.md`. The split follows a real gap in the data rather than an arbitrary
+cut: the first cohort finished at 13:00 and the launch session began at 16:53, visible in both
+the form timestamps and the block heights.
+
+### What testers asked for, and what changed because of it
+
+[`docs/FEEDBACK.md`](docs/FEEDBACK.md) carries the verbatim feedback grouped by theme, and a
+"What We Changed" section where every item names the commit or the transaction hash behind it.
+The largest theme was that people could not tell what the private swap actually did. Chasing that
+down revealed the circuits were not settling the NIGHT leg at all, which led to the real
+settlement fix and then to the shielded sNIGHT pairing. That section also lists what is still
+open, including in-app transaction status, tooltips, and fee information.
+
+The project has 58 commits on `main`. The feedback-driven changes are named by commit message in
+`docs/FEEDBACK.md`, and the full history is on
+[GitHub](https://github.com/dzakwannajmi/akad/commits/main).
 
 ## Testing & CI
 
