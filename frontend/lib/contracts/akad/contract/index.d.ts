@@ -1,6 +1,11 @@
 import type * as __compactRuntime from '@midnight-ntwrk/compact-runtime';
 
 export type Witnesses<PS> = {
+  coinNonce(context: __compactRuntime.WitnessContext<Ledger, PS>): [PS, Uint8Array];
+  spentCoin(context: __compactRuntime.WitnessContext<Ledger, PS>): [PS, { nonce: Uint8Array,
+                                                                          color: Uint8Array,
+                                                                          value: bigint
+                                                                        }];
 }
 
 export type ImpureCircuits<PS> = {
@@ -8,13 +13,9 @@ export type ImpureCircuits<PS> = {
            to_0: Uint8Array,
            amount_0: bigint): __compactRuntime.CircuitResults<PS, []>;
   claimFaucet(context: __compactRuntime.CircuitContext<PS>): __compactRuntime.CircuitResults<PS, []>;
-  akdColor(context: __compactRuntime.CircuitContext<PS>): __compactRuntime.CircuitResults<PS, Uint8Array>;
   recordTokenColor(context: __compactRuntime.CircuitContext<PS>): __compactRuntime.CircuitResults<PS, []>;
-  wrap(context: __compactRuntime.CircuitContext<PS>,
-       amount_0: bigint,
-       nonce_0: Uint8Array): __compactRuntime.CircuitResults<PS, []>;
-  unwrap(context: __compactRuntime.CircuitContext<PS>,
-         coin_0: { nonce: Uint8Array, color: Uint8Array, value: bigint }): __compactRuntime.CircuitResults<PS, []>;
+  wrap(context: __compactRuntime.CircuitContext<PS>, amount_0: bigint): __compactRuntime.CircuitResults<PS, []>;
+  unwrap(context: __compactRuntime.CircuitContext<PS>): __compactRuntime.CircuitResults<PS, []>;
   addLiquidity(context: __compactRuntime.CircuitContext<PS>,
                amountAKD_0: bigint,
                amountNight_0: bigint): __compactRuntime.CircuitResults<PS, []>;
@@ -27,19 +28,14 @@ export type ImpureCircuits<PS> = {
                  dx_0: bigint,
                  dy_0: bigint,
                  minOut_0: bigint): __compactRuntime.CircuitResults<PS, []>;
-  privateSwapAkdToNight(context: __compactRuntime.CircuitContext<PS>,
-                        coin_0: { nonce: Uint8Array,
-                                  color: Uint8Array,
-                                  value: bigint
-                                },
-                        dy_0: bigint,
-                        minOut_0: bigint,
-                        recipient_0: { bytes: Uint8Array }): __compactRuntime.CircuitResults<PS, []>;
-  privateSwapNightToAkd(context: __compactRuntime.CircuitContext<PS>,
-                        dx_0: bigint,
-                        dy_0: bigint,
-                        minOut_0: bigint,
-                        nonce_0: Uint8Array): __compactRuntime.CircuitResults<PS, []>;
+  unwrapNight(context: __compactRuntime.CircuitContext<PS>,
+              recipient_0: { bytes: Uint8Array }): __compactRuntime.CircuitResults<PS, []>;
+  shieldedSwapAkdToNight(context: __compactRuntime.CircuitContext<PS>,
+                         dy_0: bigint,
+                         minOut_0: bigint): __compactRuntime.CircuitResults<PS, []>;
+  shieldedSwapNightToAkd(context: __compactRuntime.CircuitContext<PS>,
+                         dy_0: bigint,
+                         minOut_0: bigint): __compactRuntime.CircuitResults<PS, []>;
 }
 
 export type ProvableCircuits<PS> = {
@@ -47,13 +43,9 @@ export type ProvableCircuits<PS> = {
            to_0: Uint8Array,
            amount_0: bigint): __compactRuntime.CircuitResults<PS, []>;
   claimFaucet(context: __compactRuntime.CircuitContext<PS>): __compactRuntime.CircuitResults<PS, []>;
-  akdColor(context: __compactRuntime.CircuitContext<PS>): __compactRuntime.CircuitResults<PS, Uint8Array>;
   recordTokenColor(context: __compactRuntime.CircuitContext<PS>): __compactRuntime.CircuitResults<PS, []>;
-  wrap(context: __compactRuntime.CircuitContext<PS>,
-       amount_0: bigint,
-       nonce_0: Uint8Array): __compactRuntime.CircuitResults<PS, []>;
-  unwrap(context: __compactRuntime.CircuitContext<PS>,
-         coin_0: { nonce: Uint8Array, color: Uint8Array, value: bigint }): __compactRuntime.CircuitResults<PS, []>;
+  wrap(context: __compactRuntime.CircuitContext<PS>, amount_0: bigint): __compactRuntime.CircuitResults<PS, []>;
+  unwrap(context: __compactRuntime.CircuitContext<PS>): __compactRuntime.CircuitResults<PS, []>;
   addLiquidity(context: __compactRuntime.CircuitContext<PS>,
                amountAKD_0: bigint,
                amountNight_0: bigint): __compactRuntime.CircuitResults<PS, []>;
@@ -66,19 +58,14 @@ export type ProvableCircuits<PS> = {
                  dx_0: bigint,
                  dy_0: bigint,
                  minOut_0: bigint): __compactRuntime.CircuitResults<PS, []>;
-  privateSwapAkdToNight(context: __compactRuntime.CircuitContext<PS>,
-                        coin_0: { nonce: Uint8Array,
-                                  color: Uint8Array,
-                                  value: bigint
-                                },
-                        dy_0: bigint,
-                        minOut_0: bigint,
-                        recipient_0: { bytes: Uint8Array }): __compactRuntime.CircuitResults<PS, []>;
-  privateSwapNightToAkd(context: __compactRuntime.CircuitContext<PS>,
-                        dx_0: bigint,
-                        dy_0: bigint,
-                        minOut_0: bigint,
-                        nonce_0: Uint8Array): __compactRuntime.CircuitResults<PS, []>;
+  unwrapNight(context: __compactRuntime.CircuitContext<PS>,
+              recipient_0: { bytes: Uint8Array }): __compactRuntime.CircuitResults<PS, []>;
+  shieldedSwapAkdToNight(context: __compactRuntime.CircuitContext<PS>,
+                         dy_0: bigint,
+                         minOut_0: bigint): __compactRuntime.CircuitResults<PS, []>;
+  shieldedSwapNightToAkd(context: __compactRuntime.CircuitContext<PS>,
+                         dy_0: bigint,
+                         minOut_0: bigint): __compactRuntime.CircuitResults<PS, []>;
 }
 
 export type PureCircuits = {
@@ -89,13 +76,9 @@ export type Circuits<PS> = {
            to_0: Uint8Array,
            amount_0: bigint): __compactRuntime.CircuitResults<PS, []>;
   claimFaucet(context: __compactRuntime.CircuitContext<PS>): __compactRuntime.CircuitResults<PS, []>;
-  akdColor(context: __compactRuntime.CircuitContext<PS>): __compactRuntime.CircuitResults<PS, Uint8Array>;
   recordTokenColor(context: __compactRuntime.CircuitContext<PS>): __compactRuntime.CircuitResults<PS, []>;
-  wrap(context: __compactRuntime.CircuitContext<PS>,
-       amount_0: bigint,
-       nonce_0: Uint8Array): __compactRuntime.CircuitResults<PS, []>;
-  unwrap(context: __compactRuntime.CircuitContext<PS>,
-         coin_0: { nonce: Uint8Array, color: Uint8Array, value: bigint }): __compactRuntime.CircuitResults<PS, []>;
+  wrap(context: __compactRuntime.CircuitContext<PS>, amount_0: bigint): __compactRuntime.CircuitResults<PS, []>;
+  unwrap(context: __compactRuntime.CircuitContext<PS>): __compactRuntime.CircuitResults<PS, []>;
   addLiquidity(context: __compactRuntime.CircuitContext<PS>,
                amountAKD_0: bigint,
                amountNight_0: bigint): __compactRuntime.CircuitResults<PS, []>;
@@ -108,19 +91,14 @@ export type Circuits<PS> = {
                  dx_0: bigint,
                  dy_0: bigint,
                  minOut_0: bigint): __compactRuntime.CircuitResults<PS, []>;
-  privateSwapAkdToNight(context: __compactRuntime.CircuitContext<PS>,
-                        coin_0: { nonce: Uint8Array,
-                                  color: Uint8Array,
-                                  value: bigint
-                                },
-                        dy_0: bigint,
-                        minOut_0: bigint,
-                        recipient_0: { bytes: Uint8Array }): __compactRuntime.CircuitResults<PS, []>;
-  privateSwapNightToAkd(context: __compactRuntime.CircuitContext<PS>,
-                        dx_0: bigint,
-                        dy_0: bigint,
-                        minOut_0: bigint,
-                        nonce_0: Uint8Array): __compactRuntime.CircuitResults<PS, []>;
+  unwrapNight(context: __compactRuntime.CircuitContext<PS>,
+              recipient_0: { bytes: Uint8Array }): __compactRuntime.CircuitResults<PS, []>;
+  shieldedSwapAkdToNight(context: __compactRuntime.CircuitContext<PS>,
+                         dy_0: bigint,
+                         minOut_0: bigint): __compactRuntime.CircuitResults<PS, []>;
+  shieldedSwapNightToAkd(context: __compactRuntime.CircuitContext<PS>,
+                         dy_0: bigint,
+                         minOut_0: bigint): __compactRuntime.CircuitResults<PS, []>;
 }
 
 export type Ledger = {
@@ -136,6 +114,8 @@ export type Ledger = {
   readonly faucetAddress: Uint8Array;
   readonly reserveAKD: bigint;
   readonly reserveNight: bigint;
+  readonly sNightColor: Uint8Array;
+  readonly sNightSupply: bigint;
   faucetClaimed: {
     isEmpty(): boolean;
     size(): bigint;

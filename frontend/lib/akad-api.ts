@@ -1,15 +1,86 @@
 import { buildProviders } from './providers';
+import { buildReadOnlyProviders } from './read-only-providers';
 import { PRIVATE_STATE_ID } from './wallet-constants';
 import { getNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
 import { MidnightBech32m, ShieldedCoinPublicKey, UnshieldedAddress } from '@midnight-ntwrk/wallet-sdk-address-format';
 import { encodeUserAddress } from '@midnight-ntwrk/ledger-v8';
 
-// akad.compact has no witness functions — caller identity comes from
-// ownPublicKey() inside the circuits, not a self-declared witness — and no
-// meaningful private state. This slot is kept only because midnight-js
-// expects a private state provider entry per contract.
-export type AkadPrivateState = Record<string, never>;
-export const createInitialPrivateState = (): AkadPrivateState => ({});
+// akad.compact declares two witnesses, and this is the private state they
+// read from. Caller identity is still NOT a witness: it comes from
+// ownPublicKey() inside the circuits, so it cannot be self-declared.
+//
+// What is a witness is coin material. A circuit argument becomes a public
+// input to that circuit's ZK proof, so passing a coin nonce as an argument
+// publishes it, at mint time and again at spend time, which is all an
+// observer needs to link a shielded coin to the wallet that created it.
+// Routing both through private state keeps them out of the proof's public
+// inputs. Neither value ever leaves the browser.
+export type ShieldedCoin = {
+  nonce: Uint8Array;
+  color: Uint8Array;
+  value: bigint;
+};
+
+export type AkadPrivateState = {
+  // Randomness for a coin the contract is about to mint. Set immediately
+  // before wrap() or privateSwapNightToAkd(); read by the coinNonce()
+  // witness.
+  pendingNonce: Uint8Array | null;
+  // The shielded coin the contract is about to receive. Set immediately
+  // before unwrap() or privateSwapAkdToNight(); read by the spentCoin()
+  // witness.
+  pendingCoin: ShieldedCoin | null;
+};
+
+export const createInitialPrivateState = (): AkadPrivateState => ({
+  pendingNonce: null,
+  pendingCoin: null,
+});
+
+// The witness implementations handed to the compiled contract. They are
+// deliberately dumb: they read what the caller staged and hand it to the
+// circuit. Throwing here rather than returning a zero value is the point —
+// a silently-zero nonce would mint a coin nobody can ever spend, and a
+// silently-empty coin would fail deep inside proving with an opaque error.
+const akadWitnesses = {
+  coinNonce: (
+    context: { privateState: AkadPrivateState }
+  ): [AkadPrivateState, Uint8Array] => {
+    const state = context.privateState;
+    if (!state || !state.pendingNonce) {
+      throw new Error(
+        'coinNonce witness called with no pending nonce in private state. ' +
+        'stagePendingNonce() must run before any circuit that mints a coin.'
+      );
+    }
+    return [state, state.pendingNonce];
+  },
+  spentCoin: (
+    context: { privateState: AkadPrivateState }
+  ): [AkadPrivateState, ShieldedCoin] => {
+    const state = context.privateState;
+    if (!state || !state.pendingCoin) {
+      throw new Error(
+        'spentCoin witness called with no pending coin in private state. ' +
+        'stagePendingCoin() must run before any circuit that spends a coin.'
+      );
+    }
+    return [state, state.pendingCoin];
+  },
+};
+
+// Stages a value into private state for the witness that is about to read
+// it, merging rather than replacing so the other slot survives.
+async function stagePrivateState(
+  providers: any,
+  contractAddress: string,
+  patch: Partial<AkadPrivateState>
+): Promise<void> {
+  const existing: AkadPrivateState | null = await providers.privateStateProvider.get(PRIVATE_STATE_ID);
+  const base = existing ?? createInitialPrivateState();
+  await providers.privateStateProvider.set(PRIVATE_STATE_ID, { ...base, ...patch });
+  await providers.privateStateProvider.setContractAddress(contractAddress);
+}
 
 const AKAD_CONTRACT_PATH = '/contracts/akad';
 
@@ -30,7 +101,7 @@ async function loadCompiledContract() {
   // toolchain version skew from the Windows->MacBook migration, not a defect
   // in this contract. Every other midnight-js call in this file already goes
   // through `as any` for the same underlying reason.
-  const withWitnesses = (CompiledContract as any).withWitnesses({});
+  const withWitnesses = (CompiledContract as any).withWitnesses(akadWitnesses);
   const withAssets = (CompiledContract as any).withCompiledFileAssets(AKAD_CONTRACT_PATH);
   _compiledContract = withWitnesses(withAssets(cc));
   return _compiledContract;
@@ -142,6 +213,41 @@ export async function recordTokenColor(
   });
 }
 
+export type PublicPoolState = {
+  reserveAKD: bigint;
+  reserveNight: bigint;
+  totalSupply: bigint;
+  contractAddress: string;
+  network: string;
+};
+
+// Reads the pool's public state without a wallet. Everything here already
+// lives in public ledger state, so requiring a DApp connector to see it was
+// a limitation of how the readers were wired, not of the chain. Keeping a
+// wallet-free path matters for anyone verifying the pool is real before
+// deciding to install anything.
+export async function getPublicPoolState(contractAddress: string): Promise<PublicPoolState> {
+  const { publicDataProvider, network } = buildReadOnlyProviders();
+
+  const contractState = await publicDataProvider.queryContractState(contractAddress);
+  if (contractState === null) {
+    throw new Error(
+      `No contract state found at ${contractAddress} on ${network.label}. The address may be wrong for this network, or the indexer may not have caught up with a very recent deployment.`
+    );
+  }
+
+  const contractModule = await import('./contracts/akad/contract/index.js');
+  const ledgerState = (contractModule as any).ledger(contractState.data);
+
+  return {
+    reserveAKD: BigInt(ledgerState.reserveAKD),
+    reserveNight: BigInt(ledgerState.reserveNight),
+    totalSupply: BigInt(ledgerState.totalSupply),
+    contractAddress,
+    network: network.label,
+  };
+}
+
 // Wraps a public AKD amount into a native shielded coin sent to the caller.
 export async function wrapTokens(
   connectedApi: any,
@@ -154,22 +260,20 @@ export async function wrapTokens(
 
   const providers = await buildProviders(connectedApi, coinPublicKey, encryptionPublicKey, contractAddress, AKAD_CONTRACT_PATH);
 
-  const existing = await providers.privateStateProvider.get(PRIVATE_STATE_ID);
-  if (existing === null) {
-    await providers.privateStateProvider.set(PRIVATE_STATE_ID, createInitialPrivateState());
-  }
-  await providers.privateStateProvider.setContractAddress(contractAddress);
-
   const compiledContract = await loadCompiledContract();
 
-  // Random 32-byte nonce for the minted coin.
+  // Random 32-byte nonce for the minted coin. It is staged into private
+  // state rather than passed as an argument, so it stays out of the
+  // proof's public inputs. The caller still gets it back, because the
+  // wallet needs it to spend the coin later.
   const nonce = crypto.getRandomValues(new Uint8Array(32));
+  await stagePrivateState(providers, contractAddress, { pendingNonce: nonce });
 
   const result = await (submitCallTxAsync as any)(providers, {
     compiledContract,
     contractAddress,
     circuitId: 'wrap',
-    args: [amount, nonce],
+    args: [amount],
     privateStateId: PRIVATE_STATE_ID,
   });
 
@@ -205,6 +309,32 @@ export async function getTokenColor(
   return color;
 }
 
+// Same read for sNIGHT's colour. Both colours are written by the single
+// recordTokenColor() call, so if AKD's colour is present this one is too.
+export async function getNightColor(
+  connectedApi: any,
+  coinPublicKey: string,
+  encryptionPublicKey: string,
+  contractAddress: string
+): Promise<Uint8Array> {
+  const providers = await buildProviders(connectedApi, coinPublicKey, encryptionPublicKey, contractAddress, AKAD_CONTRACT_PATH);
+
+  const contractState = await providers.publicDataProvider.queryContractState(contractAddress);
+  if (contractState === null) {
+    throw new Error('Contract state not found');
+  }
+  const contractModule = await import('./contracts/akad/contract/index.js');
+  const ledgerState = (contractModule as any).ledger(contractState.data);
+
+  const color = ledgerState.sNightColor as Uint8Array;
+  if (color.every((b) => b === 0)) {
+    throw new Error(
+      'This contract has no sNIGHT colour recorded yet. Call recordTokenColor() once against it (the Deploy page does this automatically for new deployments) before wrapping tNIGHT or using a shielded swap.'
+    );
+  }
+  return color;
+}
+
 // Unwraps a shielded AKD coin back to public balance.
 export async function unwrapTokens(
   connectedApi: any,
@@ -217,19 +347,18 @@ export async function unwrapTokens(
 
   const providers = await buildProviders(connectedApi, coinPublicKey, encryptionPublicKey, contractAddress, AKAD_CONTRACT_PATH);
 
-  const existing = await providers.privateStateProvider.get(PRIVATE_STATE_ID);
-  if (existing === null) {
-    await providers.privateStateProvider.set(PRIVATE_STATE_ID, createInitialPrivateState());
-  }
-  await providers.privateStateProvider.setContractAddress(contractAddress);
-
   const compiledContract = await loadCompiledContract();
+
+  // The coin goes through private state, not through the argument list.
+  // unwrap() therefore takes no arguments at all and its proof has zero
+  // public inputs: nothing about which coin was spent is published.
+  await stagePrivateState(providers, contractAddress, { pendingCoin: coin });
 
   const result = await (submitCallTxAsync as any)(providers, {
     compiledContract,
     contractAddress,
     circuitId: 'unwrap',
-    args: [coin],
+    args: [],
     privateStateId: PRIVATE_STATE_ID,
   });
 
@@ -512,46 +641,48 @@ export async function executeSwap(
   return { txId: result.txId };
 }
 
-// Private swap AKD -> tNIGHT: spends a shielded AKD coin directly as the
-// swap's input instead of debiting a public balance (see
-// contracts/src/akad.compact privateSwapAkdToNight()). The caller's wallet
-// identity never touches the public balances map for this trade. `coin`
-// must already carry the correct color (fetch via getTokenColor(), same
-// as unwrapTokens() above) -- the circuit asserts it on-chain and rejects
-// anything else. dy must be pre-computed client-side via
-// computeSwapOutput(), same convention as executeSwap().
+// ---------------------------------------------------------------------------
+// sNIGHT: the shielded counterpart to tNIGHT.
 //
-// unshieldedAddress is now required: this circuit's tNIGHT leg is real and
-// pays out via sendUnshielded, which needs a concrete destination, exactly
-// like swapAkdToNight(). Pass the connected wallet's own
-// getUnshieldedAddress() value (Bech32m, e.g. mn_addr_...).
-export async function privateSwapAkdToNight(
+// tNIGHT can never be private. Midnight's own token documentation is explicit:
+// "NIGHT is an unshielded token: its balances and transfers are always public,
+// and holding NIGHT at a shielded address does not make it private."
+//
+// The previous privateSwapAkdToNight / privateSwapNightToAkd pair was built on
+// that token anyway, so every call published the trader's unshielded address.
+// Both were removed. Trades now run shielded AKD against shielded sNIGHT, a
+// 1:1 claim on tNIGHT the contract holds in custody, and no address appears in
+// a swap at all. What stays visible is entering and leaving the pool.
+// ---------------------------------------------------------------------------
+
+// wrapNight() was removed from the contract to stay inside Midnight's
+// deploy-transaction block limits. sNIGHT now enters circulation only
+// through shieldedSwapAkdToNight(), which mints it against the pool's own
+// tNIGHT reserve. Redemption below is kept: a receipt nobody can redeem is
+// not a receipt.
+
+// Redeem a shielded sNIGHT coin for real tNIGHT. `coin.color` must be the
+// sNIGHT colour from getNightColor(); the circuit asserts it. The payout
+// destination is published, same as any unshielded transfer.
+export async function unwrapNight(
   connectedApi: any,
   coinPublicKey: string,
   encryptionPublicKey: string,
   contractAddress: string,
-  coin: { nonce: Uint8Array; color: Uint8Array; value: bigint },
-  dy: bigint,
-  minOut: bigint,
+  coin: ShieldedCoin,
   unshieldedAddress: string
 ): Promise<{ txId: string }> {
   const { submitCallTxAsync } = await import('@midnight-ntwrk/midnight-js-contracts');
 
-  const providers = await buildProviders(connectedApi, coinPublicKey, encryptionPublicKey, contractAddress, AKAD_CONTRACT_PATH);
-
-  const existing = await providers.privateStateProvider.get(PRIVATE_STATE_ID);
-  if (existing === null) {
-    await providers.privateStateProvider.set(PRIVATE_STATE_ID, createInitialPrivateState());
+  if (!unshieldedAddress) {
+    throw new Error('unshieldedAddress is required to redeem sNIGHT (sendUnshielded needs a real payout destination).');
   }
-  await providers.privateStateProvider.setContractAddress(contractAddress);
 
+  const providers = await buildProviders(connectedApi, coinPublicKey, encryptionPublicKey, contractAddress, AKAD_CONTRACT_PATH);
   const compiledContract = await loadCompiledContract();
 
-  // Same Bech32m -> UserAddress decode as executeSwap()'s AkdToNight
-  // branch, and the same { bytes } wrapper the generated bindings expect.
-  if (!unshieldedAddress) {
-    throw new Error('unshieldedAddress is required for a private AKD -> tNIGHT swap (sendUnshielded needs a real payout destination).');
-  }
+  await stagePrivateState(providers, contractAddress, { pendingCoin: coin });
+
   const parsedAddress = MidnightBech32m.parse(unshieldedAddress);
   const decodedAddress = UnshieldedAddress.codec.decode(getNetworkId(), parsedAddress);
   const recipientBytes = new Uint8Array(encodeUserAddress(decodedAddress.hexString));
@@ -559,50 +690,76 @@ export async function privateSwapAkdToNight(
   const result = await (submitCallTxAsync as any)(providers, {
     compiledContract,
     contractAddress,
-    circuitId: 'privateSwapAkdToNight',
-    args: [coin, dy, minOut, { bytes: recipientBytes }],
+    circuitId: 'unwrapNight',
+    args: [{ bytes: recipientBytes }],
     privateStateId: PRIVATE_STATE_ID,
   });
 
   return { txId: result.txId };
 }
 
-// Private swap tNIGHT -> AKD: instead of crediting the trader's public
-// balance, mints their AKD output as a fresh shielded coin (see
-// contracts/src/akad.compact privateSwapNightToAkd()), same pattern as
-// wrapTokens() above. The caller's wallet identity never touches the
-// public balances map on this side either. dx/dy/minOut follow the same
-// convention as executeSwap(); the returned coin can be unwrapped later
-// via unwrapTokens() exactly like a coin from wrapTokens().
-export async function privateSwapNightToAkd(
+// Shielded AKD in, shielded sNIGHT out. No address is published.
+//
+// Both a spent coin and a minted coin are involved, so both private-state
+// slots are staged in one write: the AKD coin for the spentCoin() witness,
+// and fresh randomness for the coinNonce() witness. The returned nonce
+// describes the new sNIGHT coin and must be kept to spend it later.
+//
+// dy is pre-computed client-side via computeSwapOutput(), same convention as
+// executeSwap(). dx is not passed at all: the circuit reads it from the coin.
+export async function shieldedSwapAkdToNight(
   connectedApi: any,
   coinPublicKey: string,
   encryptionPublicKey: string,
   contractAddress: string,
-  dx: bigint,
+  coin: ShieldedCoin,
   dy: bigint,
   minOut: bigint
 ): Promise<{ nonce: Uint8Array; value: bigint; txId: string }> {
   const { submitCallTxAsync } = await import('@midnight-ntwrk/midnight-js-contracts');
 
   const providers = await buildProviders(connectedApi, coinPublicKey, encryptionPublicKey, contractAddress, AKAD_CONTRACT_PATH);
-
-  const existing = await providers.privateStateProvider.get(PRIVATE_STATE_ID);
-  if (existing === null) {
-    await providers.privateStateProvider.set(PRIVATE_STATE_ID, createInitialPrivateState());
-  }
-  await providers.privateStateProvider.setContractAddress(contractAddress);
-
   const compiledContract = await loadCompiledContract();
 
-  // Random 32-byte nonce for the newly minted coin, same as wrapTokens().
   const nonce = crypto.getRandomValues(new Uint8Array(32));
+  await stagePrivateState(providers, contractAddress, { pendingCoin: coin, pendingNonce: nonce });
 
   const result = await (submitCallTxAsync as any)(providers, {
     compiledContract,
     contractAddress,
-    circuitId: 'privateSwapNightToAkd',
-    args: [dx, dy, minOut, nonce],
+    circuitId: 'shieldedSwapAkdToNight',
+    args: [dy, minOut],
+    privateStateId: PRIVATE_STATE_ID,
+  });
+
+  return { nonce, value: dy, txId: result.txId };
+}
+
+// Shielded sNIGHT in, shielded AKD out. Mirror of the call above; the
+// returned nonce describes the new AKD coin, which unwrapTokens() can later
+// convert back to a public balance.
+export async function shieldedSwapNightToAkd(
+  connectedApi: any,
+  coinPublicKey: string,
+  encryptionPublicKey: string,
+  contractAddress: string,
+  coin: ShieldedCoin,
+  dy: bigint,
+  minOut: bigint
+): Promise<{ nonce: Uint8Array; value: bigint; txId: string }> {
+  const { submitCallTxAsync } = await import('@midnight-ntwrk/midnight-js-contracts');
+
+  const providers = await buildProviders(connectedApi, coinPublicKey, encryptionPublicKey, contractAddress, AKAD_CONTRACT_PATH);
+  const compiledContract = await loadCompiledContract();
+
+  const nonce = crypto.getRandomValues(new Uint8Array(32));
+  await stagePrivateState(providers, contractAddress, { pendingCoin: coin, pendingNonce: nonce });
+
+  const result = await (submitCallTxAsync as any)(providers, {
+    compiledContract,
+    contractAddress,
+    circuitId: 'shieldedSwapNightToAkd',
+    args: [dy, minOut],
     privateStateId: PRIVATE_STATE_ID,
   });
 

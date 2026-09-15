@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useWalletConnect } from '@/hooks/use-wallet-connect';
 import { WalletConnectButton } from '@/components/brand/wallet-connect-button';
+import { formatBaseUnits } from '@/lib/decimals';
 import {
   deployAkadContract,
   waitForContractState,
@@ -188,8 +189,8 @@ export default function DeployPage() {
         txId,
         txType: 'addLiquidity',
         wallet: addresses.unshieldedAddress,
-        amountIn: String(akdAmount),
-        amountOut: String(nightAmount),
+        amountIn: formatBaseUnits(akdAmount),
+        amountOut: formatBaseUnits(nightAmount),
         tokenIn: 'AKD',
         tokenOut: 'NIGHT',
         network: networkKey,
