@@ -4,6 +4,8 @@ What is proven, what is disclosed, what stays private, and why privacy matters f
 
 This document reuses the framing already drafted in the root `README.md` "Privacy Model" section and `contracts/README.md` "Design notes", with two claims corrected. Those corrections are marked inline and explained in [SECURITY_AUDIT.md](./SECURITY_AUDIT.md) (findings H-02 and M-02). Where this document and the developer-facing READMEs disagree, this one follows the source code.
 
+> **Status note (18 Sep 2026).** The private-swap circuits discussed below, `privateSwapAkdToNight`/`privateSwapNightToAkd`, have since been removed and replaced with `shieldedSwapAkdToNight`/`shieldedSwapNightToAkd`, which trade shielded AKD against sNIGHT instead of settling tNIGHT through `sendUnshielded`/`receiveUnshielded`, so the address-exposure limitation this document describes for the private path no longer applies to it. This document has not been rewritten for that change; see the root [README](../README.md) for the current privacy model.
+
 ---
 
 ## 1. Why privacy matters for an AMM

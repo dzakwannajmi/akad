@@ -4,6 +4,8 @@ Written for a reviewer seeing this contract for the first time. No prior context
 
 Everything here describes `contracts/src/akad.compact` as committed on the `hackathon` branch (472 lines, one file, compiler 0.31.1 / language 0.23.0 / runtime 0.16.0), after the security audit's fixes were applied. Where the contract's behaviour differs from what the developer-facing READMEs claim, this document follows the code and says so. The full reasoning is in [SECURITY_AUDIT.md](./SECURITY_AUDIT.md).
 
+> **Status note (18 Sep 2026).** The `privateSwapAkdToNight`/`privateSwapNightToAkd` circuits this document walks through in detail have since been removed and replaced with `shieldedSwapAkdToNight`/`shieldedSwapNightToAkd`, which trade shielded AKD against sNIGHT (a shielded claim on tNIGHT) instead of settling tNIGHT through `sendUnshielded`/`receiveUnshielded`, and no longer publish the trader's address. This document has not been rewritten for that change; treat the circuit-by-circuit analysis below as a description of an earlier contract version, and see the root [README](../README.md) and [docs/FEEDBACK.md](../docs/FEEDBACK.md) for the current design.
+
 ---
 
 ## 1. What the contract is

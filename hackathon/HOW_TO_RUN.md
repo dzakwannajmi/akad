@@ -66,7 +66,7 @@ ls ../build/akad/keys | wc -l
 # expected: 20  (a .prover and a .verifier for each of 10 circuits)
 ```
 
-The 10 circuits are `transfer`, `claimFaucet`, `akdColor`, `wrap`, `unwrap`, `addLiquidity`, `swapAkdToNight`, `swapNightToAkd`, `privateSwapAkdToNight`, `privateSwapNightToAkd`. There is deliberately no `init` circuit: the supply is minted by the contract's constructor at deploy time, so there is no initialisation call for anyone to front-run. If you see `init` in the list, you are not on this branch.
+The circuits are `transfer`, `claimFaucet`, `recordTokenColor`, `wrap`, `unwrap`, `addLiquidity`, `swapAkdToNight`, `swapNightToAkd`, `shieldedSwapAkdToNight`, `shieldedSwapNightToAkd`, `unwrapNight`. There is deliberately no `init` circuit: the supply is minted by the contract's constructor at deploy time, so there is no initialisation call for anyone to front-run. If you see `init` in the list, you are not on this branch.
 
 ### A5. Compare against the committed artifacts
 
@@ -102,10 +102,10 @@ Already deployed and pointed at live contracts. Skip to B3.
 
 | Network | Contract address |
 |---|---|
-| Preview (default) | `2ec37a07a9bce3da3058bd45d4ddbc0f6bc392f2056aefe8d00b13013a0b8896` |
-| Preprod | `81182dd2e98bf62c4148a7c0b96d1154779a10093cf911706da5986ab067e1b7` |
+| Preview (default) | `676fb20d4062e293d6521bd8e70af202345f75406ba4922d66453148a9d636ae` |
+| Preprod | `2689c5c24d4f560ec4ce0be14641ad544bca382d524ebdcb2e69c152f179a51a` |
 
-Explorer: https://explorer.preview.midnight.network/contracts/stream/2ec37a07a9bce3da3058bd45d4ddbc0f6bc392f2056aefe8d00b13013a0b8896
+Explorer: https://explorer.preview.midnight.network/contracts/stream/676fb20d4062e293d6521bd8e70af202345f75406ba4922d66453148a9d636ae
 
 ### B2. Or run it locally
 
@@ -123,7 +123,7 @@ Open http://localhost:3000.
 The defaults in `.env.example` work as-is against the public Preview indexer. To point at the already-deployed Preview contract rather than deploying your own, set:
 
 ```
-NEXT_PUBLIC_AKAD_CONTRACT_ADDRESS_PREVIEW=2ec37a07a9bce3da3058bd45d4ddbc0f6bc392f2056aefe8d00b13013a0b8896
+NEXT_PUBLIC_AKAD_CONTRACT_ADDRESS_PREVIEW=676fb20d4062e293d6521bd8e70af202345f75406ba4922d66453148a9d636ae
 ```
 
 Leave `SUPABASE_URL` and `SUPABASE_SECRET_KEY` empty. They back an optional shared activity feed and nothing in the swap flow depends on them.
@@ -154,9 +154,9 @@ To deploy your own instance instead, use the app's `/deploy` page with a funded 
 
 ### B5. Private swap: read this before trying it
 
-The **Private** toggle in the swap card's settings calls `privateSwapAkdToNight` or `privateSwapNightToAkd`.
+The **Private** toggle in the swap card's settings calls `shieldedSwapAkdToNight` or `shieldedSwapNightToAkd`, trading shielded AKD against sNIGHT with no address published.
 
-Both directions settle for real, the same as the public path. An earlier version of these circuits did not: their tNIGHT leg was missing entirely, so `privateSwapAkdToNight` consumed a trader's coin and paid nothing, and `privateSwapNightToAkd` minted real AKD for free. That was findings C-01 and H-01 in [SECURITY_AUDIT.md](./SECURITY_AUDIT.md), and both are fixed on this branch.
+Both directions settle for real, the same as the public path, but move real value as shielded coins rather than through `sendUnshielded`/`receiveUnshielded`, so no address is published. This replaces an earlier design, `privateSwapAkdToNight`/`privateSwapNightToAkd`, which first shipped with the tNIGHT leg missing entirely (findings C-01 and H-01 in [SECURITY_AUDIT.md](./SECURITY_AUDIT.md)), then was fixed to settle tNIGHT for real but published the trader's unshielded NIGHT address on every call. Both circuits were removed and replaced with the sNIGHT-pair design described above.
 
 What the private path buys you, stated precisely: your AKD moves as a shielded Zswap coin instead of a public `balances` row. What it does not buy you: the tNIGHT leg is transparent, the trade size is visible in the reserve delta, and for the AKD to NIGHT direction the payout address is published as a circuit argument. See [MIDNIGHT_IMPLEMENTATION.md](./MIDNIGHT_IMPLEMENTATION.md) for the full boundary.
 

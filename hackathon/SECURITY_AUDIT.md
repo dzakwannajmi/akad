@@ -6,6 +6,8 @@
 **Scope:** the Compact contract only. Frontend, UI, and deployment tooling are out of scope, in line with the hackathon's stated review process.
 **Reviewer stance:** independent, adversarial. No involvement in authoring the contract.
 
+> **Status note (18 Sep 2026).** This audit documents the contract as it stood on 13 Sep 2026, including the `privateSwapAkdToNight`/`privateSwapNightToAkd` circuits discussed throughout. Those two circuits were later removed and replaced with `shieldedSwapAkdToNight`/`shieldedSwapNightToAkd`, which trade shielded AKD against sNIGHT instead and no longer publish the trader's unshielded NIGHT address. The contract addresses cited below as "final" are also superseded; see the root [README](../README.md#live-demo--deployed-contracts) and [docs/FEEDBACK.md](../docs/FEEDBACK.md) for the current contract and addresses. The findings and on-chain evidence below are left as originally written, since they document a specific deployment at a specific time and rewriting them would misstate what was actually tested.
+
 ---
 
 ## Remediation status (12 Sep 2026)
@@ -43,7 +45,7 @@ Unlike the original audit, the remediated contract **was compiled**: compiler 0.
 
 Compiling is not evidence that a fix works. Each remediated circuit was therefore run against live deployments on **both** networks and the resulting transactions were read on the block explorer, not trusted from the app's own UI. That distinction matters here: the frontend reports success as soon as it receives a transaction id, so a `PARTIAL_SUCCESS` transaction whose effects were rolled back looks identical to a real one in the interface. Only `STATUS`, `EXECUTION SEGMENTS` and `SPENT INPUTS` separate the two.
 
-Final deployments: Preprod `77e840accabf8b7f6301d55285218f93466e6a41c9623cb48d7529e7549eb4aa`, Preview `b889ee2cce94c04a1cfc5b4a0aea844d5167759381db11ac2cd87e93550ed53c`. Every circuit was exercised on both; the per-circuit hashes are tabulated in the root [README](../README.md#verified-transactions).
+Deployments at the time of this audit: Preprod `77e840accabf8b7f6301d55285218f93466e6a41c9623cb48d7529e7549eb4aa`, Preview `b889ee2cce94c04a1cfc5b4a0aea844d5167759381db11ac2cd87e93550ed53c`, now superseded (see the status note above). Every circuit was exercised on both; the per-circuit hashes at the time were tabulated in the root README, which now points at the current deployment instead.
 
 The three transaction shapes that actually close the findings:
 
