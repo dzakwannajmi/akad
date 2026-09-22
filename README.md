@@ -241,6 +241,18 @@ against the on-chain counterparty: 15 rows could be checked that way and 15 matc
 call circuits that publish no address at all, which is the privacy property this contract exists
 for, and that limitation is stated in the user lists rather than glossed over.
 
+**Raw data:** every response as submitted through the feedback form, wallet address and
+transaction hash included, is also in this [Google Sheet](https://docs.google.com/spreadsheets/d/1zu7t4H6PT3U2Y-WKDxBRs5Bgxmd6qQ2KHYS7sBgr7jE/edit?usp=sharing),
+if sorting or filtering is easier than reading the tables below. The form only collects a wallet
+address and a transaction hash, so those are the only identifying fields; no name or email is
+gathered.
+
+**Raw data:** every response as submitted through the feedback form, wallet address and
+transaction hash included:
+https://docs.google.com/spreadsheets/d/1zu7t4H6PT3U2Y-WKDxBRs5Bgxmd6qQ2KHYS7sBgr7jE/edit?gid=20629337#gid=20629337
+The form only collects a wallet address and a transaction hash, so those are the only
+identifying fields; no name or email is gathered.
+
 ### Users
 
 [`USERS.md`](USERS.md) lists the first **50 wallets**, with the date, the features each tester
