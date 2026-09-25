@@ -1,8 +1,13 @@
 import { createRequire } from 'module';
+import { dirname } from 'path';
+import { fileURLToPath } from 'url';
 const require = createRequire(import.meta.url);
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // The repo root has its own package-lock.json for repo tooling
+  // (markdownlint). Pin tracing to this app so Next does not pick the root.
+  outputFileTracingRoot: dirname(fileURLToPath(import.meta.url)),
   webpack: (config, { isServer }) => {
     config.experiments = {
       ...config.experiments,
