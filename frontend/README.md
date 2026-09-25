@@ -13,7 +13,7 @@ Next.js app for Akad: landing page, swap interface, and wallet integration (1AM 
       changelog/      project history, grouped from the git log
       roadmap/        where Akad could go next
       deploy/         internal deploy/dev tooling (not part of the public flow)
-      dashboard/      shadcn dashboard template with sample data; no page links to it
+      dashboard/      shadcn dashboard template with sample data, kept as a design reference
       api/activity/   activity feed API route (Supabase-backed, indexer-verified before insert)
     components/       UI: brand header and network toggle, landing, pool chart, roadmap flow, shadcn ui/, and the dashboard template's own components
     contexts/NetworkContext.tsx    React state for the active network, wired to lib/networks.ts
