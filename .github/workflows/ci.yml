@@ -29,6 +29,34 @@ jobs:
       - name: Reject em dashes in Markdown and undocumented casts to any
         run: npm run lint:text
 
+      - name: Validate JSON outputs against docs/v2/schemas
+        run: npm run validate:json
+
+  cli-checks:
+    name: CLI typecheck and tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./packages/cli
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: packages/cli/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript typecheck
+        run: npm run typecheck
+
+      - name: Run tests
+        run: npm test
+
   frontend-checks:
     name: Frontend typecheck, tests and build
     runs-on: ubuntu-latest
