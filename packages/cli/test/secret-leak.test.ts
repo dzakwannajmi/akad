@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { COMMANDS } from '../src/main.js';
 import { Output, SecretRegistry } from '../src/output.js';
 import { Seed } from '../src/secrets.js';
-import { findSecret, runCli, secretNeedles, TEST_SEED } from './helpers.js';
+import { EVIDENCE_SAMPLE, findSecret, runCli, secretNeedles, TEST_SEED } from './helpers.js';
 
 const ENV = {
   AKAD_SEED_A0: TEST_SEED,
@@ -25,6 +25,8 @@ const DRY_RUN_CASES: Record<string, { argv: string[]; seed: string }> = {
   'wallet create': { argv: ['wallet', 'create', '--name', 'a9', '--network', 'local', '--dry-run'], seed: TEST_SEED },
   'wallet status': { argv: ['wallet', 'status', '--name', 'a1', '--network', 'local', '--dry-run'], seed: TEST_SEED },
   faucet: { argv: ['faucet', '--name', 'a0', '--network', 'preview', '--dry-run'], seed: PUBLIC_SEED },
+  state: { argv: ['state', '--network', 'preprod', '--dry-run'], seed: TEST_SEED },
+  'evidence verify': { argv: ['evidence', 'verify', '--file', EVIDENCE_SAMPLE, '--dry-run'], seed: TEST_SEED },
 };
 
 describe('secret leak: every command in dry-run mode', () => {

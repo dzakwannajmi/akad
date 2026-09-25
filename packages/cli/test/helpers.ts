@@ -5,6 +5,7 @@ import * as ledger from '@midnight-ntwrk/ledger-v8';
 import { HDWallet, Roles, type Role } from '@midnight-ntwrk/wallet-sdk/hd';
 import { createKeystore } from '@midnight-ntwrk/wallet-sdk/unshielded';
 import type { CliEnv } from '../src/context.js';
+import type { IndexerClient } from '../src/indexer/client.js';
 import { main } from '../src/main.js';
 
 /**
@@ -14,6 +15,9 @@ import { main } from '../src/main.js';
 export const TEST_SEED = '0f1e2d3c4b5a69788796a5b4c3d2e1f00112233445566778899aabbccddeeff0';
 
 export const CONFIG_FILE = resolve(import.meta.dirname, '../akad.config.json');
+
+/** A small evidence file in the shape of evidence.schema.json, with real Preprod hashes. */
+export const EVIDENCE_SAMPLE = resolve(import.meta.dirname, 'fixtures/evidence-sample.json');
 
 export type CliRun = {
   code: number;
@@ -25,7 +29,7 @@ export type CliRun = {
 };
 
 /** Runs the CLI in-process with a temporary env file and reports directory. */
-export async function runCli(argv: string[], env: CliEnv = {}): Promise<CliRun> {
+export async function runCli(argv: string[], env: CliEnv = {}, indexer?: IndexerClient): Promise<CliRun> {
   const dir = mkdtempSync(join(tmpdir(), 'akad-cli-test-'));
   let stdout = '';
   let stderr = '';
@@ -40,6 +44,10 @@ export async function runCli(argv: string[], env: CliEnv = {}): Promise<CliRun> 
       openUrl: (url) => desktop.opened.push(url) > 0,
     },
     now: () => new Date('2026-09-25T00:00:00Z'),
+    indexerFor: () => {
+      if (indexer === undefined) throw new Error('this test gave the CLI no indexer');
+      return indexer;
+    },
   });
   return { code, stdout, stderr, envFile, desktop };
 }

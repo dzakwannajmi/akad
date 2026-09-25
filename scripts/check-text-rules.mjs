@@ -26,6 +26,7 @@ const SKIPPED_DIRS = [
   'contracts/managed/',
   'frontend/lib/contracts/',
   'frontend/public/contracts/',
+  'packages/cli/contracts/',
 ];
 
 const files = execFileSync(

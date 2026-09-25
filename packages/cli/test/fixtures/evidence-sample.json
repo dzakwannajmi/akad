@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "network": "preprod",
+  "contract": "2689c5c24d4f560ec4ce0be14641ad544bca382d524ebdcb2e69c152f179a51a",
+  "commit": "ee39188",
+  "entries": [
+    {
+      "id": "E-01",
+      "circuit": "shieldedSwapAkdToNight",
+      "tx": "9b3279472c483cc84381f357455bd4acbd7ad33235b271def35d515da025f3de",
+      "expectedStatus": "SUCCESS",
+      "observed": "SUCCESS with zero unshielded inputs and outputs.",
+      "runId": "2026-09-14T11:27:00Z-sample"
+    },
+    {
+      "id": "E-02",
+      "circuit": "unwrapNight",
+      "tx": "1f50267947ee63e9d0cc54866238402c585731142b499a7521c51778cd12cc41",
+      "expectedStatus": "SUCCESS",
+      "observed": "SUCCESS with one unshielded output to the recipient.",
+      "runId": "2026-09-15T01:19:00Z-sample"
+    }
+  ]
+}

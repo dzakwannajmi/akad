@@ -40,6 +40,13 @@ for NAME in "$@"; do
     fi
   done
   echo "   -> contracts/managed/$NAME"
+
+  # 4. Contract JS module imported by the headless CLI (packages/cli). Its
+  #    bare imports resolve against packages/cli/node_modules from here.
+  mkdir -p "packages/cli/contracts/$NAME"
+  rm -rf "packages/cli/contracts/$NAME/contract"
+  cp -r "$SRC/contract" "packages/cli/contracts/$NAME/contract"
+  echo "   -> packages/cli/contracts/$NAME/contract"
 done
 
 echo
@@ -49,5 +56,6 @@ for NAME in "$@"; do
        "frontend/lib/contracts/$NAME/contract" \
        "frontend/public/contracts/$NAME" \
        "contracts/managed/$NAME/contract" \
+       "packages/cli/contracts/$NAME/contract" \
        -maxdepth 0 -printf '  %TY-%Tm-%Td %TH:%TM  %p\n' 2>/dev/null
 done

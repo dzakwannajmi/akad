@@ -1,14 +1,19 @@
 import { parseArgs } from 'node:util';
+import { evidenceVerify } from './commands/evidence-verify.js';
 import { faucet } from './commands/faucet.js';
+import { state } from './commands/state.js';
 import { walletCreate } from './commands/wallet-create.js';
 import { walletStatus } from './commands/wallet-status.js';
 import { loadConfig } from './config.js';
+import type { ResolvedNetwork } from './config.js';
 import type { CliEnv, CliPaths, Command, Desktop, FlagSpec, Flags } from './context.js';
+import type { IndexerClient } from './indexer/client.js';
+import { HttpIndexerClient } from './indexer/http.js';
 import { AkadError, isAkadError } from './errors.js';
 import { Output, SecretRegistry, type OutputSink } from './output.js';
 
 /** Every command the CLI knows. The secret-leak test runs each one. */
-export const COMMANDS: readonly Command[] = [walletCreate, walletStatus, faucet];
+export const COMMANDS: readonly Command[] = [walletCreate, walletStatus, faucet, state, evidenceVerify];
 
 /** Flags every command accepts. */
 export const GLOBAL_FLAGS: Readonly<Record<string, FlagSpec>> = {
@@ -23,6 +28,7 @@ export type MainDeps = {
   env: CliEnv;
   paths: CliPaths;
   desktop?: Desktop;
+  indexerFor?: (network: ResolvedNetwork) => IndexerClient;
   now?: () => Date;
 };
 
@@ -87,6 +93,7 @@ export async function main(argv: readonly string[], deps: MainDeps): Promise<num
         secrets,
         paths: deps.paths,
         desktop: deps.desktop ?? NO_DESKTOP,
+        indexerFor: deps.indexerFor ?? ((network) => new HttpIndexerClient(network.indexerHttp)),
         now: deps.now ?? (() => new Date()),
       },
       parsed.values,

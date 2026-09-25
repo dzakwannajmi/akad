@@ -1,4 +1,5 @@
-import type { AkadConfig } from './config.js';
+import type { AkadConfig, ResolvedNetwork } from './config.js';
+import type { IndexerClient } from './indexer/client.js';
 import type { Output, SecretRegistry } from './output.js';
 
 /** Environment variables, read once by the entry point and passed down. */
@@ -32,6 +33,8 @@ export type CliContext = {
   secrets: SecretRegistry;
   paths: CliPaths;
   desktop: Desktop;
+  /** Indexer client for a network; tests inject a FakeIndexerClient. */
+  indexerFor: (network: ResolvedNetwork) => IndexerClient;
   now: () => Date;
 };
 

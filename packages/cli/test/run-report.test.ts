@@ -33,6 +33,9 @@ function context(): CliContext {
     secrets,
     paths: { repoRoot: dir, envFile: join(dir, '.env.automation'), configFile: CONFIG_FILE, reportsDir: join(dir, 'runs') },
     desktop: { copyToClipboard: () => false, openUrl: () => false },
+    indexerFor: () => {
+      throw new Error('no indexer in this test');
+    },
     now: () => new Date('2026-09-25T10:00:00.123Z'),
   };
 }
