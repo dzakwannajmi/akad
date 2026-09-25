@@ -2,9 +2,7 @@
 
 What is proven, what is disclosed, what stays private, and why privacy matters for this use case.
 
-This document reuses the framing already drafted in the root `README.md` "Privacy Model" section and `contracts/README.md` "Design notes", with two claims corrected. Those corrections are marked inline and explained in [SECURITY_AUDIT.md](./SECURITY_AUDIT.md) (findings H-02 and M-02). Where this document and the developer-facing READMEs disagree, this one follows the source code.
-
-> **Status note (18 Sep 2026).** The private-swap circuits discussed below, `privateSwapAkdToNight`/`privateSwapNightToAkd`, have since been removed and replaced with `shieldedSwapAkdToNight`/`shieldedSwapNightToAkd`, which trade shielded AKD against sNIGHT instead of settling tNIGHT through `sendUnshielded`/`receiveUnshielded`, so the address-exposure limitation this document describes for the private path no longer applies to it. This document has not been rewritten for that change; see the root [README](../../README.md) for the current privacy model.
+This document describes `contracts/src/akad.compact` at tag `v1-snight` (670 lines); line numbers refer to that file. On-chain claims point to transactions in the root README's [Verified transactions](../../README.md#verified-transactions). Some comments inside the source still describe removed circuits; [ARCHITECTURE.md](./ARCHITECTURE.md) lists them, and this document follows the code.
 
 ---
 
@@ -14,9 +12,9 @@ On a transparent chain, a swap publishes the trader's address next to the amount
 
 An AMM cannot fix all of this, and Akad does not claim to. Pool reserves have to be public: a constant-product market maker prices trades from its reserves, so hiding them removes price discovery entirely. That is true on every chain, and it means **swap amounts are inherently public on any public-reserve AMM**, including this one.
 
-What Akad does address is the part that is not structural: **a standing, permanently public balance keyed to your wallet address**. Holding a token should not require publishing your position to everyone, forever, just because you might want to trade it later. Midnight's shielded pool makes it possible to hold the token without that public row, and Akad's contribution is wiring a normal AMM to that capability so a user can choose, per holding, whether their balance is a public ledger entry or a shielded coin.
+Akad addresses the part that is not structural: **a standing public balance keyed to your wallet, and your address on a trade.** Midnight's shielded pool lets a user hold AKD as a shielded coin instead of a public balance row. sNIGHT, a shielded claim on tNIGHT the contract holds, lets that coin trade against a shielded tNIGHT position with no address in the transaction.
 
-That is the honest scope: **privacy of custody, not privacy of the trade.**
+That is the honest scope: **privacy of custody and of the trader's identity on the shielded side, not privacy of the trade amount.**
 
 ---
 
@@ -24,19 +22,20 @@ That is the honest scope: **privacy of custody, not privacy of the trade.**
 
 | Feature | Where | What it does here |
 | --- | --- | --- |
-| `ownPublicKey()` | `callerKey()`, line 74 | Binds caller identity to the wallet's real Zswap public key, protocol-enforced, not client-declared |
-| `tokenType()` + `kernel.self()` | constructor, line 146 | Derives a shielded token type bound to this contract's own address, so AKD coins cannot be confused with another contract's token. Both work inside a Compact constructor, confirmed by compile |
-| `mintShieldedToken()` | `wrap` line 201, `privateSwapNightToAkd` line 432 | Mints native Zswap shielded coins, rather than a hand-rolled commitment scheme |
-| `receiveShielded()` | `unwrap` line 208, `privateSwapAkdToNight` line 356 | Accepts a shielded coin into contract custody, with authenticity and unspent-ness enforced by Zswap |
-| `receiveUnshielded()` + `nativeToken()` | `addLiquidity`, `swapNightToAkd`, `privateSwapNightToAkd` | Pulls real tNIGHT into the contract's own on-chain custody |
-| `sendUnshielded()` + `nativeToken()` | `swapAkdToNight`, `privateSwapAkdToNight` | Pays real tNIGHT out of pool custody to the trader |
-| `unshieldedBalanceGte()` | `swapAkdToNight`, `privateSwapAkdToNight` | Confirms the pool actually holds the tNIGHT it is about to pay, before committing to the payout |
-| `constructor()` | lines 138 to 150 | Mints the supply at deploy time, so there is no separate initialisation call for an attacker to front-run |
-| `persistentHash<Uint<8>>()` | `poolKey`, `faucetKey`, domain separators | Fixed, collision-resistant account identifiers for the pool and faucet, and domain separation for the token type |
+| `ownPublicKey()` | `callerKey()`, lines 168 to 170; mint recipient in `wrap` and both shielded swaps | Binds caller identity to the wallet's real Zswap public key, protocol-enforced, not client-declared |
+| `tokenType()` + `kernel.self()` | `currentTokenColor()`, lines 202 to 205; `currentNightColor()`, lines 212 to 215 | Derives the AKD and sNIGHT token types from this contract's own address, so neither can be confused with another contract's token. Must run inside a circuit: in a constructor `kernel.self()` does not return the deployed address (lines 192 to 201) |
+| `witness` | `coinNonce()` and `spentCoin()`, lines 100 and 101 | Supplies coin material from the caller's private state instead of circuit arguments |
+| `mintShieldedToken()` | `wrap` line 350, `shieldedSwapAkdToNight` line 620, `shieldedSwapNightToAkd` line 669 | Mints native Zswap shielded coins, rather than a hand-rolled commitment scheme |
+| `receiveShielded()` | `unwrap` line 364, `unwrapNight` line 549, `shieldedSwapAkdToNight` line 600, `shieldedSwapNightToAkd` line 655 | Accepts a shielded coin into contract custody, with authenticity and unspent-ness enforced by Zswap |
+| `receiveUnshielded()` + `nativeToken()` | `addLiquidity` line 408, `swapNightToAkd` line 489 | Pulls real tNIGHT into the contract's own on-chain custody |
+| `sendUnshielded()` + `nativeToken()` | `swapAkdToNight` line 455, `unwrapNight` line 553 | Pays real tNIGHT out of custody to a recipient address |
+| `unshieldedBalanceGte()` | `swapAkdToNight` line 431, `unwrapNight` line 547 | Confirms the contract holds the tNIGHT it is about to pay, before committing to the payout |
+| `constructor()` | lines 249 to 260 | Mints the supply at deploy time, so there is no separate initialisation call for an attacker to front-run |
+| `persistentHash<Uint<8>>()` | `poolKey`, `faucetKey`, colour domain separators | Fixed, collision-resistant account identifiers for the pool and faucet, and domain separation between the AKD and sNIGHT token types |
 | `Map.member()` before `.lookup()` | `balanceOf`, `hasClaimedFaucet` | Safe reads, since Compact's `lookup` fails rather than defaulting on an absent key |
-| `disclose()` | Throughout | Explicit, compiler-checked marking of every value that crosses from the circuit into public ledger state |
+| `disclose()` | Throughout | Compiler-checked marking of every value derived from a witness or argument that flows into ledger state or a token primitive |
 
-The deliberate choice worth calling out: **Akad uses Midnight's native shielded-coin infrastructure rather than building its own privacy scheme on top of a public contract.** A wrapped AKD balance is a real Zswap coin in the wallet, not a commitment in a map that this contract invented. Nullifier generation, double-spend prevention, and the commitment construction are all protocol code that has been audited, not application code written for a hackathon. The contract implements no nullifier scheme of its own, and correctly does not need to.
+The deliberate choice worth calling out: **Akad uses Midnight's native shielded-coin infrastructure rather than building its own privacy scheme on top of a public contract.** A wrapped AKD balance is a real Zswap coin in the wallet, not a commitment in a map that this contract invented. Nullifier generation, double-spend prevention and the commitment construction are Midnight protocol code, not application code. The contract implements no nullifier scheme of its own, and does not need to.
 
 ---
 
@@ -44,50 +43,50 @@ The deliberate choice worth calling out: **Akad uses Midnight's native shielded-
 
 Every exported circuit is a ZK proof that its assertions held. The load-bearing ones:
 
-**Token type binding.** `unwrap` and `privateSwapAkdToNight` both assert `coin.color == tokenColor.read()` before crediting anything. This matters more than it looks: `receiveShielded` verifies that a coin is authentic and unspent, but *not* which token it is. Without the check, a shielded coin of any color could be unwrapped into AKD at par and re-wrapped as an indistinguishable real AKD coin. The check binds acceptance to `tokenType(domainSep, kernel.self())`, which is derived from this contract's own address and cannot be forged by another contract. This gap existed in an earlier version of `unwrap` and was found and fixed during development.
+**Token type binding.** `unwrap`, `unwrapNight` and both shielded swaps assert the spent coin's colour against `currentTokenColor()` or `currentNightColor()` before accepting it (lines 363, 540, 578 and 626). `receiveShielded` verifies that a coin is authentic and unspent, but *not* which token it is. Without the check, a shielded coin of any colour could be unwrapped into AKD at par, or passed off as sNIGHT to drain custody. The colours are recomputed in-circuit from the contract's own address, not read from the ledger, so no stored value can mislead the check.
 
-**Constant-product invariant.** All four swap circuits prove `(x + dx) * (y - dy) >= x * y` before writing any state. The comparison is in the pool's favour, so integer rounding accumulates to the pool and repeated small trades cannot drain value.
+**Constant-product invariant.** All four swap circuits prove `(x + dx) * (y - dy) >= x * y` before writing any state (lines 438, 478, 598 and 646). The comparison is in the pool's favour, so integer rounding accumulates to the pool and repeated small trades cannot drain value.
 
-**Balance sufficiency.** Every debit proves the account holds the amount first: `senderBalance >= amount` in `transfer`, `traderBalance >= dx` in `swapAkdToNight`, `poolBalance >= dy` in the pool-paying circuits, `faucetBalance >= 50000000` in `claimFaucet`.
+**Balance sufficiency.** Every debit proves the account holds the amount first: `senderBalance >= amount` in `transfer` (line 267), `balance >= amount` in `wrap` (line 339), `builderBalance >= amountAKD` in `addLiquidity` (line 393), `traderBalance >= dx` in `swapAkdToNight` (line 442), `poolBalance >= dy` in the circuits that pay AKD out of the pool (lines 482 and 650), and `faucetBalance >= 50000000` in `claimFaucet` (line 291).
 
-**Custody sufficiency.** `swapAkdToNight` proves `unshieldedBalanceGte(nativeToken(), dy)` before promising a payout, so the contract cannot commit to sending tNIGHT it does not hold.
+**Custody and supply sufficiency.** `swapAkdToNight` and `unwrapNight` prove `unshieldedBalanceGte(nativeToken(), amount)` before paying tNIGHT (lines 431 and 547). `unwrapNight` and `shieldedSwapNightToAkd` prove `sNightSupply` covers the sNIGHT being returned (lines 546 and 653).
 
-**One-shot guards.** `addLiquidity` proves both reserves are zero; `claimFaucet` proves the caller has not claimed before. The supply mint needs no guard at all, because it happens in the constructor and cannot be called twice.
+**One-shot guards.** `addLiquidity` proves both reserves are zero (line 382); `claimFaucet` proves the caller has not claimed before (line 287). The supply mint needs no guard at all, because it happens in the constructor and cannot run twice.
 
-**Arithmetic safety.** Every downcast to `Uint<64>` is preceded by the bound assertion that makes it safe, and every subtraction by the comparison that prevents underflow. The audit found no overflow or underflow.
+**Arithmetic bounds.** Each `Uint<64>` downcast in the swap circuits follows the bound assertions that make it safe (for example lines 429 and 430 before 433 to 436), and `wrap` asserts `amount` fits `Uint<64>` before minting (line 341).
 
 ---
 
 ## 4. What is disclosed, and what is private
 
-This is the section the developer-facing README gets partly wrong. The corrected version:
-
 ### Public to any observer
 
-- Which contract and circuit were called, and when.
-- **Every argument of every exported circuit.** In Compact, circuit arguments are part of the public transcript. For this contract that means `dx`, `dy`, `minOut`, `recipient`, `nonce`, and the whole `coin` struct (nonce, color, and value) are all visible.
-- All ledger writes: both reserves after every swap, and every public `balances` entry that changes.
-- Therefore: **every swap's size and direction**, on the private path as much as the public one, because the reserve delta is exactly `dx`.
+- Which contract and circuit were called, and when. The indexer records the entry point of every call.
+- All ledger writes: both reserves after every swap, `sNightSupply` after every shielded swap and redemption, and every public `balances` entry that changes, keyed by the wallet's public key when the caller's balance moves.
+- Every unshielded input and output, with address and amount: the caller's tNIGHT in `addLiquidity` and `swapNightToAkd`, the payout in `swapAkdToNight` and `unwrapNight`.
+- Therefore **every swap's size and direction**, on the shielded path as much as the public one, because the reserve delta is exactly `dx`.
 
-> **Correction to the root README.** `README.md` currently lists slippage tolerance (`minOut`) under what an observer cannot learn, describing it as "a value proven correct without ever being shown". `minOut` is a circuit argument, so it is shown. There is no value in this contract that is proven without being disclosed, because the production contract declares no `witness` at all and therefore has no private inputs. See finding M-02.
+### Circuit arguments are not published in plaintext
+
+An earlier version of this document claimed that a coin's nonce appeared in the clear at both ends of its life, so an observer could match on nonce equality and link a shielded coin to the wallet that created it. **The project tested that claim against live transactions on 14 Sep 2026 and it is false.** The full method, controls and data are in [SECURITY_AUDIT.md](./SECURITY_AUDIT.md) under "H-02 refuted on chain". In short: every transaction of a pre-refactor deployment, which did take the nonce as a circuit argument, was enumerated, and the nonce of a coin minted by it appears in none of them, while a control value known to be present turned up every time.
+
+Circuit arguments are public inputs to the circuit's proof. They are not serialised in plaintext into the transaction. An on-chain `ContractCall` carries an address, an entry point, the guaranteed and fallible transcripts, a communication commitment, and the proof. Arguments reach the verifier through `communicationCommitment(input, output, rand)`, which is randomised and therefore hiding. An argument still becomes public when its value reaches a public channel: `dx` and `dy` through the reserve deltas, `recipient` through the payout output.
 
 ### Private
 
-- **No standing public balance for shielded AKD.** While AKD is held as a Zswap coin, there is no row in the `balances` map attributable to its holder. This is real and it is the feature. Wrapping removes your position from the public ledger.
-- **The coin's owner is not written anywhere by this contract.** `mintShieldedToken` sends to `ownPublicKey()` and the recipient lives inside the Zswap commitment, not in a ledger field.
-- **The private swap path writes no `balances` entry for the trader.** `privateSwapAkdToNight` spends a coin instead of debiting a public balance; `privateSwapNightToAkd` mints a coin instead of crediting one. The trader's address does not appear in the map for that trade.
+- **No standing public balance for shielded holdings.** While AKD or sNIGHT is held as a Zswap coin, no `balances` row is attributable to its holder. `wrap` and `unwrap` transactions carry zero unshielded inputs and outputs (Preprod `884a3dbf…6383fb` and `22d9c167…491a3c`).
+- **The coin's owner is not written anywhere by this contract.** `mintShieldedToken` sends to `ownPublicKey()`, and the recipient lives inside the Zswap commitment, not in a ledger field.
+- **The trader on a shielded swap.** Neither shielded swap reads `callerKey()` or writes a trader balance, and neither has an unshielded input or output. All six shielded swaps recorded on the two deployments show zero unshielded inputs and outputs (for example Preprod `9b327947…25f3de` and `db36fb34…60de7f`).
 
-### The limit on unlinkability
+### What an observer can still infer
 
-An earlier version of this document claimed that a coin's nonce appeared in the clear at both ends of its life, so an observer could match on nonce equality and link a shielded coin to the wallet that created it. **That claim was tested against live transactions on 14 Sep 2026 and is false.** The full method, controls and data are in [SECURITY_AUDIT.md](./SECURITY_AUDIT.md) under "H-02 refuted on chain". In short: the pre-refactor contract, which did take the nonce as a circuit argument, was enumerated transaction by transaction across its entire life, and the nonce of a coin minted by it appears in none of them, while a control value known to be present was found every time.
+1. **Trade size and direction**, from the reserve deltas, as above.
+2. **Links by amount.** A shielded swap spends a whole coin, so its trade size equals the value of the coin it spent. A `wrap` of amount X shortly before a shielded swap of size X is an obvious candidate pair, and an sNIGHT coin of value `dy` later redeemed through `unwrapNight` publishes that same amount next to the recipient address. Timing narrows the candidates further. The protection is only as large as the set of same-value coins in flight. **Limitation.**
+3. **Entry and exit.** `wrap` and `unwrap` write the caller's balance entry. `unwrapNight` publishes the recipient address and the amount, the same way `sendUnshielded` always does. Getting from plain tNIGHT to sNIGHT goes through `swapNightToAkd`, which spends from the trader's address.
 
-Circuit arguments are public inputs to the circuit's proof. They are not serialised in plaintext into the transaction. An on-chain `ContractCall` carries an address, an entry point, the guaranteed and fallible transcripts, a communication commitment, and the proof. Arguments reach the verifier through `communicationCommitment(input, output, rand)`, which is randomised and therefore hiding.
+### Before sNIGHT
 
-So the honest statement of the limit is different, and narrower than the one this document previously gave:
-
-**What genuinely stays private.** While AKD is held as a Zswap coin there is no `balances` row attributable to its holder, and the coin's nonce is not recoverable from the chain. Verified on Preprod: `wrap` and `unwrap` transactions carry zero public outputs, zero spent inputs, and no address of any kind.
-
-**What does not.** The moment either private swap runs, the NIGHT leg names you. `sendUnshielded` and `receiveUnshielded` are transparent by design, so the trader's unshielded address and the amount are rendered in the clear by any block explorer:
+The shielded swaps replace `privateSwapAkdToNight` and `privateSwapNightToAkd`, which settled tNIGHT through `sendUnshielded` and `receiveUnshielded`. On an earlier Preprod deployment, a block explorer rendered the trader's unshielded address in both directions:
 
 ```text
 privateSwapAkdToNight   created output   mn_addr_prepro…9xrqm0l9eh    20.15355 NIGHT
@@ -95,9 +94,9 @@ privateSwapNightToAkd   spent input      mn_addr_prepro…9xrqm0l9eh     1,807 N
                         created output   mn_addr_prepro…9xrqm0l9eh     1,786 NIGHT
 ```
 
-The same address in both, so the two swaps are linkable to each other and to one wallet. **Wrapping is private at rest. Trading is not private in either direction.** A user deciding whether to use the private toggle should be told that, and no phrasing of the AKD leg's properties changes it.
+The same address appears in both, so the two swaps were linkable to each other and to one wallet. That exposure is why the private circuits were removed and why sNIGHT exists.
 
-### Why coin material still comes from a witness
+### Why coin material comes from a witness
 
 The contract sources coin nonces and spent coins from `witness` rather than from circuit arguments, and that refactor was kept after the finding that motivated it was refuted. The reasons are narrower but real, and they are stated here so no reader mistakes them for a vulnerability fix:
 
@@ -111,32 +110,27 @@ None of that closed a hole. It is hardening, and this project does not claim oth
 
 ## 5. Settlement status, stated plainly
 
-| Circuit | AKD leg | tNIGHT leg |
-| --- | --- | --- |
-| `addLiquidity` | Real | **Real** (`receiveUnshielded`) |
-| `swapAkdToNight` | Real | **Real** (`sendUnshielded`, guarded by `unshieldedBalanceGte`) |
-| `swapNightToAkd` | Real | **Real** (`receiveUnshielded`) |
-| `privateSwapAkdToNight` | Real | **Real** (`sendUnshielded`, guarded by `unshieldedBalanceGte`) |
-| `privateSwapNightToAkd` | Real | **Real** (`receiveUnshielded`) |
+| Circuit | AKD leg | tNIGHT or sNIGHT leg | Preprod transaction |
+| --- | --- | --- | --- |
+| `addLiquidity` | Builder's public balance into pool custody | Real tNIGHT in (`receiveUnshielded`) | `5113e29d…d4094d` |
+| `swapAkdToNight` | Trader's public balance into pool custody | Real tNIGHT out (`sendUnshielded`, guarded by `unshieldedBalanceGte`) | `1db59292…de4ec7` |
+| `swapNightToAkd` | Pool custody to trader's public balance | Real tNIGHT in (`receiveUnshielded`) | `272d0be6…43bbb4` |
+| `shieldedSwapAkdToNight` | Shielded AKD coin into custody | Shielded sNIGHT coin minted; tNIGHT stays in custody | `9b327947…25f3de` |
+| `shieldedSwapNightToAkd` | Shielded AKD coin minted from pool custody | Shielded sNIGHT coin into custody | `db36fb34…60de7f` |
+| `unwrapNight` | None | sNIGHT coin in, real tNIGHT out (`sendUnshielded`, guarded by `unshieldedBalanceGte`) | `1f502679…12cc41` |
 
-The public path settles both legs for real, on chain, using Compact's native unshielded-token primitives. This is verified by transaction on Preprod (see the root README's transaction table).
+Every leg is real, and each row has run on Preprod with status `SUCCESS`. The tNIGHT legs use Compact's native unshielded-token primitives; the shielded legs use native Zswap coins.
 
-Until the security audit, the private path's tNIGHT leg was not simulated in the sense of being mocked for display: it was **absent from the circuit entirely**, while the AKD leg moved real value. The design reasoning behind that was sound and is worth preserving. `sendUnshielded` and `receiveUnshielded` are transparent by design, so wiring them into a private swap publishes exactly who traded tNIGHT with this pool and how much. A leg that is both real and private needs a genuinely shielded representation of the native token, which a contract cannot create, since minting only works for a color the contract itself owns.
-
-The conclusion drawn from that reasoning was the wrong one. A live, unrestricted circuit that moves real AKD in one direction and nothing in the other is not a privacy tradeoff: `privateSwapAkdToNight` took a user's AKD and returned nothing, and `privateSwapNightToAkd` gave real AKD away for free, which chained into a full drain of the pool's real tNIGHT through the public path. Findings C-01 and H-01 carry the worked exploit.
-
-Both are fixed. All four circuits now settle both legs, and the price paid is an openly transparent tNIGHT leg on the private path. That price is not evenly distributed: `privateSwapAkdToNight` publishes the trader's `UserAddress` as a payout destination, so that direction is only marginally more private than the public path, while `privateSwapNightToAkd` still delivers the AKD side as a shielded coin and keeps its real benefit. This documentation does not claim the two directions are equally private.
-
-**The open research question is genuine and worth stating as such:** private settlement of a native token that a contract cannot mint is not solved here, and as far as the author could determine it is not solved in Midnight's own documentation or in OpenZeppelin's Compact contracts either.
+Private settlement of the native token itself remains out of reach: a contract can only mint tokens of its own colour, and tNIGHT is always public. sNIGHT is how this contract works around that. It is a shielded 1:1 claim backed by tNIGHT in custody, with the solvency invariant `custody == reserveNight + sNightSupply` (see [ARCHITECTURE.md](./ARCHITECTURE.md), section 3). The price is that sNIGHT is a claim on this contract rather than tNIGHT, and that entering and leaving the shielded side stays public.
 
 ---
 
 ## 6. Summary for a reviewer
 
-**What Akad demonstrates well.** Native Zswap shielded coins used for their intended purpose rather than a hand-rolled commitment scheme. A contract-bound token type that makes cross-token confusion impossible. Protocol-bound caller identity. Real native-token settlement through `sendUnshielded` and `receiveUnshielded` with a custody check before payout. A public and private mode a user opts into per holding, on top of a conventional, well-understood AMM.
+**What Akad demonstrates well.** Native Zswap shielded coins used for their intended purpose rather than a hand-rolled commitment scheme. Contract-bound token types that make cross-token confusion impossible. Protocol-bound caller identity. Real native-token settlement with a custody check before every payout. A shielded swap path that moves both legs as shielded coins and publishes no address, backed by a custody invariant anyone can check from public state.
 
-**What it does not achieve.** Trade-amount privacy, which is structural to any public-reserve AMM and conceded throughout these docs. Trader anonymity on either private swap: the NIGHT leg publishes the trader's unshielded address in the clear, verified on Preprod, and this is the project's real privacy limit. Private settlement of the native token, which is a genuine open problem rather than an oversight.
+**What it does not achieve.** Trade-amount privacy, which is structural to any public-reserve AMM and conceded throughout these docs. Unlinkability against amount matching, since a shielded swap spends a whole coin (section 4). Private entry and exit: `wrap`, `unwrap`, `unwrapNight` and the public swaps all reveal an identity or an address.
 
 **What it got wrong and corrected.** This document previously claimed shielded coins were linkable through their nonce. That was an inference from platform documentation, never tested, and testing disproved it. The correction is recorded rather than quietly edited away, in [SECURITY_AUDIT.md](./SECURITY_AUDIT.md) under "H-02 refuted on chain", because a reviewer's question about a privacy project should be how its claims were checked, not how confident they sound.
 
-**What was fixed after the audit.** The two private swap circuits now settle their tNIGHT leg for real, closing a critical fund-drain path. `init()` is gone, replaced by a constructor, so the supply mint cannot be front-run on a redeploy. The privacy claims that did not survive inspection have been rewritten here, in the root README, and in the app's own landing page and FAQ. What remains open is listed in the remediation table at the top of [SECURITY_AUDIT.md](./SECURITY_AUDIT.md); none of it is a fund-loss path.
+**What changed after the audit.** `init()` is gone, replaced by a constructor, so the supply mint cannot be front-run. The two private swap circuits, first missing their tNIGHT leg and then publishing the trader's address, were removed and replaced by the sNIGHT pair. What remains open is listed in [ARCHITECTURE.md](./ARCHITECTURE.md), section 6. None of it lets one party take another's funds; the seeded liquidity itself can never be withdrawn (L-02).
