@@ -2,7 +2,7 @@
 
 Written so a reviewer with no prior context can get from a clean clone to a compiled contract and a working swap without asking questions.
 
-Two independent things are described here. **Section A compiles the contract**, which is the part the hackathon's review process cares about most and needs no wallet. **Section B runs the demo**, which needs a Midnight wallet and testnet funds. You can do A without B.
+Two independent things are described here. **Section A compiles the contract**, which is the part a contract reviewer needs most and needs no wallet. **Section B runs the demo**, which needs a Midnight wallet and testnet funds. You can do A without B.
 
 ---
 
@@ -51,7 +51,7 @@ cd akad/contracts
 compact compile src/akad.compact ../build/akad
 ```
 
-Expect this to take a few minutes: the compiler generates a proving key and a verifying key for each of the 10 circuits. It prints each one as it goes, ending at `10/10`.
+Expect this to take a few minutes: the compiler generates a proving key and a verifying key for each of the 11 circuits. Its output starts with `Compiling 11 circuits:`.
 
 ### A4. Verify the output
 
@@ -63,10 +63,10 @@ cat ../build/akad/compiler/contract-info.json | head -5
 # expected: "compiler-version": "0.31.1", "language-version": "0.23.0", "runtime-version": "0.16.0"
 
 ls ../build/akad/keys | wc -l
-# expected: 20  (a .prover and a .verifier for each of 10 circuits)
+# expected: 22  (a .prover and a .verifier for each of 11 circuits)
 ```
 
-The circuits are `transfer`, `claimFaucet`, `recordTokenColor`, `wrap`, `unwrap`, `addLiquidity`, `swapAkdToNight`, `swapNightToAkd`, `shieldedSwapAkdToNight`, `shieldedSwapNightToAkd`, `unwrapNight`. There is deliberately no `init` circuit: the supply is minted by the contract's constructor at deploy time, so there is no initialisation call for anyone to front-run. If you see `init` in the list, you are not on this branch.
+The circuits are `transfer`, `claimFaucet`, `recordTokenColor`, `wrap`, `unwrap`, `addLiquidity`, `swapAkdToNight`, `swapNightToAkd`, `shieldedSwapAkdToNight`, `shieldedSwapNightToAkd`, `unwrapNight`. There is deliberately no `init` circuit: the supply is minted by the contract's constructor at deploy time, so there is no initialisation call for anyone to front-run. If you see `init` in the list, you are compiling an older version of the contract.
 
 ### A5. Compare against the committed artifacts
 
@@ -149,7 +149,7 @@ To deploy your own instance instead, use the app's `/deploy` page with a funded 
 3. **Claim AKD.** A new wallet starts at zero AKD. Use the faucet control in the app to call `claimFaucet()`, which credits 50 AKD, once per wallet, forever. If it fails with "faucet is empty, ask the deployer to top it up", the on-chain faucet account needs refunding and there is nothing you can do from the UI.
 4. **Public swap.** Enter an AKD amount, review the quote, and submit. This calls `swapAkdToNight(dx, dy, minOut, recipient)`. Both legs settle for real: your AKD balance decreases and real tNIGHT arrives in your wallet from the pool's own custody.
 5. **Swap back.** `swapNightToAkd(dx, dy, minOut)` moves real tNIGHT from your wallet into pool custody and credits AKD to your balance.
-6. **Wrap to private.** Below the swap card, wrap an AKD amount. This calls `wrap(amount, nonce)`, burning the public balance and minting a native Zswap shielded coin to you. Check your wallet: the shielded AKD appears as a native shielded token, with no corresponding public balance row.
+6. **Wrap to private.** Below the swap card, wrap an AKD amount. This calls `wrap(amount)`, burning the public balance and minting a native Zswap shielded coin to you. The coin's nonce comes from the `coinNonce()` witness in your browser, not from a circuit argument. Check your wallet: the shielded AKD appears as a native shielded token, with no corresponding public balance row.
 7. **Unwrap.** Sends the coin back to the contract and restores your public balance. **1AM only.**
 
 ### B5. Private swap: read this before trying it
@@ -158,7 +158,7 @@ The **Private** toggle in the swap card's settings calls `shieldedSwapAkdToNight
 
 Both directions settle for real, the same as the public path, but move real value as shielded coins rather than through `sendUnshielded`/`receiveUnshielded`, so no address is published. This replaces an earlier design, `privateSwapAkdToNight`/`privateSwapNightToAkd`, which first shipped with the tNIGHT leg missing entirely (findings C-01 and H-01 in [SECURITY_AUDIT.md](./SECURITY_AUDIT.md)), then was fixed to settle tNIGHT for real but published the trader's unshielded NIGHT address on every call. Both circuits were removed and replaced with the sNIGHT-pair design described above.
 
-What the private path buys you, stated precisely: your AKD moves as a shielded Zswap coin instead of a public `balances` row. What it does not buy you: the tNIGHT leg is transparent, the trade size is visible in the reserve delta, and for the AKD to NIGHT direction the payout address is published as a circuit argument. See [MIDNIGHT_IMPLEMENTATION.md](./MIDNIGHT_IMPLEMENTATION.md) for the full boundary.
+What the private path buys you, stated precisely: both legs move as shielded coins, so the swap transaction carries no unshielded input or output and no address (every shielded swap in the root README's Verified transactions shows `0 / 0`). What it does not hide: the trade size, which equals the reserve delta, and the moment you leave the shielded side. Redeeming sNIGHT for tNIGHT through `unwrapNight` publishes the recipient address and the amount. See [MIDNIGHT_IMPLEMENTATION.md](./MIDNIGHT_IMPLEMENTATION.md) for the full boundary.
 
 ### B6. Verify on chain
 
@@ -169,7 +169,7 @@ Every action produces a transaction hash. Check it on:
 - Night Scan: `https://explorer.preview.midnight.network/`
 - 1AM explorer: `https://explorer.1am.xyz/tx/<hash>?network=preview` (or `?network=preprod`)
 
-The root `README.md` keeps a table of verified transactions, one per circuit per network. Note that several rows are currently marked "pending re-verification" against the latest redeployed addresses.
+The root `README.md` lists an indexer-checked transaction for every circuit that has run on each network, and names the circuits that have not.
 
 ---
 
@@ -196,7 +196,7 @@ The root `README.md` keeps a table of verified transactions, one per circuit per
 
 ```text
 contracts/
-  src/akad.compact          the contract (433 lines, everything the audit covers)
+  src/akad.compact          the contract (670 lines)
   managed/akad/             committed build output (compiler 0.31.1)
   README.md                 developer-facing contract notes
 frontend/                   Next.js app: landing, swap UI, wallet integration, /deploy page
@@ -204,9 +204,9 @@ scripts/
   sync-contract-artifacts.sh   copies build output to the three places that consume it
 docs/
   TROUBLESHOOTING.md        build notes and troubleshooting log
-  hackathon/                this folder: judge-facing documentation
+  hackathon/                this folder: reviewer documentation for the v1 contract
     ARCHITECTURE.md         contract architecture for a first-time reader
-    SECURITY_AUDIT.md       independent security audit with findings and punch list
+    SECURITY_AUDIT.md       security audit of commit bad91f3, with remediation status
     MIDNIGHT_IMPLEMENTATION.md how Midnight privacy features are used
     HOW_TO_RUN.md           this file
 ```

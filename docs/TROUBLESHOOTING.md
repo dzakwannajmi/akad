@@ -18,7 +18,7 @@ Notes from building Akad on Compact/Midnight, kept here so the main README stays
 
 Akad launched on **Preview**. Early in this build, a Midnight developer's guidance was that Preprod was still under active development and not reliable for contract deployment.
 
-That guidance is now stale. Midnight's own docs (checked September 2026) describe Preprod as the network that "tracks mainnet most closely" and recommend it as the final validation environment before production launch, a real shift from what it was when Akad started. A Preprod network reset happened March 21, 2026, with some intermittent downtime around that reset; we have not run a live deployment on it ourselves to confirm current day-to-day stability, so treat "more stable now" as documented, not as something this project has verified firsthand.
+That guidance is now stale. Midnight's own docs (checked September 2026) describe Preprod as the network that "tracks mainnet most closely" and recommend it as the final validation environment before production launch, a real shift from what it was when Akad started. A Preprod network reset happened March 21, 2026, with some intermittent downtime around that reset. Akad has since run on Preprod itself: the current contract's deploy and 24 circuit calls between 14 and 18 Sep 2026 all landed as `SUCCESS` according to the indexer (see the root README's Verified transactions).
 
 To act on this without committing to Preprod before it's actually been exercised, the app now has a **network toggle** (`components/brand/network-toggle.tsx`, backed by `lib/networks.ts` + `contexts/NetworkContext.tsx`) so Preview and Preprod can both be tested from the same deployed site, switched with a button instead of editing env vars and redeploying. Preview stays the default. The Akad contract is now deployed to both networks: Preview at `676fb20d4062e293d6521bd8e70af202345f75406ba4922d66453148a9d636ae` and Preprod at `2689c5c24d4f560ec4ce0be14641ad544bca382d524ebdcb2e69c152f179a51a` (see the root README's Live Demo & Deployed Contracts section for the current addresses, and `.env.example` for the env var names).
 
@@ -43,7 +43,7 @@ So no local Docker proof server is needed (or used) for Akad's actual deploy/swa
 
 ## Shielded coins (`wrap` and `unwrap`)
 
-Both directions work and are verified on Preview. `wrap` burns a public balance and mints a native Zswap shielded coin to the caller; `unwrap` spends that coin back into the contract via `receiveShielded` and credits the public balance.
+Both directions work. Against the current contracts, `wrap` has run on both networks and `unwrap` on Preprod (hashes in the root README's Verified transactions). `wrap` burns a public balance and mints a native Zswap shielded coin to the caller; `unwrap` spends that coin back into the contract via `receiveShielded` and credits the public balance.
 
 Two things to know before touching this code:
 
@@ -94,7 +94,7 @@ console.log('[DEBUG] totalSupply:', ledgerState.totalSupply?.toString());
 console.log('[DEBUG] tokenColor raw:', ledgerState.tokenColor);
 ```
 
-Three lines. The decisive output was `totalSupply: 1000000000000` alongside `tokenColor: [0, 0, 0, ...]`: a contradiction, because the current `init()` writes both. An `init()` that mints supply but leaves the colour unwritten could only be an older build of the circuit, which pointed at the artifacts rather than the wallet. Timestamps confirmed it: compiled output dated 6 August, frontend copy dated 22 July.
+Three lines. The decisive output was `totalSupply: 1000000000000` alongside `tokenColor: [0, 0, 0, ...]`: a contradiction, because the `init()` of that build wrote both. (A constructor has since replaced `init()`.) An `init()` that mints supply but leaves the colour unwritten could only be an older build of the circuit, which pointed at the artifacts rather than the wallet. Timestamps confirmed it: compiled output dated 6 August, frontend copy dated 22 July.
 
 ### The fix
 
