@@ -1,0 +1,12 @@
+{
+  "name": "akad",
+  "private": true,
+  "description": "Repo-level tooling for Akad. The app lives in frontend/, the contract in contracts/.",
+  "scripts": {
+    "lint:md": "markdownlint-cli2 \"**/*.md\"",
+    "lint:md:fix": "markdownlint-cli2 --fix \"**/*.md\""
+  },
+  "devDependencies": {
+    "markdownlint-cli2": "^0.23.3"
+  }
+}
