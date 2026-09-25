@@ -30,7 +30,7 @@ jobs:
         run: npm run lint:text
 
   frontend-checks:
-    name: Frontend — typecheck & tests
+    name: Frontend typecheck, tests and build
     runs-on: ubuntu-latest
     defaults:
       run:
