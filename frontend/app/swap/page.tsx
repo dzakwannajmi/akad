@@ -253,7 +253,7 @@ export default function SwapPage() {
   }, [refreshBalances]);
 
   // In private AKD -> NIGHT mode the input isn't free-typed -- dx is fixed
-  // to whatever's already wrapped, since privateSwapAkdToNight() spends the
+  // to whatever's already wrapped, since shieldedSwapAkdToNight() spends the
   // whole coin (no change-making). Every other mode keeps using amountIn.
   useEffect(() => {
     if (!reserves) {

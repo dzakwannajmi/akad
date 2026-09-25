@@ -1,13 +1,10 @@
-// AKD's decimal convention, established in contracts/src/akad.compact:
-// init() mints "1,000,000 AKD at 6 decimals = 1_000_000_000_000 base units",
-// and claimFaucet() grants 50_000_000 base units per 50 AKD claim. The
-// AMM's NIGHT-leg reserve is a simulated accounting number (see
-// contracts/README.md's Design notes -- no real NIGHT custody happens on
-// either swap leg yet) seeded at deploy time in the same base-unit scale as
-// AKD (see app/deploy/page.tsx's seed-liquidity step), so the same
-// decimals convention is applied to NIGHT amounts shown in this UI too, for
-// a consistent display -- this is a display choice, not a claim about the
-// real NIGHT token's own decimals.
+// AKD's decimal convention, established in contracts/src/akad.compact: the
+// constructor mints "1,000,000 AKD at 6 decimals = 1_000_000_000_000 base
+// units", and claimFaucet() grants 50_000_000 base units per 50 AKD claim.
+// NIGHT amounts in this UI (reserveNight, and the real tNIGHT that
+// addLiquidity() and the swaps move through the contract's custody) use the
+// same convention for a consistent display. That is a display choice, not a
+// claim about the NIGHT token's own decimals.
 export const AKD_DECIMALS = 6;
 
 // Formats a base-unit bigint as a human-readable decimal string, trimming

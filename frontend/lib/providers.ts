@@ -18,7 +18,8 @@ import { getCurrentNetwork } from './networks';
 // Assembles every provider Midnight.js needs to deploy/interact with a contract,
 // delegating proof generation to the connected wallet (not our local proof server).
 // Singleton so the same in-memory state persists across separate
-// buildProviders() calls within one page session (e.g. deploy then init()).
+// buildProviders() calls within one page session (e.g. deploy then
+// recordTokenColor()).
 let _privateStateProvider: any = null;
 function getPrivateStateProvider() {
   if (!_privateStateProvider) {

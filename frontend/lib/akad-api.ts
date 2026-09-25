@@ -23,12 +23,12 @@ export type ShieldedCoin = {
 
 export type AkadPrivateState = {
   // Randomness for a coin the contract is about to mint. Set immediately
-  // before wrap() or privateSwapNightToAkd(); read by the coinNonce()
+  // before wrap() or either shielded swap; read by the coinNonce()
   // witness.
   pendingNonce: Uint8Array | null;
   // The shielded coin the contract is about to receive. Set immediately
-  // before unwrap() or privateSwapAkdToNight(); read by the spentCoin()
-  // witness.
+  // before unwrap(), unwrapNight() or either shielded swap; read by the
+  // spentCoin() witness.
   pendingCoin: ShieldedCoin | null;
 };
 
@@ -176,12 +176,13 @@ export async function waitForContractState(
 //
 // One post-deploy call does remain. tokenColor cannot be derived in the
 // constructor, because kernel.self() does not return the deployed
-// contract's address there, so recordTokenColor() writes it from inside a
-// circuit instead. It needs no access control and is safe to repeat: every
-// caller writes byte-identical data. Contract correctness does not depend
-// on it either, since unwrap() and privateSwapAkdToNight() derive the
-// colour themselves; this only populates the ledger field the frontend
-// reads so it does not need a transaction to learn the colour.
+// contract's address there, so recordTokenColor() writes it (and
+// sNightColor) from inside a circuit instead. It needs no access control
+// and is safe to repeat: every caller writes byte-identical data. Contract
+// correctness does not depend on it either, since every circuit that
+// accepts a coin derives the colour itself; this only populates the ledger
+// fields the frontend reads so it does not need a transaction to learn the
+// colours.
 export async function recordTokenColor(
   connectedApi: any,
   coinPublicKey: string,
@@ -384,13 +385,14 @@ export async function transferTokens(
   });
 }
 
-// Seeds the pool's initial liquidity. Call once, right after init(). This
-// moves amountAKD out of the caller's own public balance into the pool's
-// on-chain custody, and pulls amountNight of real tNIGHT into the pool's
-// own native-token custody via receiveUnshielded (see
-// contracts/src/akad.compact) -- the caller's wallet needs at least that
-// much AKD balance (e.g. from init()'s mint) AND at least that much real
-// tNIGHT on hand, or the transaction fails during wallet balancing.
+// Seeds the pool's initial liquidity. Call once, after deploy and
+// recordTokenColor(). This moves amountAKD out of the caller's own public
+// balance into the pool's on-chain custody, and pulls amountNight of real
+// tNIGHT into the pool's own native-token custody via receiveUnshielded
+// (see contracts/src/akad.compact) -- the caller's wallet needs at least
+// that much AKD balance (e.g. from the constructor's mint) AND at least
+// that much real tNIGHT on hand, or the transaction fails during wallet
+// balancing.
 export async function addLiquidity(
   connectedApi: any,
   coinPublicKey: string,
@@ -416,9 +418,9 @@ export async function addLiquidity(
 }
 
 // Reads the faucet's custody account bytes directly from ledger state
-// (written once by init(), see contracts/src/akad.compact), so the caller
-// of transferTokens() below doesn't need to reimplement persistentHash()
-// in TypeScript to compute it.
+// (written once by the constructor, see contracts/src/akad.compact), so
+// the caller of transferTokens() below doesn't need to reimplement
+// persistentHash() in TypeScript to compute it.
 export async function getFaucetAddress(
   connectedApi: any,
   coinPublicKey: string,
