@@ -15,7 +15,14 @@ export const TEST_SEED = '0f1e2d3c4b5a69788796a5b4c3d2e1f00112233445566778899aab
 
 export const CONFIG_FILE = resolve(import.meta.dirname, '../akad.config.json');
 
-export type CliRun = { code: number; stdout: string; stderr: string; envFile: string };
+export type CliRun = {
+  code: number;
+  stdout: string;
+  stderr: string;
+  envFile: string;
+  /** What the command copied to the clipboard and which URLs it opened. */
+  desktop: { copied: string[]; opened: string[] };
+};
 
 /** Runs the CLI in-process with a temporary env file and reports directory. */
 export async function runCli(argv: string[], env: CliEnv = {}): Promise<CliRun> {
@@ -23,13 +30,18 @@ export async function runCli(argv: string[], env: CliEnv = {}): Promise<CliRun> 
   let stdout = '';
   let stderr = '';
   const envFile = join(dir, '.env.automation');
+  const desktop = { copied: [] as string[], opened: [] as string[] };
   const code = await main(argv, {
     sink: { stdout: (text) => (stdout += text), stderr: (text) => (stderr += text) },
     env,
     paths: { repoRoot: dir, envFile, configFile: CONFIG_FILE, reportsDir: join(dir, 'runs') },
+    desktop: {
+      copyToClipboard: (text) => desktop.copied.push(text) > 0,
+      openUrl: (url) => desktop.opened.push(url) > 0,
+    },
     now: () => new Date('2026-09-25T00:00:00Z'),
   });
-  return { code, stdout, stderr, envFile };
+  return { code, stdout, stderr, envFile, desktop };
 }
 
 function roleKey(seed: Uint8Array, role: Role): Uint8Array {

@@ -12,30 +12,37 @@ const ENV = {
   AKAD_SEED_A2: TEST_SEED,
 };
 
+/** A non-test seed, for commands that only exist on public networks. */
+const PUBLIC_SEED = Seed.generate().revealHexForStorage();
+
 /**
- * Dry-run arguments for every command, on the local network where the test
- * seed is allowed. A command missing from this map fails the suite, so no
- * command ships without a leak check.
+ * Dry-run arguments for every command, with the seed its wallets use. The
+ * local network is used where the command supports it, since the test seed
+ * is refused elsewhere. A command missing from this map fails the suite, so
+ * no command ships without a leak check.
  */
-const DRY_RUN_ARGS: Record<string, string[]> = {
-  'wallet create': ['wallet', 'create', '--name', 'a9', '--network', 'local', '--dry-run'],
+const DRY_RUN_CASES: Record<string, { argv: string[]; seed: string }> = {
+  'wallet create': { argv: ['wallet', 'create', '--name', 'a9', '--network', 'local', '--dry-run'], seed: TEST_SEED },
+  'wallet status': { argv: ['wallet', 'status', '--name', 'a1', '--network', 'local', '--dry-run'], seed: TEST_SEED },
+  faucet: { argv: ['faucet', '--name', 'a0', '--network', 'preview', '--dry-run'], seed: PUBLIC_SEED },
 };
 
 describe('secret leak: every command in dry-run mode', () => {
-  const needles = secretNeedles(TEST_SEED);
-
-  it('has dry-run arguments for every registered command', () => {
-    const missing = COMMANDS.map((command) => command.path.join(' ')).filter((path) => !(path in DRY_RUN_ARGS));
+  it('has a dry-run case for every registered command', () => {
+    const missing = COMMANDS.map((command) => command.path.join(' ')).filter((path) => !(path in DRY_RUN_CASES));
     expect(missing).toEqual([]);
   });
 
-  for (const [path, argv] of Object.entries(DRY_RUN_ARGS)) {
+  for (const [path, { argv, seed }] of Object.entries(DRY_RUN_CASES)) {
     it(`${path} prints no seed or derived key, in text or JSON mode`, async () => {
+      const needles = secretNeedles(seed);
+      const env = { AKAD_SEED_A0: seed, AKAD_SEED_A1: seed, AKAD_SEED_A2: seed };
       for (const extra of [[], ['--json']]) {
-        const run = await runCli([...argv, ...extra], ENV);
+        const run = await runCli([...argv, ...extra], env);
         expect(run.stderr).not.toContain('SECRET_IN_OUTPUT');
         expect(run.code, run.stderr).toBe(0);
         expect(findSecret(needles, run.stdout, run.stderr)).toBeUndefined();
+        expect(run.desktop).toEqual({ copied: [], opened: [] });
       }
     });
   }

@@ -32,6 +32,7 @@ function context(): CliContext {
     out: new Output({ stdout: () => {}, stderr: () => {} }, secrets, false),
     secrets,
     paths: { repoRoot: dir, envFile: join(dir, '.env.automation'), configFile: CONFIG_FILE, reportsDir: join(dir, 'runs') },
+    desktop: { copyToClipboard: () => false, openUrl: () => false },
     now: () => new Date('2026-09-25T10:00:00.123Z'),
   };
 }

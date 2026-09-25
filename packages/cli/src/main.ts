@@ -1,12 +1,14 @@
 import { parseArgs } from 'node:util';
+import { faucet } from './commands/faucet.js';
 import { walletCreate } from './commands/wallet-create.js';
+import { walletStatus } from './commands/wallet-status.js';
 import { loadConfig } from './config.js';
-import type { CliEnv, CliPaths, Command, FlagSpec, Flags } from './context.js';
+import type { CliEnv, CliPaths, Command, Desktop, FlagSpec, Flags } from './context.js';
 import { AkadError, isAkadError } from './errors.js';
 import { Output, SecretRegistry, type OutputSink } from './output.js';
 
 /** Every command the CLI knows. The secret-leak test runs each one. */
-export const COMMANDS: readonly Command[] = [walletCreate];
+export const COMMANDS: readonly Command[] = [walletCreate, walletStatus, faucet];
 
 /** Flags every command accepts. */
 export const GLOBAL_FLAGS: Readonly<Record<string, FlagSpec>> = {
@@ -20,8 +22,11 @@ export type MainDeps = {
   sink: OutputSink;
   env: CliEnv;
   paths: CliPaths;
+  desktop?: Desktop;
   now?: () => Date;
 };
+
+const NO_DESKTOP: Desktop = { copyToClipboard: () => false, openUrl: () => false };
 
 function selectCommand(argv: readonly string[]): { command: Command; rest: string[] } {
   const matches = COMMANDS.filter((command) => command.path.every((word, index) => argv[index] === word));
@@ -75,7 +80,15 @@ export async function main(argv: readonly string[], deps: MainDeps): Promise<num
     }
     const config = loadConfig(deps.paths.configFile);
     await command.run(
-      { env: deps.env, config, out, secrets, paths: deps.paths, now: deps.now ?? (() => new Date()) },
+      {
+        env: deps.env,
+        config,
+        out,
+        secrets,
+        paths: deps.paths,
+        desktop: deps.desktop ?? NO_DESKTOP,
+        now: deps.now ?? (() => new Date()),
+      },
       parsed.values,
       parsed.positionals
     );

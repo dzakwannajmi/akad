@@ -15,6 +15,15 @@ export type CliPaths = {
 /** Parsed flags: strings, booleans, or repeated strings. */
 export type Flags = Readonly<Record<string, string | boolean | string[] | undefined>>;
 
+/**
+ * Side effects on the operator's machine. Each returns false when it could
+ * not act, for example off macOS, and the command prints a manual step.
+ */
+export type Desktop = {
+  copyToClipboard: (text: string) => boolean;
+  openUrl: (url: string) => boolean;
+};
+
 /** Everything a command may touch. Commands never read process.env or process.stdout directly. */
 export type CliContext = {
   env: CliEnv;
@@ -22,6 +31,7 @@ export type CliContext = {
   out: Output;
   secrets: SecretRegistry;
   paths: CliPaths;
+  desktop: Desktop;
   now: () => Date;
 };
 

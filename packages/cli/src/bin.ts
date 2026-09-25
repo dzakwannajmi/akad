@@ -2,6 +2,7 @@
 // Entry point. The only module that reads process.env: it loads the
 // automation seeds from .env.automation into the environment, then hands a
 // snapshot to main(). Seeds never travel on the command line.
+import { execFileSync, spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -21,6 +22,18 @@ process.exitCode = await main(process.argv.slice(2), {
     stderr: (text) => process.stderr.write(text),
   },
   env: { ...process.env },
+  desktop: {
+    copyToClipboard: (text) => {
+      if (process.platform !== 'darwin') return false;
+      execFileSync('pbcopy', { input: text });
+      return true;
+    },
+    openUrl: (url) => {
+      if (process.platform !== 'darwin') return false;
+      spawn('open', [url], { detached: true, stdio: 'ignore' }).unref();
+      return true;
+    },
+  },
   paths: {
     repoRoot,
     envFile,
