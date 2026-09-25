@@ -92,17 +92,12 @@ async function loadCompiledContract() {
   // Bundled via webpack, NOT fetched over HTTP.
   const contractModule = await import('./contracts/akad/contract/index.js');
 
-  const cc = (CompiledContract as any).make('akad', contractModule.Contract);
-  // NOTE: cast to any because this MacBook's installed compact compiler emits
-  // Promise-wrapped CircuitResults in the generated .d.ts, while
-  // @midnight-ntwrk/compact-js@2.5.1's CompiledContract.make() generic bound
-  // still expects the older non-Promise shape. Confirmed by recompiling the
-  // previous token.compact fresh on this machine: same mismatch, so this is
-  // toolchain version skew from the Windows->MacBook migration, not a defect
-  // in this contract. Every other midnight-js call in this file already goes
-  // through `as any` for the same underlying reason.
-  const withWitnesses = (CompiledContract as any).withWitnesses(akadWitnesses);
-  const withAssets = (CompiledContract as any).withCompiledFileAssets(AKAD_CONTRACT_PATH);
+  const cc = CompiledContract.make('akad', contractModule.Contract);
+  // The curried forms below take their type parameters from the contract
+  // they are later applied to. TypeScript cannot infer them at this call, so
+  // without the casts tsc resolves each parameter type to `never`.
+  const withWitnesses = (CompiledContract as any).withWitnesses(akadWitnesses); // interop: compact-js 2.5.1 curried withWitnesses cannot infer C, PS, R here
+  const withAssets = (CompiledContract as any).withCompiledFileAssets(AKAD_CONTRACT_PATH); // interop: compact-js 2.5.1 curried withCompiledFileAssets cannot infer C, PS, R here
   _compiledContract = withWitnesses(withAssets(cc));
   return _compiledContract;
 }
@@ -120,7 +115,7 @@ export async function deployAkadContract(
   const providers = await buildProviders(connectedApi, coinPublicKey, encryptionPublicKey, undefined, AKAD_CONTRACT_PATH);
   const compiledContract = await loadCompiledContract();
 
-  const deployTxData = await (createUnprovenDeployTx as any)(
+  const deployTxData = await (createUnprovenDeployTx as any)( // interop: midnight-js-contracts 4.1.1 deploy options have no privateStateId field; createUnprovenDeployTx ignores it
     {
       zkConfigProvider: providers.zkConfigProvider,
       walletProvider: providers.walletProvider,
@@ -136,7 +131,7 @@ export async function deployAkadContract(
 
   const contractAddress = deployTxData.public.contractAddress;
 
-  await (submitTxAsync as any)(providers, { unprovenTx: deployTxData.private.unprovenTx });
+  await submitTxAsync(providers, { unprovenTx: deployTxData.private.unprovenTx });
 
   await providers.privateStateProvider.setContractAddress(contractAddress);
   await providers.privateStateProvider.set(PRIVATE_STATE_ID, createInitialPrivateState());
@@ -204,7 +199,7 @@ export async function recordTokenColor(
 
   const compiledContract = await loadCompiledContract();
 
-  await (submitCallTxAsync as any)(providers, {
+  await submitCallTxAsync(providers, {
     compiledContract,
     contractAddress,
     circuitId: 'recordTokenColor',
@@ -237,7 +232,7 @@ export async function getPublicPoolState(contractAddress: string): Promise<Publi
   }
 
   const contractModule = await import('./contracts/akad/contract/index.js');
-  const ledgerState = (contractModule as any).ledger(contractState.data);
+  const ledgerState = contractModule.ledger(contractState.data);
 
   return {
     reserveAKD: BigInt(ledgerState.reserveAKD),
@@ -269,7 +264,7 @@ export async function wrapTokens(
   const nonce = crypto.getRandomValues(new Uint8Array(32));
   await stagePrivateState(providers, contractAddress, { pendingNonce: nonce });
 
-  const result = await (submitCallTxAsync as any)(providers, {
+  const result = await submitCallTxAsync(providers, {
     compiledContract,
     contractAddress,
     circuitId: 'wrap',
@@ -294,7 +289,7 @@ export async function getTokenColor(
     throw new Error('Contract state not found');
   }
   const contractModule = await import('./contracts/akad/contract/index.js');
-  const ledgerState = (contractModule as any).ledger(contractState.data);
+  const ledgerState = contractModule.ledger(contractState.data);
 
   const color = ledgerState.tokenColor as Uint8Array;
   // An all-zero colour means recordTokenColor() has never run against this
@@ -324,7 +319,7 @@ export async function getNightColor(
     throw new Error('Contract state not found');
   }
   const contractModule = await import('./contracts/akad/contract/index.js');
-  const ledgerState = (contractModule as any).ledger(contractState.data);
+  const ledgerState = contractModule.ledger(contractState.data);
 
   const color = ledgerState.sNightColor as Uint8Array;
   if (color.every((b) => b === 0)) {
@@ -354,7 +349,7 @@ export async function unwrapTokens(
   // public inputs: nothing about which coin was spent is published.
   await stagePrivateState(providers, contractAddress, { pendingCoin: coin });
 
-  const result = await (submitCallTxAsync as any)(providers, {
+  const result = await submitCallTxAsync(providers, {
     compiledContract,
     contractAddress,
     circuitId: 'unwrap',
@@ -380,7 +375,7 @@ export async function transferTokens(
   const providers = await buildProviders(connectedApi, coinPublicKey, encryptionPublicKey, contractAddress, AKAD_CONTRACT_PATH);
   const compiledContract = await loadCompiledContract();
 
-  await (submitCallTxAsync as any)(providers, {
+  await submitCallTxAsync(providers, {
     compiledContract,
     contractAddress,
     circuitId: 'transfer',
@@ -409,7 +404,7 @@ export async function addLiquidity(
   const providers = await buildProviders(connectedApi, coinPublicKey, encryptionPublicKey, contractAddress, AKAD_CONTRACT_PATH);
   const compiledContract = await loadCompiledContract();
 
-  const result = await (submitCallTxAsync as any)(providers, {
+  const result = await submitCallTxAsync(providers, {
     compiledContract,
     contractAddress,
     circuitId: 'addLiquidity',
@@ -437,7 +432,7 @@ export async function getFaucetAddress(
     throw new Error('Contract state not found');
   }
   const contractModule = await import('./contracts/akad/contract/index.js');
-  const ledgerState = (contractModule as any).ledger(contractState.data);
+  const ledgerState = contractModule.ledger(contractState.data);
 
   return ledgerState.faucetAddress;
 }
@@ -465,7 +460,7 @@ export async function claimFaucet(
 
   const compiledContract = await loadCompiledContract();
 
-  const result = await (submitCallTxAsync as any)(providers, {
+  const result = await submitCallTxAsync(providers, {
     compiledContract,
     contractAddress,
     circuitId: 'claimFaucet',
@@ -492,7 +487,7 @@ export async function getFaucetBalance(
     throw new Error('Contract state not found');
   }
   const contractModule = await import('./contracts/akad/contract/index.js');
-  const ledgerState = (contractModule as any).ledger(contractState.data);
+  const ledgerState = contractModule.ledger(contractState.data);
 
   const faucetAddress = ledgerState.faucetAddress;
   if (!ledgerState.balances.member(faucetAddress)) {
@@ -515,7 +510,7 @@ export async function getReserves(
     throw new Error('Contract state not found');
   }
   const contractModule = await import('./contracts/akad/contract/index.js');
-  const ledgerState = (contractModule as any).ledger(contractState.data);
+  const ledgerState = contractModule.ledger(contractState.data);
 
   return {
     reserveAKD: BigInt(ledgerState.reserveAKD),
@@ -557,7 +552,7 @@ export async function getMyAkdBalance(
     throw new Error('Contract state not found');
   }
   const contractModule = await import('./contracts/akad/contract/index.js');
-  const ledgerState = (contractModule as any).ledger(contractState.data);
+  const ledgerState = contractModule.ledger(contractState.data);
 
   const parsedKey = MidnightBech32m.parse(coinPublicKey);
   const decodedKey = ShieldedCoinPublicKey.codec.decode(getNetworkId(), parsedKey);
@@ -630,7 +625,7 @@ export async function executeSwap(
     args.push({ bytes: recipientBytes });
   }
 
-  const result = await (submitCallTxAsync as any)(providers, {
+  const result = await submitCallTxAsync(providers, {
     compiledContract,
     contractAddress,
     circuitId,
@@ -663,7 +658,7 @@ export async function executeSwap(
 
 // Redeem a shielded sNIGHT coin for real tNIGHT. `coin.color` must be the
 // sNIGHT colour from getNightColor(); the circuit asserts it. The payout
-// destination is published, same as any unshielded transfer.
+// destination is published, as with every unshielded transfer.
 export async function unwrapNight(
   connectedApi: any,
   coinPublicKey: string,
@@ -687,7 +682,7 @@ export async function unwrapNight(
   const decodedAddress = UnshieldedAddress.codec.decode(getNetworkId(), parsedAddress);
   const recipientBytes = new Uint8Array(encodeUserAddress(decodedAddress.hexString));
 
-  const result = await (submitCallTxAsync as any)(providers, {
+  const result = await submitCallTxAsync(providers, {
     compiledContract,
     contractAddress,
     circuitId: 'unwrapNight',
@@ -724,7 +719,7 @@ export async function shieldedSwapAkdToNight(
   const nonce = crypto.getRandomValues(new Uint8Array(32));
   await stagePrivateState(providers, contractAddress, { pendingCoin: coin, pendingNonce: nonce });
 
-  const result = await (submitCallTxAsync as any)(providers, {
+  const result = await submitCallTxAsync(providers, {
     compiledContract,
     contractAddress,
     circuitId: 'shieldedSwapAkdToNight',
@@ -755,7 +750,7 @@ export async function shieldedSwapNightToAkd(
   const nonce = crypto.getRandomValues(new Uint8Array(32));
   await stagePrivateState(providers, contractAddress, { pendingCoin: coin, pendingNonce: nonce });
 
-  const result = await (submitCallTxAsync as any)(providers, {
+  const result = await submitCallTxAsync(providers, {
     compiledContract,
     contractAddress,
     circuitId: 'shieldedSwapNightToAkd',

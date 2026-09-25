@@ -388,7 +388,7 @@ export default function SwapPage() {
     }
   };
 
-  // sNIGHT -> tNIGHT. Publishes the payout address, same as any unshielded
+  // sNIGHT -> tNIGHT. Publishes the payout address, as with every unshielded
   // transfer, and that is the accepted cost of leaving the pool.
   const handleUnwrapNight = async () => {
     if (!connectedApi || !addresses || !sNightCoin) return;

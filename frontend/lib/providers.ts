@@ -69,7 +69,7 @@ export async function buildProviders(
     midnightProvider: {
       async submitTx(tx: any): Promise<string> {
         await connectedApi.submitTransaction(toHex(tx.serialize()));
-        const ids = (tx as any).identifiers?.();
+        const ids = tx.identifiers?.();
         return ids?.[0] ?? '';
       },
     },

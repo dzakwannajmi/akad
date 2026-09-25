@@ -11,14 +11,14 @@ describe('getCompatibleWallets', () => {
   });
 
   it('filters out wallets with an incompatible API version', () => {
-    (window as any).midnight = {
+    (window as any).midnight = { // interop: stub wallet whose connect() returns {} instead of a DApp Connector 4.0.1 ConnectedAPI
       lace: { name: 'Lace', apiVersion: '2.0.0', rdns: 'network.midnight.lace', icon: '', connect: async () => ({}) },
     };
     expect(getCompatibleWallets()).toEqual([]);
   });
 
   it('includes wallets matching the compatible API version range', () => {
-    (window as any).midnight = {
+    (window as any).midnight = { // interop: stub wallet whose connect() returns {} instead of a DApp Connector 4.0.1 ConnectedAPI
       lace: { name: 'Lace', apiVersion: '4.0.1', rdns: 'network.midnight.lace', icon: '', connect: async () => ({}) },
     };
     expect(getCompatibleWallets()).toHaveLength(1);
