@@ -61,7 +61,9 @@ export const faucet: Command = {
 
     const wallet = await startWallet(keys, resolveNetwork(ctx.config, network), cachePath(ctx.paths.repoRoot, network, name));
     try {
-      const before = summarize(await waitForSync(wallet.facade, SYNC_TIMEOUT_S * 1000), ctx.now()).night;
+      if (wallet.restored) ctx.out.error('sync: resuming from the local cache');
+      const synced = await waitForSync(wallet.facade, SYNC_TIMEOUT_S * 1000, (line) => ctx.out.error(line));
+      const before = summarize(synced, ctx.now()).night;
       await wallet.save();
       ctx.out.line(`Waiting for tNIGHT to arrive (current balance ${before} base units)...`);
       const after = await waitForState(

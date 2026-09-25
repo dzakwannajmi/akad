@@ -118,25 +118,60 @@ export async function startWallet(keys: WalletKeys, network: ResolvedNetwork, ca
   };
 }
 
+/** Receives a one-line progress report while a wallet syncs. */
+export type ProgressReporter = (line: string) => void;
+
+/**
+ * Describes sync progress as applied and highest index per wallet.
+ *
+ * @param state - Any facade state.
+ * @returns For example `shielded 120000/350000, dust 98000/350000, unshielded done`.
+ */
+export function describeProgress(state: FacadeState): string {
+  const index = (progress: { appliedIndex: bigint; highestIndex: bigint }) =>
+    `${progress.appliedIndex}/${progress.highestIndex}`;
+  const unshielded = state.unshielded.progress.isStrictlyComplete() ? 'done' : 'syncing';
+  return `shielded ${index(state.shielded.state.progress)}, dust ${index(state.dust.state.progress)}, unshielded ${unshielded}`;
+}
+
 /**
  * Waits until the shielded, unshielded and dust wallets have all caught up
  * with the indexer.
  *
  * @param facade - A started facade.
  * @param timeoutMs - How long to wait.
+ * @param report - Optional receiver of a progress line every `everyMs`.
+ * @param everyMs - Interval between progress lines.
  * @returns The synced state.
  * @throws AkadError `TIMEOUT` when sync does not finish in time.
  */
-export function waitForSync(facade: WalletFacade, timeoutMs: number): Promise<FacadeState> {
-  return Rx.firstValueFrom(
-    facade.state().pipe(
-      Rx.filter((state) => state.isSynced),
-      Rx.timeout({
-        first: timeoutMs,
-        with: () => Rx.throwError(() => new AkadError('TIMEOUT', `Wallet did not sync within ${timeoutMs / 1000} s.`)),
-      })
-    )
-  );
+export async function waitForSync(
+  facade: WalletFacade,
+  timeoutMs: number,
+  report?: ProgressReporter,
+  everyMs = 30_000
+): Promise<FacadeState> {
+  const progress = report === undefined
+    ? undefined
+    : facade.state().pipe(Rx.throttleTime(everyMs)).subscribe((state) => {
+        if (!state.isSynced) report(`sync: ${describeProgress(state)}`);
+      });
+  try {
+    return await Rx.firstValueFrom(
+      facade.state().pipe(
+        Rx.filter((state) => state.isSynced),
+        Rx.timeout({
+          first: timeoutMs,
+          with: () =>
+            Rx.throwError(
+              () => new AkadError('TIMEOUT', `Wallet did not sync within ${timeoutMs / 1000} s. Progress is cached; run the command again to continue.`)
+            ),
+        })
+      )
+    );
+  } finally {
+    progress?.unsubscribe();
+  }
 }
 
 /**

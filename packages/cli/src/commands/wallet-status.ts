@@ -55,7 +55,12 @@ export const walletStatus: Command = {
 
     const wallet = await startWallet(keys, resolveNetwork(ctx.config, network), cachePath(ctx.paths.repoRoot, network, name));
     try {
-      const state = await waitForSync(wallet.facade, timeoutMs(optionalString(flags, 'timeout'), SYNC_TIMEOUT_S));
+      if (wallet.restored) ctx.out.error('sync: resuming from the local cache');
+      const state = await waitForSync(
+        wallet.facade,
+        timeoutMs(optionalString(flags, 'timeout'), SYNC_TIMEOUT_S),
+        (line) => ctx.out.error(line)
+      );
       await wallet.save();
       const summary = summarize(state, ctx.now());
       rows.push(['tNIGHT', summary.night.toString()]);
