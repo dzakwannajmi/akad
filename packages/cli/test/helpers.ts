@@ -16,6 +16,8 @@ export const TEST_SEED = '0f1e2d3c4b5a69788796a5b4c3d2e1f00112233445566778899aab
 
 export const CONFIG_FILE = resolve(import.meta.dirname, '../akad.config.json');
 
+export const MANAGED_CONTRACT_DIR = resolve(import.meta.dirname, '../../../contracts/managed/akad');
+
 /** A small evidence file in the shape of evidence.schema.json, with real Preprod hashes. */
 export const EVIDENCE_SAMPLE = resolve(import.meta.dirname, 'fixtures/evidence-sample.json');
 
@@ -38,7 +40,7 @@ export async function runCli(argv: string[], env: CliEnv = {}, indexer?: Indexer
   const code = await main(argv, {
     sink: { stdout: (text) => (stdout += text), stderr: (text) => (stderr += text) },
     env,
-    paths: { repoRoot: dir, envFile, configFile: CONFIG_FILE, reportsDir: join(dir, 'runs') },
+    paths: { repoRoot: dir, envFile, configFile: CONFIG_FILE, reportsDir: join(dir, 'runs'), managedContractDir: MANAGED_CONTRACT_DIR },
     desktop: {
       copyToClipboard: (text) => desktop.copied.push(text) > 0,
       openUrl: (url) => desktop.opened.push(url) > 0,

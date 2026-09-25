@@ -11,6 +11,8 @@ export type CliPaths = {
   envFile: string;
   configFile: string;
   reportsDir: string;
+  /** Compiled v1 contract: compiler/contract-info.json, keys/ and zkir/. */
+  managedContractDir: string;
 };
 
 /** Parsed flags: strings, booleans, or repeated strings. */

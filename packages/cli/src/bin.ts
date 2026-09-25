@@ -39,5 +39,6 @@ process.exitCode = await main(process.argv.slice(2), {
     envFile,
     configFile: resolve(packageDir, 'akad.config.json'),
     reportsDir: resolve(repoRoot, 'docs/v2/evidence/runs'),
+    managedContractDir: resolve(repoRoot, 'contracts/managed/akad'),
   },
 });

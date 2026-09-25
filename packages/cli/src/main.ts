@@ -1,4 +1,5 @@
 import { parseArgs } from 'node:util';
+import { call } from './commands/call.js';
 import { evidenceVerify } from './commands/evidence-verify.js';
 import { faucet } from './commands/faucet.js';
 import { state } from './commands/state.js';
@@ -13,7 +14,7 @@ import { AkadError, isAkadError } from './errors.js';
 import { Output, SecretRegistry, type OutputSink } from './output.js';
 
 /** Every command the CLI knows. The secret-leak test runs each one. */
-export const COMMANDS: readonly Command[] = [walletCreate, walletStatus, faucet, state, evidenceVerify];
+export const COMMANDS: readonly Command[] = [walletCreate, walletStatus, faucet, state, evidenceVerify, call];
 
 /** Flags every command accepts. */
 export const GLOBAL_FLAGS: Readonly<Record<string, FlagSpec>> = {

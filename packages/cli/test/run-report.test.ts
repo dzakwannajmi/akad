@@ -13,7 +13,7 @@ import { deriveWalletKeys } from '../src/keys.js';
 import { Output, SecretRegistry } from '../src/output.js';
 import { makeRunId, stepPassed, writeRunReport, type RunReport } from '../src/report/run-report.js';
 import { Seed } from '../src/secrets.js';
-import { CONFIG_FILE, TEST_SEED } from './helpers.js';
+import { CONFIG_FILE, MANAGED_CONTRACT_DIR, TEST_SEED } from './helpers.js';
 
 const SCHEMA = resolve(import.meta.dirname, '../../../docs/v2/schemas/run-report.schema.json');
 
@@ -31,7 +31,7 @@ function context(): CliContext {
     config: loadConfig(CONFIG_FILE),
     out: new Output({ stdout: () => {}, stderr: () => {} }, secrets, false),
     secrets,
-    paths: { repoRoot: dir, envFile: join(dir, '.env.automation'), configFile: CONFIG_FILE, reportsDir: join(dir, 'runs') },
+    paths: { repoRoot: dir, envFile: join(dir, '.env.automation'), configFile: CONFIG_FILE, reportsDir: join(dir, 'runs'), managedContractDir: MANAGED_CONTRACT_DIR },
     desktop: { copyToClipboard: () => false, openUrl: () => false },
     indexerFor: () => {
       throw new Error('no indexer in this test');
