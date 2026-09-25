@@ -1,3 +1,5 @@
+import { inspect } from 'node:util';
+
 /** Every failure the CLI reports, as a closed set of codes. */
 export type AkadErrorCode =
   | 'INVALID_ARGS'
@@ -43,4 +45,19 @@ export class AkadError extends Error {
  */
 export function isAkadError(value: unknown): value is AkadError {
   return value instanceof AkadError;
+}
+
+/**
+ * Describes an unexpected error in full, nested causes included. Effect's
+ * FiberFailure, which the wallet SDK throws, keeps its cause outside the
+ * standard `cause` property, so util.inspect is used. Callers still pass the
+ * result through the output guard.
+ *
+ * @param err - Anything thrown.
+ * @param maxLength - Longest text returned.
+ * @returns A multi-line description.
+ */
+export function describeError(err: unknown, maxLength = 6000): string {
+  const text = inspect(err, { depth: 6, breakLength: 120 });
+  return text.length > maxLength ? `${text.slice(0, maxLength)}\n... (truncated)` : text;
 }

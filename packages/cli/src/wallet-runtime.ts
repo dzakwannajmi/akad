@@ -8,6 +8,7 @@ import * as Rx from 'rxjs';
 import type { ResolvedNetwork } from './config.js';
 import { AkadError } from './errors.js';
 import type { WalletKeys } from './keys.js';
+import { persistentSubmissionService } from './submission.js';
 import { readWalletCache, writeWalletCache, type WalletCache } from './wallet-cache.js';
 
 /** The raw token type of tNIGHT in wallet balance maps. */
@@ -57,6 +58,7 @@ export async function startWallet(keys: WalletKeys, network: ResolvedNetwork, ca
   const init = (cache: WalletCache | null) =>
     WalletFacade.init({
       configuration,
+      submissionService: () => persistentSubmissionService(new URL(network.nodeWs)),
       shielded: (config) =>
         cache === null
           ? ShieldedWallet(config).startWithSecretKeys(keys.shieldedSecretKeys)

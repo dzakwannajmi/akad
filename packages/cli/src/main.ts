@@ -12,7 +12,7 @@ import type { ResolvedNetwork } from './config.js';
 import type { CliEnv, CliPaths, Command, Desktop, FlagSpec, Flags } from './context.js';
 import type { IndexerClient } from './indexer/client.js';
 import { HttpIndexerClient } from './indexer/http.js';
-import { AkadError, isAkadError } from './errors.js';
+import { AkadError, describeError, isAkadError } from './errors.js';
 import { Output, SecretRegistry, type OutputSink } from './output.js';
 
 /** Every command the CLI knows. The secret-leak test runs each one. */
@@ -115,7 +115,7 @@ export async function main(argv: readonly string[], deps: MainDeps): Promise<num
   } catch (err) {
     const message = isAkadError(err)
       ? `error ${err.code}: ${err.message}`
-      : `unexpected error: ${err instanceof Error ? `${err.name}: ${err.message}` : String(err)}`;
+      : `unexpected error:\n${describeError(err)}`;
     try {
       out.error(message);
     } catch {
