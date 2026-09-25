@@ -2,7 +2,7 @@ import { MidnightBech32m, UnshieldedAddress } from '@midnight-ntwrk/wallet-sdk/a
 import { resolveNetwork } from '../config.js';
 import type { Command } from '../context.js';
 import { AkadError } from '../errors.js';
-import { readFeeCap } from '../fees.js';
+import { feeCapFor } from '../fees.js';
 import { isSet, optionalString, parseBaseUnits, parseWalletList, requireString } from '../flags.js';
 import { parseNetwork, sdkNetworkId } from '../networks.js';
 import { parseWalletName } from '../secrets.js';
@@ -53,7 +53,7 @@ export const walletFund: Command = {
       return;
     }
 
-    const cap = readFeeCap(ctx.env);
+    const cap = feeCapFor(ctx.env, isSet(flags, 'yes'));
     const yes = isSet(flags, 'yes');
     const resolved = resolveNetwork(ctx.config, network);
     const indexer = ctx.indexerFor(resolved);

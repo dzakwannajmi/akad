@@ -1,6 +1,6 @@
 import { resolveNetwork } from '../config.js';
 import type { Command } from '../context.js';
-import { readFeeCap } from '../fees.js';
+import { feeCapFor } from '../fees.js';
 import { isSet, optionalString, requireString } from '../flags.js';
 import { parseNetwork } from '../networks.js';
 import { parseWalletName } from '../secrets.js';
@@ -36,7 +36,7 @@ export const walletRegisterDust: Command = {
       ctx.out.fields([...plan, ['fee estimate', 'computed from the wallet state; not in a dry run']]);
       return;
     }
-    const cap = readFeeCap(ctx.env);
+    const cap = feeCapFor(ctx.env, isSet(flags, 'yes'));
     const resolved = resolveNetwork(ctx.config, network);
     const wallet = await startWallet(keys, resolved, cachePath(ctx.paths.repoRoot, network, name));
     try {

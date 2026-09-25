@@ -98,3 +98,12 @@ describe('akad call', () => {
     expect(run.stderr).toContain('FEE_CAP_MISSING');
   });
 });
+
+describe('fee cap for previews', () => {
+  it('is optional without --yes and required with it', async () => {
+    const { feeCapFor } = await import('../src/fees.js');
+    expect(feeCapFor({}, false)).toBeNull();
+    expect(feeCapFor({ AKAD_MAX_FEE_DUST: '7' }, false)).toBe(7n);
+    expect(() => feeCapFor({}, true)).toThrow(/AKAD_MAX_FEE_DUST/);
+  });
+});

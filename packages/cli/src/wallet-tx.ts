@@ -7,7 +7,8 @@ import { NIGHT, waitForState, type RunningWallet } from './wallet-runtime.js';
 
 /** What must hold before a wallet submits anything. */
 export type Gate = {
-  cap: bigint;
+  /** Null only in a preview without --yes. */
+  cap: bigint | null;
   yes: boolean;
   plan: ReadonlyArray<readonly [string, string]>;
 };
@@ -26,11 +27,14 @@ export function checkGate(ctx: CliContext, gate: Gate, fee: bigint): void {
   ctx.out.fields([
     ...gate.plan,
     ['fee estimate', `${fee} DUST base units (approximate until spike S5)`],
-    ['fee cap', `${gate.cap} (AKAD_MAX_FEE_DUST)`],
+    ['fee cap', gate.cap === null ? 'not set (AKAD_MAX_FEE_DUST is required with --yes)' : `${gate.cap} (AKAD_MAX_FEE_DUST)`],
   ]);
-  enforceFeeCap(fee, gate.cap);
+  if (gate.cap !== null) enforceFeeCap(fee, gate.cap);
   if (!gate.yes) {
     throw new AkadError('CONFIRMATION_REQUIRED', 'Nothing was submitted. Re-run with --yes to submit.');
+  }
+  if (gate.cap === null) {
+    throw new AkadError('FEE_CAP_MISSING', 'Nothing was submitted: AKAD_MAX_FEE_DUST is not set.');
   }
 }
 

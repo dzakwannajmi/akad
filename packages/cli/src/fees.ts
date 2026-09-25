@@ -28,6 +28,21 @@ export function readFeeCap(env: CliEnv): bigint {
 }
 
 /**
+ * Reads the fee cap when the command will submit (--yes), so a missing cap
+ * fails before any network work. Without --yes the command only previews,
+ * and the cap is shown if set.
+ *
+ * @param env - Environment snapshot.
+ * @param yes - Whether --yes was given.
+ * @returns The cap, or null for a preview without one.
+ * @throws AkadError `FEE_CAP_MISSING` when --yes is given without a cap.
+ */
+export function feeCapFor(env: CliEnv, yes: boolean): bigint | null {
+  if (yes) return readFeeCap(env);
+  return env[FEE_CAP_VARIABLE] === undefined || env[FEE_CAP_VARIABLE] === '' ? null : readFeeCap(env);
+}
+
+/**
  * Refuses a transaction whose fee estimate exceeds the cap.
  *
  * @param estimate - Fee estimate in DUST base units.
