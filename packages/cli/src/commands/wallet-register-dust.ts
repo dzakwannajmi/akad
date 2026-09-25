@@ -7,7 +7,9 @@ import { parseWalletName } from '../secrets.js';
 import { loadWallet } from '../wallet.js';
 import { cachePath } from '../wallet-cache.js';
 import { startWallet, waitForSync } from '../wallet-runtime.js';
-import { registerForDust, waitForDust } from '../wallet-tx.js';
+import { AkadError } from '../errors.js';
+import { writeRun } from '../report/run-report.js';
+import { dustRegistrationStep, registerForDust, waitForDust } from '../wallet-tx.js';
 import { SYNC_TIMEOUT_S, timeoutMs } from './wallet-status.js';
 
 /** Default wait for the first DUST after registration, in seconds. */
@@ -37,18 +39,26 @@ export const walletRegisterDust: Command = {
       return;
     }
     const cap = feeCapFor(ctx.env, isSet(flags, 'yes'));
+    const startedAt = ctx.now();
     const resolved = resolveNetwork(ctx.config, network);
     const wallet = await startWallet(keys, resolved, cachePath(ctx.paths.repoRoot, network, name));
     try {
       if (wallet.restored) ctx.out.error('sync: resuming from the local cache');
       await waitForSync(wallet.facade, SYNC_TIMEOUT_S * 1000, (line) => ctx.out.error(line));
       await wallet.save();
-      const { registered } = await registerForDust(ctx, wallet, ctx.indexerFor(resolved), {
+      const registration = await registerForDust(ctx, wallet, ctx.indexerFor(resolved), {
         cap,
         yes: isSet(flags, 'yes'),
         plan,
       });
-      ctx.out.line(registered === 0 ? 'Every NIGHT UTXO is already registered.' : `Registered ${registered} UTXO(s).`);
+      if (registration === null) {
+        ctx.out.line('Every NIGHT UTXO is already registered; nothing was submitted.');
+      } else {
+        const step = dustRegistrationStep(0, { name, address: keys.addresses.unshielded }, registration);
+        const path = writeRun(ctx, { scenario: 'wallet-register-dust', network, contract: null, startedAt, steps: [step] });
+        ctx.out.fields([['registered', `${registration.registered} UTXO(s)`], ['report', path]]);
+        if (!step.passed) throw new AkadError('STEP_FAILED', 'The DUST registration did not reach SUCCESS on the indexer.');
+      }
       const { dust, waitedMs } = await waitForDust(ctx, wallet, timeoutMs(optionalString(flags, 'timeout'), DUST_TIMEOUT_S));
       ctx.out.fields([
         ['DUST', `${dust} base units`],

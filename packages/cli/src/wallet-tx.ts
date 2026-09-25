@@ -1,9 +1,12 @@
+import type * as ledger from '@midnight-ntwrk/ledger-v8';
+import type { FacadeState } from '@midnight-ntwrk/wallet-sdk/facade';
 import type { CliContext } from './context.js';
 import { AkadError } from './errors.js';
 import { enforceFeeCap } from './fees.js';
 import type { IndexerClient } from './indexer/client.js';
 import { DEFAULT_WAIT, describeOutcome, waitForTransaction } from './indexer/wait.js';
-import { NIGHT, waitForState, type RunningWallet } from './wallet-runtime.js';
+import { stepPassed, type IndexerStatus, type RunStep } from './report/run-report.js';
+import { NIGHT, summarize, waitForState, type RunningWallet } from './wallet-runtime.js';
 
 /** What must hold before a wallet submits anything. */
 export type Gate = {
@@ -38,24 +41,41 @@ export function checkGate(ctx: CliContext, gate: Gate, fee: bigint): void {
   }
 }
 
+/** What the indexer said about a submission, ready for a run report step. */
+export type Confirmation = {
+  hash: string | null;
+  indexerStatus: IndexerStatus;
+  message: string;
+};
+
 /**
- * Waits for the indexer to report a submitted transaction and requires
- * SUCCESS.
+ * Submits a finalized transaction, then waits for the indexer. Never throws
+ * for a failed or rejected transaction: the caller records the outcome in a
+ * run report first and decides afterwards.
  *
  * @param ctx - CLI context.
+ * @param wallet - Wallet that submits.
  * @param indexer - Indexer client.
- * @param identifier - Identifier returned by submitTransaction.
+ * @param finalized - Proven, balanced, signed transaction.
  * @param what - Description for messages, for example "tNIGHT transfer".
- * @returns The transaction hash.
- * @throws AkadError `STEP_FAILED` for any status but SUCCESS, including a
- *   timeout.
+ * @returns Hash, indexer status and a one-line description. A node rejection
+ *   is NOT_SUBMITTED with the node's error as the message.
  */
-export async function confirmOnIndexer(
+export async function submitAndConfirm(
   ctx: CliContext,
+  wallet: RunningWallet,
   indexer: IndexerClient,
-  identifier: string,
+  finalized: ledger.FinalizedTransaction,
   what: string
-): Promise<string> {
+): Promise<Confirmation> {
+  let identifier: string;
+  try {
+    identifier = await wallet.facade.submitTransaction(finalized);
+  } catch (err) {
+    const message = `Not submitted: ${err instanceof Error ? err.message : String(err)}`;
+    ctx.out.fields([[`${what} status`, message]]);
+    return { hash: null, indexerStatus: 'NOT_SUBMITTED', message };
+  }
   ctx.out.error(`${what}: submitted; waiting for the indexer`);
   const outcome = await waitForTransaction(indexer, { identifier }, {
     ...DEFAULT_WAIT,
@@ -63,15 +83,61 @@ export async function confirmOnIndexer(
     now: () => Date.now(),
   });
   const described = describeOutcome(outcome);
+  const hash = outcome.kind === 'indexed' ? outcome.tx.hash : null;
   ctx.out.fields([
-    [`${what} tx`, outcome.kind === 'indexed' ? outcome.tx.hash : 'none'],
+    [`${what} tx`, hash ?? 'none'],
     [`${what} status`, described.message],
   ]);
-  if (outcome.kind !== 'indexed' || described.indexerStatus !== 'SUCCESS') {
-    throw new AkadError('STEP_FAILED', `${what} did not reach SUCCESS on the indexer.`);
-  }
-  return outcome.tx.hash;
+  return { hash, indexerStatus: described.indexerStatus, message: described.message };
 }
+
+/**
+ * The acting wallet's balances, in the shape of a run report's state.
+ *
+ * @param state - A synced facade state.
+ * @param now - Current time, for the DUST balance.
+ * @returns tNIGHT, DUST and NIGHT UTXO counts as decimal strings.
+ */
+export function walletState(state: FacadeState, now: Date): Record<string, string> {
+  const summary = summarize(state, now);
+  return {
+    night: summary.night.toString(),
+    dust: summary.dust.toString(),
+    nightUtxos: String(summary.nightUtxos.total),
+    nightUtxosRegisteredForDust: String(summary.nightUtxos.registeredForDust),
+  };
+}
+
+/**
+ * Reads the wallet's state after a confirmed transaction, giving the wallet
+ * up to a minute to see a change first.
+ *
+ * @param wallet - Running wallet.
+ * @param before - State recorded before the transaction.
+ * @param now - Clock.
+ * @returns The state after, or the latest state if nothing changed in time.
+ */
+export async function stateAfter(
+  wallet: RunningWallet,
+  before: Record<string, string>,
+  now: () => Date
+): Promise<Record<string, string>> {
+  const changed = (state: FacadeState) => JSON.stringify(walletState(state, now())) !== JSON.stringify(before);
+  try {
+    return walletState(await waitForState(wallet.facade, changed, 60_000, 'the wallet to see the transaction'), now());
+  } catch {
+    return walletState(await waitForState(wallet.facade, () => true, 60_000, 'a synced wallet state'), now());
+  }
+}
+
+/** The outcome of one DUST registration, for a run report step. */
+export type DustRegistration = {
+  registered: number;
+  fee: bigint;
+  confirmation: Confirmation;
+  stateBefore: Record<string, string>;
+  stateAfter: Record<string, string>;
+};
 
 /**
  * Registers every unregistered NIGHT UTXO of a synced wallet for DUST
@@ -83,8 +149,7 @@ export async function confirmOnIndexer(
  * @param wallet - Started, synced wallet.
  * @param indexer - Indexer client.
  * @param gate - Fee cap, confirmation and plan.
- * @returns How many UTXOs were registered and the registration hash, or
- *   zero and null when there was nothing to register.
+ * @returns The registration, or null when every NIGHT UTXO is already registered.
  * @throws AkadError `INSUFFICIENT_FUNDS` when the wallet holds no NIGHT.
  */
 export async function registerForDust(
@@ -92,7 +157,7 @@ export async function registerForDust(
   wallet: RunningWallet,
   indexer: IndexerClient,
   gate: Gate
-): Promise<{ registered: number; hash: string | null }> {
+): Promise<DustRegistration | null> {
   const { facade, keys } = wallet;
   const state = await waitForState(facade, () => true, 60_000, 'a synced wallet state');
   const night = state.unshielded.availableCoins.filter((coin) => coin.utxo.type === NIGHT);
@@ -100,8 +165,9 @@ export async function registerForDust(
     throw new AkadError('INSUFFICIENT_FUNDS', `${keys.name} holds no tNIGHT to register. Fund it first.`);
   }
   const unregistered = night.filter((coin) => !coin.meta.registeredForDustGeneration);
-  if (unregistered.length === 0) return { registered: 0, hash: null };
+  if (unregistered.length === 0) return null;
 
+  const before = walletState(state, ctx.now());
   const { fee } = await facade.estimateRegistration(unregistered);
   checkGate(ctx, gate, fee);
   ctx.out.error(`dust registration: waiting until the UTXOs have generated ${fee} DUST to cover the fee`);
@@ -111,9 +177,40 @@ export async function registerForDust(
     keys.unshieldedKeystore.getPublicKey(),
     (payload) => keys.unshieldedKeystore.signData(payload)
   );
-  const identifier = await facade.submitTransaction(await facade.finalizeRecipe(recipe));
-  const hash = await confirmOnIndexer(ctx, indexer, identifier, 'dust registration');
-  return { registered: unregistered.length, hash };
+  const confirmation = await submitAndConfirm(ctx, wallet, indexer, await facade.finalizeRecipe(recipe), 'dust registration');
+  const after = confirmation.hash === null ? before : await stateAfter(wallet, before, ctx.now);
+  return { registered: unregistered.length, fee, confirmation, stateBefore: before, stateAfter: after };
+}
+
+/**
+ * Turns a DUST registration into a run report step.
+ *
+ * @param index - Step index.
+ * @param wallet - Wallet name and address.
+ * @param registration - Result of registerForDust.
+ * @returns The step.
+ */
+export function dustRegistrationStep(
+  index: number,
+  wallet: { name: string; address: string },
+  registration: DustRegistration
+): RunStep {
+  return {
+    index,
+    kind: 'dustRegistration',
+    circuit: null,
+    wallet: wallet.name,
+    walletAddress: wallet.address,
+    expected: 'SUCCESS',
+    feeEstimate: { dust: registration.fee.toString(), method: 'approximate' },
+    tx: registration.confirmation.hash,
+    indexerStatus: registration.confirmation.indexerStatus,
+    passed: stepPassed('SUCCESS', registration.confirmation.indexerStatus),
+    stateBefore: registration.stateBefore,
+    stateAfter: registration.stateAfter,
+    feeActual: null,
+    error: registration.confirmation.indexerStatus === 'SUCCESS' ? null : registration.confirmation.message,
+  };
 }
 
 /**

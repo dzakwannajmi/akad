@@ -2,16 +2,19 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/dzakwannajmi/akad/docs/v2/schemas/run-report.schema.json",
   "title": "Akad CLI run report",
-  "description": "Written by every submitting CLI command. Contains addresses and hashes only, never secrets.",
+  "description": "Written by every submitting CLI command: contract calls and deploys, and wallet transfers and DUST registrations. Contains addresses and hashes only, never secrets.",
   "type": "object",
   "additionalProperties": false,
   "required": ["schemaVersion", "runId", "scenario", "network", "contract", "commit", "startedAt", "finishedAt", "steps"],
   "properties": {
-    "schemaVersion": { "const": 1 },
+    "schemaVersion": { "const": 2 },
     "runId": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z-[a-z0-9-]+$" },
     "scenario": { "type": "string", "pattern": "^[a-z0-9-]+$" },
     "network": { "$ref": "#/$defs/network" },
-    "contract": { "$ref": "#/$defs/hex64" },
+    "contract": {
+      "oneOf": [{ "$ref": "#/$defs/hex64" }, { "type": "null" }],
+      "description": "Contract the run targets; null when every step is a wallet operation."
+    },
     "commit": { "$ref": "#/$defs/commit" },
     "startedAt": { "type": "string", "format": "date-time" },
     "finishedAt": { "type": "string", "format": "date-time" },
@@ -22,19 +25,35 @@
     "hex64": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "commit": { "type": "string", "pattern": "^[0-9a-f]{7,40}$" },
     "uintString": { "type": "string", "pattern": "^(0|[1-9][0-9]*)$" },
+    "walletName": { "type": "string", "pattern": "^a[0-9]+$" },
     "state": {
       "type": "object",
-      "description": "Ledger fields read from the indexer, values as decimal strings.",
+      "description": "Values as decimal strings: contract ledger fields for call and deploy steps, the acting wallet's balances for transfer and dustRegistration steps.",
       "additionalProperties": { "$ref": "#/$defs/uintString" }
     },
+    "transfer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["toWallet", "toAddress", "amount"],
+      "properties": {
+        "toWallet": { "$ref": "#/$defs/walletName" },
+        "toAddress": { "type": "string", "minLength": 1 },
+        "amount": { "$ref": "#/$defs/uintString" }
+      }
+    },
+    "transferList": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/transfer" } },
     "step": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["index", "circuit", "wallet", "walletAddress", "expected", "feeEstimate", "tx", "indexerStatus", "passed", "stateBefore", "stateAfter", "feeActual", "error"],
+      "required": ["index", "kind", "circuit", "wallet", "walletAddress", "expected", "feeEstimate", "tx", "indexerStatus", "passed", "stateBefore", "stateAfter", "feeActual", "error"],
       "properties": {
         "index": { "type": "integer", "minimum": 0 },
-        "circuit": { "type": "string", "pattern": "^[a-zA-Z][a-zA-Z0-9]*$" },
-        "wallet": { "type": "string", "pattern": "^a[0-9]+$" },
+        "kind": { "enum": ["call", "deploy", "transfer", "dustRegistration"] },
+        "circuit": {
+          "oneOf": [{ "type": "string", "pattern": "^[a-zA-Z][a-zA-Z0-9]*$" }, { "type": "null" }],
+          "description": "Circuit name for call steps; null for every other kind."
+        },
+        "wallet": { "$ref": "#/$defs/walletName" },
         "walletAddress": { "type": "string", "minLength": 1 },
         "expected": { "enum": ["SUCCESS", "FAILURE"], "description": "FAILURE for adversarial steps that must be rejected." },
         "feeEstimate": {
@@ -46,6 +65,7 @@
             "method": { "enum": ["exact", "approximate"] }
           }
         },
+        "transfers": { "$ref": "#/$defs/transferList", "description": "Outputs of a transfer step, in order. Required for transfer steps, absent otherwise." },
         "tx": { "oneOf": [{ "$ref": "#/$defs/hex64" }, { "type": "null" }], "description": "Null when the step was rejected before submission." },
         "indexerStatus": { "enum": ["SUCCESS", "PARTIAL_SUCCESS", "FAILURE", "NOT_FOUND", "NOT_SUBMITTED"] },
         "passed": { "type": "boolean", "description": "True when the observed outcome matches expected, with status taken from the indexer." },
@@ -53,7 +73,19 @@
         "stateAfter": { "$ref": "#/$defs/state" },
         "feeActual": { "oneOf": [{ "$ref": "#/$defs/uintString" }, { "type": "null" }] },
         "error": { "oneOf": [{ "type": "string" }, { "type": "null" }] }
-      }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "kind": { "const": "call" } } },
+          "then": { "properties": { "circuit": { "type": "string" } } },
+          "else": { "properties": { "circuit": { "type": "null" } } }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "transfer" } } },
+          "then": { "properties": { "transfers": { "$ref": "#/$defs/transferList" } }, "required": ["transfers"] },
+          "else": { "properties": { "transfers": false } }
+        }
+      ]
     }
   }
 }

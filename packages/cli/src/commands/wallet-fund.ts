@@ -1,15 +1,26 @@
 import { MidnightBech32m, UnshieldedAddress } from '@midnight-ntwrk/wallet-sdk/address-format';
-import { resolveNetwork } from '../config.js';
-import type { Command } from '../context.js';
+import { resolveNetwork, type ResolvedNetwork } from '../config.js';
+import type { CliContext, Command } from '../context.js';
+import type { IndexerClient } from '../indexer/client.js';
+import type { WalletKeys } from '../keys.js';
 import { AkadError } from '../errors.js';
 import { feeCapFor } from '../fees.js';
 import { isSet, optionalString, parseBaseUnits, parseWalletList, requireString } from '../flags.js';
-import { parseNetwork, sdkNetworkId } from '../networks.js';
+import { parseNetwork, sdkNetworkId, type NetworkName } from '../networks.js';
 import { parseWalletName } from '../secrets.js';
 import { loadWallet } from '../wallet.js';
 import { cachePath } from '../wallet-cache.js';
 import { NIGHT, startWallet, summarize, waitForSync } from '../wallet-runtime.js';
-import { checkGate, confirmOnIndexer, registerForDust, waitForDust } from '../wallet-tx.js';
+import { stepPassed, writeRun, type RunStep } from '../report/run-report.js';
+import {
+  checkGate,
+  dustRegistrationStep,
+  registerForDust,
+  stateAfter,
+  submitAndConfirm,
+  waitForDust,
+  walletState,
+} from '../wallet-tx.js';
 import { DUST_TIMEOUT_S } from './wallet-register-dust.js';
 import { SYNC_TIMEOUT_S } from './wallet-status.js';
 
@@ -58,6 +69,10 @@ export const walletFund: Command = {
     const resolved = resolveNetwork(ctx.config, network);
     const indexer = ctx.indexerFor(resolved);
     const networkId = sdkNetworkId(network);
+    const startedAt = ctx.now();
+    const steps: RunStep[] = [];
+    const report = () =>
+      steps.length === 0 ? null : writeRun(ctx, { scenario: 'wallet-fund', network, contract: null, startedAt, steps });
 
     const wallet = await startWallet(sender, resolved, cachePath(ctx.paths.repoRoot, network, fromName));
     try {
@@ -66,6 +81,7 @@ export const walletFund: Command = {
       await wallet.save();
       const needed = amount * BigInt(recipients.length);
       const { night } = summarize(state, ctx.now());
+      const before = walletState(state, ctx.now());
       if (night < needed) {
         throw new AkadError('INSUFFICIENT_FUNDS', `${fromName} holds ${night} tNIGHT base units; the transfer needs ${needed}.`);
       }
@@ -83,37 +99,91 @@ export const walletFund: Command = {
         { shieldedSecretKeys: sender.shieldedSecretKeys, dustSecretKey: sender.dustSecretKey },
         { ttl: new Date(Date.now() + ONE_HOUR_MS), payFees: true }
       );
-      checkGate(ctx, { cap, yes, plan }, await wallet.facade.calculateTransactionFee(recipe.transaction));
+      const fee = await wallet.facade.calculateTransactionFee(recipe.transaction);
+      checkGate(ctx, { cap, yes, plan }, fee);
       const signed = await wallet.facade.signRecipe(recipe, (payload) => sender.unshieldedKeystore.signData(payload));
-      const identifier = await wallet.facade.submitTransaction(await wallet.facade.finalizeRecipe(signed));
-      await confirmOnIndexer(ctx, indexer, identifier, 'tNIGHT transfer');
+      const confirmation = await submitAndConfirm(ctx, wallet, indexer, await wallet.facade.finalizeRecipe(signed), 'tNIGHT transfer');
+      steps.push({
+        index: 0,
+        kind: 'transfer',
+        circuit: null,
+        wallet: fromName,
+        walletAddress: sender.addresses.unshielded,
+        expected: 'SUCCESS',
+        feeEstimate: { dust: fee.toString(), method: 'approximate' },
+        transfers: recipients.map((r) => ({ toWallet: r.name, toAddress: r.addresses.unshielded, amount: amount.toString() })),
+        tx: confirmation.hash,
+        indexerStatus: confirmation.indexerStatus,
+        passed: stepPassed('SUCCESS', confirmation.indexerStatus),
+        stateBefore: before,
+        stateAfter: confirmation.hash === null ? before : await stateAfter(wallet, before, ctx.now),
+        feeActual: null,
+        error: confirmation.indexerStatus === 'SUCCESS' ? null : confirmation.message,
+      });
     } finally {
       await wallet.stop();
     }
+    if (steps[0]?.passed !== true) {
+      const path = report();
+      if (path !== null) ctx.out.fields([['report', path]]);
+      throw new AkadError('STEP_FAILED', 'The tNIGHT transfer did not reach SUCCESS on the indexer.');
+    }
 
-    if (isSet(flags, 'no-register')) return;
-    for (const recipient of recipients) {
-      const running = await startWallet(recipient, resolved, cachePath(ctx.paths.repoRoot, network, recipient.name));
-      try {
-        if (running.restored) ctx.out.error(`sync ${recipient.name}: resuming from the local cache`);
-        await waitForSync(running.facade, SYNC_TIMEOUT_S * 1000, (line) => ctx.out.error(`${recipient.name} ${line}`));
-        await running.save();
-        await registerForDust(ctx, running, indexer, {
-          cap,
-          yes,
-          plan: [
-            ['action', 'register NIGHT UTXOs for DUST generation'],
-            ['wallet', `${recipient.name} ${recipient.addresses.unshielded}`],
-          ],
-        });
-        const { dust, waitedMs } = await waitForDust(ctx, running, DUST_TIMEOUT_S * 1000);
-        ctx.out.fields([
-          [`${recipient.name} DUST`, `${dust} base units`],
-          [`${recipient.name} DUST wait`, `${Math.round(waitedMs / 1000)} s after registration was confirmed`],
-        ]);
-      } finally {
-        await running.stop();
+    try {
+      if (!isSet(flags, 'no-register')) {
+        await registerRecipients(ctx, recipients, { network, resolved, indexer, cap, yes }, steps);
       }
+    } finally {
+      const path = report();
+      if (path !== null) ctx.out.fields([['report', path]]);
+    }
+    const failed = steps.filter((step) => !step.passed);
+    if (failed.length > 0) {
+      throw new AkadError('STEP_FAILED', `${failed.length} step(s) did not reach SUCCESS on the indexer.`);
     }
   },
 };
+
+/**
+ * Registers each funded recipient for DUST and waits for its DUST, appending
+ * one run report step per registration.
+ *
+ * @param ctx - CLI context.
+ * @param recipients - Recipient wallets.
+ * @param run - Network, endpoints, indexer and the gate settings.
+ * @param steps - Run report steps, appended to in place.
+ */
+async function registerRecipients(
+  ctx: CliContext,
+  recipients: readonly WalletKeys[],
+  run: { network: NetworkName; resolved: ResolvedNetwork; indexer: IndexerClient; cap: bigint | null; yes: boolean },
+  steps: RunStep[]
+): Promise<void> {
+  for (const recipient of recipients) {
+    const running = await startWallet(recipient, run.resolved, cachePath(ctx.paths.repoRoot, run.network, recipient.name));
+    try {
+      if (running.restored) ctx.out.error(`sync ${recipient.name}: resuming from the local cache`);
+      await waitForSync(running.facade, SYNC_TIMEOUT_S * 1000, (line) => ctx.out.error(`${recipient.name} ${line}`));
+      await running.save();
+      const registration = await registerForDust(ctx, running, run.indexer, {
+        cap: run.cap,
+        yes: run.yes,
+        plan: [
+          ['action', 'register NIGHT UTXOs for DUST generation'],
+          ['wallet', `${recipient.name} ${recipient.addresses.unshielded}`],
+        ],
+      });
+      if (registration === null) continue;
+      const step = dustRegistrationStep(steps.length, { name: recipient.name, address: recipient.addresses.unshielded }, registration);
+      steps.push(step);
+      if (!step.passed) continue;
+      const { dust, waitedMs } = await waitForDust(ctx, running, DUST_TIMEOUT_S * 1000);
+      ctx.out.fields([
+        [`${recipient.name} DUST`, `${dust} base units`],
+        [`${recipient.name} DUST wait`, `${Math.round(waitedMs / 1000)} s after registration was confirmed`],
+      ]);
+    } finally {
+      await running.stop();
+    }
+  }
+}

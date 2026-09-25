@@ -1,4 +1,3 @@
-import { execFileSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -21,7 +20,7 @@ import { isSet, optionalString, requireString } from '../flags.js';
 import type { IndexerClient } from '../indexer/client.js';
 import { DEFAULT_WAIT, describeOutcome, waitForTransaction, type TxOutcome } from '../indexer/wait.js';
 import { parseNetwork, sdkNetworkId } from '../networks.js';
-import { makeRunId, stepPassed, writeRunReport, type RunReport, type RunStep } from '../report/run-report.js';
+import { currentCommit, stepPassed, writeRun, type RunStep } from '../report/run-report.js';
 import { parseWalletName } from '../secrets.js';
 import { loadWallet } from '../wallet.js';
 import { cachePath } from '../wallet-cache.js';
@@ -56,14 +55,6 @@ function displayArg(value: CircuitArg): string {
   if (typeof value === 'bigint' || typeof value === 'boolean') return value.toString();
   if (value instanceof Uint8Array) return Buffer.from(value).toString('hex');
   return JSON.stringify(Object.fromEntries(Object.entries(value).map(([k, v]) => [k, displayArg(v)])));
-}
-
-function gitCommit(repoRoot: string): string {
-  try {
-    return execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repoRoot, encoding: 'utf8' }).trim();
-  } catch {
-    throw new AkadError('CONFIG', 'Run reports need a git commit; run the CLI inside the Akad repository.');
-  }
 }
 
 async function readState(indexer: IndexerClient, address: string): Promise<Record<string, string>> {
@@ -122,7 +113,7 @@ export const call: Command = {
     setNetworkId(sdkNetworkId(network));
     const resolved = resolveNetwork(ctx.config, network);
     const indexer = ctx.indexerFor(resolved);
-    const commit = gitCommit(ctx.paths.repoRoot);
+    currentCommit(ctx.paths.repoRoot);
     const startedAt = ctx.now();
     const stateBefore = await readState(indexer, address);
 
@@ -179,6 +170,7 @@ export const call: Command = {
       const indexerStatus = described?.indexerStatus ?? 'NOT_SUBMITTED';
       const step: RunStep = {
         index: 0,
+        kind: 'call',
         circuit: circuit.name,
         wallet: walletName,
         walletAddress: keys.addresses.unshielded,
@@ -193,18 +185,7 @@ export const call: Command = {
         error,
       };
       const scenario = `call-${circuit.name.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}`;
-      const report: RunReport = {
-        schemaVersion: 1,
-        runId: makeRunId(startedAt, scenario),
-        scenario,
-        network,
-        contract: address,
-        commit,
-        startedAt: startedAt.toISOString(),
-        finishedAt: ctx.now().toISOString(),
-        steps: [step],
-      };
-      const path = writeRunReport(ctx, report);
+      const path = writeRun(ctx, { scenario, network, contract: address, startedAt, steps: [step] });
       ctx.out.fields([
         ['tx', step.tx ?? 'none'],
         ['indexer status', described?.message ?? `Not submitted: ${error ?? 'unknown error'}`],

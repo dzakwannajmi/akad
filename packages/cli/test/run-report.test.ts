@@ -44,7 +44,7 @@ function sampleReport(ctx: CliContext): RunReport {
   const keys = deriveWalletKeys('a1', Seed.fromHex(TEST_SEED), 'undeployed', ctx.secrets);
   const startedAt = ctx.now();
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     runId: makeRunId(startedAt, 'call-record-token-color'),
     scenario: 'call-record-token-color',
     network: 'local',
@@ -55,6 +55,7 @@ function sampleReport(ctx: CliContext): RunReport {
     steps: [
       {
         index: 0,
+        kind: 'call',
         circuit: 'recordTokenColor',
         wallet: 'a1',
         walletAddress: keys.addresses.unshielded,
@@ -84,6 +85,40 @@ describe('run reports', () => {
     const written = JSON.parse(readFileSync(path, 'utf8'));
     expect(validate(written), JSON.stringify(validate.errors)).toBe(true);
     expect(path.endsWith('2026-09-25T10:00:00Z-call-record-token-color.json')).toBe(true);
+  });
+
+  it('validates wallet-only runs: a transfer and a DUST registration, with no contract', () => {
+    const ctx = context();
+    const base = sampleReport(ctx);
+    const step = base.steps[0]!;
+    const walletRun: RunReport = {
+      ...base,
+      runId: makeRunId(ctx.now(), 'wallet-fund'),
+      scenario: 'wallet-fund',
+      contract: null,
+      steps: [
+        {
+          ...step,
+          kind: 'transfer',
+          circuit: null,
+          transfers: [{ toWallet: 'a1', toAddress: step.walletAddress, amount: '5000000' }],
+          stateBefore: { night: '10000000000', dust: '0' },
+          stateAfter: { night: '4999999999', dust: '0' },
+        },
+        { ...step, index: 1, kind: 'dustRegistration', circuit: null, stateBefore: {}, stateAfter: {} },
+      ],
+    };
+    const validate = validator();
+    const written = JSON.parse(readFileSync(writeRunReport(ctx, walletRun), 'utf8'));
+    expect(validate(written), JSON.stringify(validate.errors)).toBe(true);
+  });
+
+  it('rejects a call step without a circuit and a transfer step without outputs', () => {
+    const ctx = context();
+    const base = sampleReport(ctx);
+    const validate = validator();
+    expect(validate({ ...base, steps: [{ ...base.steps[0]!, circuit: null }] })).toBe(false);
+    expect(validate({ ...base, contract: null, steps: [{ ...base.steps[0]!, kind: 'transfer', circuit: null }] })).toBe(false);
   });
 
   it('never overwrites an existing report', () => {
