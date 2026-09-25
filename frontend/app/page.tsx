@@ -23,12 +23,12 @@ const advantages = [
   {
     icon: 'lucide:unlock',
     title: 'Unwrap anytime',
-    body: 'Send the shielded coin back to the contract and your public balance is credited again, verified on Preview.',
+    body: 'Send the shielded coin back to the contract and your public balance is credited again, verified on Preprod.',
   },
   {
     icon: 'lucide:eye-off',
     title: 'Holdings leave the public ledger',
-    body: 'Wrapping takes your AKD out of the public balance map, so nobody can read what you hold. It does not hide the transaction graph: a coin nonce is published when you wrap and again when you spend.',
+    body: 'Wrapping takes your AKD out of the public balance map, so your holding is no longer a public row. The wrap itself is visible: the ledger shows your wallet key and how much left your balance.',
   },
   {
     icon: 'lucide:globe',
@@ -40,15 +40,15 @@ const advantages = [
 const faqs = [
   {
     q: 'What is AKD?',
-    a: 'A demo token created for this project. Akad runs on the Midnight Preview testnet — AKD and NIGHT have no real value, and nothing here involves real money.',
+    a: 'A demo token created for this project. Akad runs on Midnight’s Preview and Preprod testnets, so AKD and NIGHT have no real value, and nothing here involves real money.',
   },
   {
     q: 'Which wallet do I need?',
-    a: 'Either 1AM or Lace, set to the Preview network. Swapping and wrapping work in both. Unwrapping is verified on 1AM only: on Lace the transaction hangs inside the wallet’s own balancing step and never completes.',
+    a: 'Either 1AM or Lace, set to the same network as the app’s network toggle (Preview or Preprod). Public swaps and wrapping work in both. Unwrapping and shielded swaps need 1AM: on Lace, spending a shielded coin hangs inside the wallet’s own balancing step and never completes.',
   },
   {
     q: 'What stays private, and what does not?',
-    a: 'Private: what you hold. While AKD is wrapped there is no public ledger row tying that balance to your address. Public: trade sizes, pool reserves, and your slippage tolerance, because every argument passed to a Compact circuit is part of the public transcript. A shielded coin nonce is also published both when you wrap and when you spend it, so the two can be linked by an observer. The full boundary is written up in docs/hackathon/SECURITY_AUDIT.md in the repo.',
+    a: 'Private: what you hold while it is wrapped, and who you are on a shielded swap. A wrapped balance has no public ledger row, and a shielded swap moves both legs as shielded coins, so no address appears in it. Public: pool reserves and the size of every trade, which the reserve change reveals; wrapping and unwrapping, which show your wallet key and the amount; and the recipient address whenever sNIGHT is redeemed for tNIGHT. The full boundary is written up in docs/hackathon/MIDNIGHT_IMPLEMENTATION.md in the repo.',
   },
   {
     q: 'Does swapping move my tokens?',
@@ -59,12 +59,12 @@ const faqs = [
     a: 'Connect your wallet on the Swap page and click Claim faucet. Every wallet can claim a one-time 50 AKD from the public faucet, enough to try a real swap. Each wallet can only claim once.',
   },
   {
-    q: 'Why are the amounts so small?',
-    a: 'All values are in base units. AKD uses six decimals, so the interface currently shows raw units rather than whole tokens. Decimal formatting is on the changelog.',
+    q: 'What units are amounts in?',
+    a: 'AKD uses six decimals. The contract counts base units, so 1 AKD is 1,000,000 of them, and the swap, pool, and deploy screens convert to whole tokens for you.',
   },
   {
     q: 'Is this production ready?',
-    a: 'Akad runs on Midnight’s Preview testnet, so AKD and NIGHT are demo assets with no real value by design. Every swap, wrap, and unwrap settles on-chain and is independently verified against the indexer. See the changelog for what has shipped and what is next.',
+    a: 'Akad runs on Midnight’s Preview and Preprod testnets, so AKD and NIGHT are demo assets with no real value by design. Every swap, wrap, and unwrap is an on-chain transaction, and the activity feed lists one only after the indexer confirms it succeeded. See the changelog for what has shipped and what is next.',
   },
 ];
 
