@@ -1,0 +1,111 @@
+{
+  "schemaVersion": 2,
+  "runId": "2026-09-25T19:13:45Z-wallet-fund",
+  "scenario": "wallet-fund",
+  "network": "preview",
+  "contract": null,
+  "commit": "09ab6c57b8c55161a930be932e5c6b6f6971153a",
+  "startedAt": "2026-09-25T19:13:45.710Z",
+  "finishedAt": "2026-09-25T19:16:20.880Z",
+  "steps": [
+    {
+      "index": 0,
+      "kind": "transfer",
+      "circuit": null,
+      "wallet": "a0",
+      "walletAddress": "mn_addr_preview1k4dxefanunxz67vp6sjan0ka5l4fjz6m75n869sajtfdgfjuellqpjc2fv",
+      "expected": "SUCCESS",
+      "feeEstimate": {
+        "dust": "1",
+        "method": "approximate"
+      },
+      "transfers": [
+        {
+          "toWallet": "a1",
+          "toAddress": "mn_addr_preview14whpmdeu2f5udumjx2jfhejx49tj3vs7yrawkh2rm0e0cz49ypks3enkg7",
+          "amount": "1000000000"
+        },
+        {
+          "toWallet": "a2",
+          "toAddress": "mn_addr_preview10zht50f9q60e85stfh0egu6ytzffhwa60wf7rv54ftx35gm35a6qj0s62u",
+          "amount": "1000000000"
+        }
+      ],
+      "tx": "73b94941a76a07d76387d8d6dc6de4ec9cdec6ff64d26d403552d40e823f0eda",
+      "indexerStatus": "SUCCESS",
+      "passed": true,
+      "stateBefore": {
+        "night": "10000000000",
+        "dust": "66177334999999999",
+        "nightUtxos": "2",
+        "nightUtxosRegisteredForDust": "2"
+      },
+      "stateAfter": {
+        "night": "8000000000",
+        "dust": "71741025999999998",
+        "nightUtxos": "2",
+        "nightUtxosRegisteredForDust": "2"
+      },
+      "feeActual": null,
+      "error": null
+    },
+    {
+      "index": 1,
+      "kind": "dustRegistration",
+      "circuit": null,
+      "wallet": "a1",
+      "walletAddress": "mn_addr_preview14whpmdeu2f5udumjx2jfhejx49tj3vs7yrawkh2rm0e0cz49ypks3enkg7",
+      "expected": "SUCCESS",
+      "feeEstimate": {
+        "dust": "1",
+        "method": "approximate"
+      },
+      "tx": "07f782204c1336d5157a924e5506e39a2f9744c3319fc7867b995892a89ee71e",
+      "indexerStatus": "SUCCESS",
+      "passed": true,
+      "stateBefore": {
+        "night": "6000000000",
+        "dust": "0",
+        "nightUtxos": "2",
+        "nightUtxosRegisteredForDust": "0"
+      },
+      "stateAfter": {
+        "night": "6000000000",
+        "dust": "55653443999999999",
+        "nightUtxos": "2",
+        "nightUtxosRegisteredForDust": "2"
+      },
+      "feeActual": null,
+      "error": null
+    },
+    {
+      "index": 2,
+      "kind": "dustRegistration",
+      "circuit": null,
+      "wallet": "a2",
+      "walletAddress": "mn_addr_preview10zht50f9q60e85stfh0egu6ytzffhwa60wf7rv54ftx35gm35a6qj0s62u",
+      "expected": "SUCCESS",
+      "feeEstimate": {
+        "dust": "1",
+        "method": "approximate"
+      },
+      "tx": "50d0a8b54a633e0c384432a2a859d7086f1f6fd84a296d65a4cb6b7553ff31ee",
+      "indexerStatus": "SUCCESS",
+      "passed": true,
+      "stateBefore": {
+        "night": "6000000000",
+        "dust": "0",
+        "nightUtxos": "2",
+        "nightUtxosRegisteredForDust": "0"
+      },
+      "stateAfter": {
+        "night": "6000000000",
+        "dust": "49353989999999999",
+        "nightUtxos": "2",
+        "nightUtxosRegisteredForDust": "2"
+      },
+      "feeActual": null,
+      "error": null
+    }
+  ]
+}
