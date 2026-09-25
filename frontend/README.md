@@ -1,6 +1,6 @@
 # Akad Frontend
 
-Next.js app for Akad — landing page, swap interface, and wallet integration (1AM and Lace) via the Midnight DApp Connector API.
+Next.js app for Akad: landing page, swap interface, and wallet integration (1AM and Lace) via the Midnight DApp Connector API.
 
 ## Structure
 
@@ -35,7 +35,7 @@ Install dependencies and configure environment:
     cp .env.example .env.local
     npm run dev
 
-Requires a Midnight wallet — **1AM** (recommended) or Lace — with the network set to **Preview** (default) or **Preprod**, and some NIGHT for gas. See the [Preview faucet](https://faucet.preview.midnight.network/), or claim AKD from the in-app faucet at `/faucet` once connected.
+Requires a Midnight wallet, **1AM** (recommended) or Lace, with the network set to **Preview** (default) or **Preprod**, and some NIGHT for gas. See the [Preview faucet](https://faucet.preview.midnight.network/), or claim AKD from the in-app faucet at `/faucet` once connected.
 
 ## Testing
 
@@ -44,5 +44,5 @@ Requires a Midnight wallet — **1AM** (recommended) or Lace — with the networ
 ## Notes
 
 - Next.js 16 defaults to Turbopack; this project needs webpack (for WASM + `isomorphic-ws` support), so `dev`/`build` scripts pass `--webpack` explicitly.
-- Contract deploy is a one-time operation done via `/deploy` (internal tooling) — end users only interact with `/swap`, `/faucet`, and `/activity`.
+- Contract deploy is a one-time operation done via `/deploy` (internal tooling). End users only interact with `/swap`, `/faucet`, and `/activity`.
 - `unwrap` is verified on 1AM; Lace hangs inside its own `balanceUnsealedTransaction` on shielded receive. See [docs/TROUBLESHOOTING.md](../docs/TROUBLESHOOTING.md) for that and other integration issues encountered building this.

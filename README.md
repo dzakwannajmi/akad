@@ -36,13 +36,13 @@ Privacy-optional AMM on Midnight Network, submitted to the Midnight Korea Hackat
 
 Akad is a constant-product AMM (`x * y = k`) for swapping a custom fungible token (AKD) against NIGHT on Midnight Network. Users can hold AKD publicly (standard token balance) or convert it into a shielded balance backed by Midnight's native Zswap infrastructure, which removes the public ledger row tying that holding to their wallet. See [Privacy Model](#privacy-model) for exactly what that does and does not hide.
 
-The idea behind the name: "Akad" is an agreement between two parties — every swap is exactly that, with a level of openness each trader chooses for themselves.
+The idea behind the name: "Akad" is an agreement between two parties. Every swap is exactly that, with a level of openness each trader chooses for themselves.
 
 ## Live Demo & Deployed Contracts
 
 **App:** <https://akad-dzakwannajmis-projects.vercel.app/>
 
-**Network:** Midnight Preview testnet (default), with **Preprod** also live and verified — see [Network Toggle](#network-toggle) below.
+**Network:** Midnight Preview testnet (default), with **Preprod** also live and verified. See [Network Toggle](#network-toggle) below.
 
 **Contracts:** shielded AKD/sNIGHT pair build (constructor replacing `init()`, real tNIGHT settlement on the public swap path, `recordTokenColor()`, shielded swaps trading AKD against sNIGHT instead of exposing an unshielded NIGHT address).
 
@@ -77,26 +77,26 @@ Earlier deployments are superseded and their hashes no longer describe this code
 
 ## Trying the App
 
-1. Install a Midnight wallet — **1AM** (recommended) or [Lace](https://www.lace.io/midnight) — and switch its network to **Preview**.
+1. Install a Midnight wallet, **1AM** (recommended) or [Lace](https://www.lace.io/midnight), and switch its network to **Preview**.
 2. Get test tokens from the [Preview faucet](https://faucet.preview.midnight.network/): NIGHT for gas, and DUST generated from it.
 3. Open the [live demo](https://akad-dzakwannajmis-projects.vercel.app/) and click **Launch App**.
 4. Connect your wallet on the swap page.
 5. Enter an amount, review the quote, and swap.
-6. Try **Wrap to Private** below the swap card — wrap an AKD amount, then check your wallet: the shielded AKD appears as a native shielded token, unlinked from your public balance.
+6. Try **Wrap to Private** below the swap card. Wrap an AKD amount, then check your wallet: the shielded AKD appears as a native shielded token, unlinked from your public balance.
 7. Unwrap sends it back the other way, crediting your public balance again.
 8. Once you have a wrapped coin, flip **Private** in the swap card's settings to spend or receive the AKD leg directly as a shielded coin, skipping the wrap/unwrap round trip. See [Design Notes](#design-notes) for exactly what that hides and what it doesn't.
 
-> **Wallet note:** `unwrap()` is verified on 1AM. On Lace, the shielded-receive transaction hangs inside the wallet's own `balanceUnsealedTransaction` and never returns — use 1AM for the full round trip.
+> **Wallet note:** `unwrap()` is verified on 1AM. On Lace, the shielded-receive transaction hangs inside the wallet's own `balanceUnsealedTransaction` and never returns. Use 1AM for the full round trip.
 
 ## Network Toggle
 
-Akad can run against **Preview** or **Preprod** from the same deployed site — a toggle switches the active network (indexer endpoints, wallet `connect()` target, and contract address) without editing env vars or redeploying. Preview is the default; Preprod now also has a deployed contract, with a full swap/wrap/unwrap cycle verified on it. See [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md#network-preview-vs-preprod) for why Preprod was avoided early on and what's changed since, and `frontend/.env.example` for the full list of per-network env vars.
+Akad can run against **Preview** or **Preprod** from the same deployed site. A toggle switches the active network (indexer endpoints, wallet `connect()` target, and contract address) without editing env vars or redeploying. Preview is the default; Preprod now also has a deployed contract, with a full swap/wrap/unwrap cycle verified on it. See [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md#network-preview-vs-preprod) for why Preprod was avoided early on and what's changed since, and `frontend/.env.example` for the full list of per-network env vars.
 
 ## Architecture
 
 ```text
 contracts/    Compact smart contract (akad.compact: token + AMM), see contracts/README.md
-frontend/     Next.js app (landing, swap UI, wallet integration) — see frontend/README.md
+frontend/     Next.js app (landing, swap UI, wallet integration), see frontend/README.md
 docs/         Build notes and troubleshooting log
 ```
 
@@ -104,9 +104,9 @@ docs/         Build notes and troubleshooting log
 
 ## Design Notes
 
-Akad's swap mechanics use a standard constant-product model — public reserves, `x * y = k`, no oracle dependency. This part is deliberately conventional: it's a well-understood, battle-tested AMM design, and reinventing pricing mechanics wasn't the point of this project.
+Akad's swap mechanics use a standard constant-product model: public reserves, `x * y = k`, no oracle dependency. This part is deliberately conventional: it's a well-understood, battle-tested AMM design, and reinventing pricing mechanics wasn't the point of this project.
 
-The part that isn't standard is the privacy layer sitting alongside it. Rather than treating privacy as a separate product, Akad treats it as a mode a user opts into for their own holdings — public AKD behaves exactly like a normal ERC20-style balance, and `wrap` converts it into a native Zswap shielded coin whenever a user wants that balance to stop being publicly linkable. The AMM itself stays fully public (reserves have to be, for price discovery to work at all); the privacy boundary is drawn around token *custody*, not around the trade mechanism. See [Privacy Model](#privacy-model) for exactly what that boundary does and doesn't cover.
+The part that isn't standard is the privacy layer sitting alongside it. Rather than treating privacy as a separate product, Akad treats it as a mode a user opts into for their own holdings: public AKD behaves exactly like a normal ERC20-style balance, and `wrap` converts it into a native Zswap shielded coin whenever a user wants that balance to stop being publicly linkable. The AMM itself stays fully public (reserves have to be, for price discovery to work at all); the privacy boundary is drawn around token *custody*, not around the trade mechanism. See [Privacy Model](#privacy-model) for exactly what that boundary does and doesn't cover.
 
 Shielded swap builds on that same boundary rather than adding a new one: `shieldedSwapAkdToNight` and `shieldedSwapNightToAkd` let a trader spend and receive both legs of a trade as shielded Zswap coins in the same transaction, instead of wrapping first, swapping publicly, then unwrapping. The AMM's public reserves and pricing don't change; only which ledger structure the trader's own balance touches differs, a public map entry keyed to their address, or a shielded coin nobody but the holder can link to a wallet.
 
@@ -130,7 +130,7 @@ flowchart LR
   FE -->|"updated pool + balance"| U
 ```
 
-### Wrap — Public AKD to Private Shielded AKD
+### Wrap: Public AKD to Private Shielded AKD
 
 ```mermaid
 flowchart LR
@@ -141,7 +141,7 @@ flowchart LR
   U -->|"balance now shown as"| L["Wallet: shielded AKD"]
 ```
 
-### Unwrap — Private Shielded AKD back to Public AKD
+### Unwrap: Private Shielded AKD back to Public AKD
 
 ```mermaid
 flowchart LR
@@ -152,7 +152,7 @@ flowchart LR
   PB -->|"public balance restored"| U
 ```
 
-Both directions are verified on Preview — see the transaction table under [Live Demo & Deployed Contracts](#live-demo--deployed-contracts). `unwrap` requires the wallet to spend a shielded coin it owns; 1AM handles this, while Lace hangs inside its own transaction balancing.
+Both directions are verified on Preview. See the transaction table under [Live Demo & Deployed Contracts](#live-demo--deployed-contracts). `unwrap` requires the wallet to spend a shielded coin it owns; 1AM handles this, while Lace hangs inside its own transaction balancing.
 
 ### Shielded Swap: AKD traded directly against sNIGHT, no address published
 
@@ -205,24 +205,24 @@ Every public-input count above is reproducible from a clean clone: compile the c
 
 - [x] Real NIGHT settlement on the public path: `sendUnshielded`/`receiveUnshielded` are wired into `addLiquidity`, `swapAkdToNight`, and `swapNightToAkd`. Verified on-chain on **both** networks against the post-audit contract.
 - [x] Shielded swap: trade shielded AKD directly against sNIGHT, a shielded 1:1 claim on tNIGHT, without publishing an address. Replaces the earlier `privateSwapAkdToNight`/`privateSwapNightToAkd` circuits, which settled tNIGHT for real but published the trader's unshielded NIGHT address on every call. Verified on Preprod; not yet exercised on Preview.
-- [ ] Multi-token support — pools beyond AKD/NIGHT
-- [ ] Full Lace support — `unwrap` currently requires 1AM; Lace's transaction balancing hangs on shielded receive
-- [ ] Multi-chain — beyond Midnight
+- [ ] Multi-token support: pools beyond AKD/NIGHT
+- [ ] Full Lace support: `unwrap` currently requires 1AM; Lace's transaction balancing hangs on shielded receive
+- [ ] Multi-chain: beyond Midnight
 - [ ] Mobile-responsive UI
-- [ ] Multi-provider liquidity (LP tokens) — currently a single fixed liquidity seed from the builder
-- [ ] Pool page — a dedicated page for the AKD/NIGHT pool itself (live reserves, a price chart, TVL, and volume), the way a standard DEX shows its pool view, instead of the single reserve line on the swap card today
+- [ ] Multi-provider liquidity (LP tokens), replacing the current single fixed liquidity seed from the builder
+- [ ] Pool page: a dedicated page for the AKD/NIGHT pool itself (live reserves, a price chart, TVL, and volume), the way a standard DEX shows its pool view, instead of the single reserve line on the swap card today
 - [x] Address the unshielded address exposure on the earlier private swap path. Solved with sNIGHT, a shielded claim token on tNIGHT: shielded swaps now trade shielded AKD against shielded sNIGHT with no address published, and the `sendUnshielded` address exposure only happens at the point sNIGHT is redeemed for real tNIGHT via `unwrapNight`, not on every trade
 - [ ] Reserve-delta privacy research: batching or delayed settlement to reduce what is inferable from public reserve changes
 - [x] Deploy the contract to Preprod and verify a full swap/wrap/unwrap cycle there
-- [ ] Akad Explorer — a self-built block/transaction explorer scoped to the Akad contract, instead of relying on Night Scan/1AM's explorer for a full picture of pool and wallet activity
-- [ ] Akad as a wallet — extend the swap app itself into a lightweight Midnight wallet (key management, balances, shielded coins) instead of only connecting to an external one
-- [ ] Akad SDK — a published TypeScript package wrapping the contract's circuits and providers, so other developers can integrate Akad swap/wrap/unwrap into their own dApps without copying `lib/akad-api.ts`
+- [ ] Akad Explorer: a self-built block/transaction explorer scoped to the Akad contract, instead of relying on Night Scan/1AM's explorer for a full picture of pool and wallet activity
+- [ ] Akad as a wallet: extend the swap app itself into a lightweight Midnight wallet (key management, balances, shielded coins) instead of only connecting to an external one
+- [ ] Akad SDK: a published TypeScript package wrapping the contract's circuits and providers, so other developers can integrate Akad swap/wrap/unwrap into their own dApps without copying `lib/akad-api.ts`
 
 ## Testing & CI
 
-8+ tests (Vitest) covering bonding curve math and wallet compatibility filtering — see `frontend/lib/__tests__/`.
+8+ tests (Vitest) covering bonding curve math and wallet compatibility filtering, in `frontend/lib/__tests__/`.
 
-GitHub Actions runs typecheck, tests, and build on every push — see `.github/workflows/ci.yml`.
+GitHub Actions runs typecheck, tests, and build on every push. See `.github/workflows/ci.yml`.
 
 ## Running Locally
 
@@ -250,4 +250,4 @@ See [Architecture](#architecture) above, or the per-folder READMEs for details.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).
