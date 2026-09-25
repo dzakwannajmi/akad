@@ -96,16 +96,16 @@ This copies the compiled output into the three places that consume it: `frontend
 
 ### B1. Use the hosted app (fastest)
 
-**https://akad-dzakwannajmis-projects.vercel.app**
+**<https://akad-dzakwannajmis-projects.vercel.app>**
 
 Already deployed and pointed at live contracts. Skip to B3.
 
 | Network | Contract address |
-|---|---|
+| --- | --- |
 | Preview (default) | `676fb20d4062e293d6521bd8e70af202345f75406ba4922d66453148a9d636ae` |
 | Preprod | `2689c5c24d4f560ec4ce0be14641ad544bca382d524ebdcb2e69c152f179a51a` |
 
-Explorer: https://explorer.preview.midnight.network/contracts/stream/676fb20d4062e293d6521bd8e70af202345f75406ba4922d66453148a9d636ae
+Explorer: <https://explorer.preview.midnight.network/contracts/stream/676fb20d4062e293d6521bd8e70af202345f75406ba4922d66453148a9d636ae>
 
 ### B2. Or run it locally
 
@@ -118,11 +118,11 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Open http://localhost:3000.
+Open <http://localhost:3000>.
 
 The defaults in `.env.example` work as-is against the public Preview indexer. To point at the already-deployed Preview contract rather than deploying your own, set:
 
-```
+```text
 NEXT_PUBLIC_AKAD_CONTRACT_ADDRESS_PREVIEW=676fb20d4062e293d6521bd8e70af202345f75406ba4922d66453148a9d636ae
 ```
 
@@ -138,7 +138,7 @@ To deploy your own instance instead, use the app's `/deploy` page with a funded 
 
 2. **Switch the wallet's network to Preview.**
 
-3. **Get testnet funds** from the Preview faucet: **https://faucet.preview.midnight.network/**
+3. **Get testnet funds** from the Preview faucet: **<https://faucet.preview.midnight.network/>**
 
    You need NIGHT (which is also what the pool trades against) and DUST, which is generated from NIGHT and pays transaction fees. Wait for both to appear in the wallet before continuing.
 
@@ -176,7 +176,7 @@ The root `README.md` keeps a table of verified transactions, one per circuit per
 ## C. Troubleshooting
 
 | Symptom | Cause and fix |
-|---|---|
+| --- | --- |
 | `compact: command not found` | The installer's PATH edit has not taken effect. Run `export PATH="$HOME/.local/bin:$PATH"` or open a new shell |
 | `compact update` fails with GitHub credentials or rate-limit errors | Toolchain fetch is being blocked. Set `GITHUB_TOKEN` and retry, or use a network without an intercepting proxy |
 | Compile succeeds but the frontend loads an old contract | `scripts/sync-contract-artifacts.sh akad` was not run after compiling (step A6) |
@@ -194,7 +194,7 @@ The root `README.md` keeps a table of verified transactions, one per circuit per
 
 ## D. Repository map
 
-```
+```text
 contracts/
   src/akad.compact          the contract (433 lines, everything the audit covers)
   managed/akad/             committed build output (compiler 0.31.1)

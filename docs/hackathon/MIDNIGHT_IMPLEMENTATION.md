@@ -23,7 +23,7 @@ That is the honest scope: **privacy of custody, not privacy of the trade.**
 ## 2. Midnight and Compact features used
 
 | Feature | Where | What it does here |
-|---|---|---|
+| --- | --- | --- |
 | `ownPublicKey()` | `callerKey()`, line 74 | Binds caller identity to the wallet's real Zswap public key, protocol-enforced, not client-declared |
 | `tokenType()` + `kernel.self()` | constructor, line 146 | Derives a shielded token type bound to this contract's own address, so AKD coins cannot be confused with another contract's token. Both work inside a Compact constructor, confirmed by compile |
 | `mintShieldedToken()` | `wrap` line 201, `privateSwapNightToAkd` line 432 | Mints native Zswap shielded coins, rather than a hand-rolled commitment scheme |
@@ -89,7 +89,7 @@ So the honest statement of the limit is different, and narrower than the one thi
 
 **What does not.** The moment either private swap runs, the NIGHT leg names you. `sendUnshielded` and `receiveUnshielded` are transparent by design, so the trader's unshielded address and the amount are rendered in the clear by any block explorer:
 
-```
+```text
 privateSwapAkdToNight   created output   mn_addr_prepro…9xrqm0l9eh    20.15355 NIGHT
 privateSwapNightToAkd   spent input      mn_addr_prepro…9xrqm0l9eh     1,807 NIGHT
                         created output   mn_addr_prepro…9xrqm0l9eh     1,786 NIGHT
@@ -112,7 +112,7 @@ None of that closed a hole. It is hardening, and this project does not claim oth
 ## 5. Settlement status, stated plainly
 
 | Circuit | AKD leg | tNIGHT leg |
-|---|---|---|
+| --- | --- | --- |
 | `addLiquidity` | Real | **Real** (`receiveUnshielded`) |
 | `swapAkdToNight` | Real | **Real** (`sendUnshielded`, guarded by `unshieldedBalanceGte`) |
 | `swapNightToAkd` | Real | **Real** (`receiveUnshielded`) |

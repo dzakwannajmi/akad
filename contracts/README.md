@@ -10,9 +10,10 @@ This used to be two contracts (`token.compact` + `swap.compact`). They were merg
 
 ## Circuits
 
-**akad.compact**
+### `akad.compact`
+
 | Circuit | Purpose |
-|---|---|
+| --- | --- |
 | `transfer` | Public balance transfer between accounts |
 | `wrap` | Converts public AKD into a native shielded coin (Zswap) |
 | `unwrap` | Converts a shielded AKD coin back to public balance; asserts the coin's color matches AKD's own before crediting it |

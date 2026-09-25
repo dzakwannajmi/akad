@@ -23,7 +23,7 @@ AKD uses **6 decimals**, so 1 AKD is 1,000,000 base units. Every number in this 
 Six exported fields. All of them are public, readable by anyone, which is normal for Midnight: ledger state is the public half of the contract.
 
 | Field | Type | Written by | Purpose |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `balances` | `Map<Bytes<32>, Uint<128>>` | constructor, `transfer`, `claimFaucet`, `wrap`, `unwrap`, `addLiquidity`, all four swaps | Public AKD balances, keyed by account identifier |
 | `totalSupply` | `Uint<128>` | constructor only | Fixed at 1,000,000,000,000 (1,000,000 AKD) |
 | `tokenColor` | `Bytes<32>` | constructor only | This contract's shielded token type, used to validate incoming shielded coins |
@@ -54,7 +54,7 @@ Ten exported circuits, plus a constructor. Five helpers (`callerKey`, `poolKey`,
 ### Setup and token basics
 
 | Circuit | Signature | What it does |
-|---|---|---|
+| --- | --- | --- |
 | *(constructor)* | n/a | Runs inside the deploy transaction: mints the entire 1,000,000 AKD supply to the deployer, derives and stores `tokenColor`, stores `faucetAddress`. Not callable afterwards |
 | `transfer` | `(to, amount)` | Ordinary public balance transfer |
 | `claimFaucet` | `()` | One-time-per-wallet claim of 50 AKD from the faucet's custody account |
@@ -65,7 +65,7 @@ Ten exported circuits, plus a constructor. Five helpers (`callerKey`, `poolKey`,
 ### The shielded bridge
 
 | Circuit | Signature | What it does |
-|---|---|---|
+| --- | --- | --- |
 | `wrap` | `(amount, nonce)` | Debits the caller's public balance and mints a native Zswap shielded coin of the same value to them |
 | `unwrap` | `(coin)` | Accepts a shielded AKD coin into contract custody and credits the caller's public balance |
 
@@ -78,7 +78,7 @@ Double-spend prevention for these coins is handled entirely by Zswap at the prot
 ### Liquidity
 
 | Circuit | Signature | What it does |
-|---|---|---|
+| --- | --- | --- |
 | `addLiquidity` | `(amountAKD, amountNight)` | One-shot pool seed. Moves the builder's AKD into pool custody and pulls real tNIGHT in via `receiveUnshielded` |
 
 Callable once (guarded by `reserveAKD == 0 && reserveNight == 0`). No LP tokens, single provider, and **no inverse**: seeded liquidity cannot be withdrawn in this version.
@@ -90,7 +90,7 @@ Both amounts are capped at 4,000,000,000 base units (4,000 AKD). The cap exists 
 Four circuits, two axes: direction (AKD in or tNIGHT in) and path (public or private).
 
 | Circuit | AKD leg | tNIGHT leg |
-|---|---|---|
+| --- | --- | --- |
 | `swapAkdToNight(dx, dy, minOut, recipient)` | Real. Debits `balances[trader]`, credits `balances[pool]` | **Real.** `sendUnshielded` pays the trader from the pool's own native-token custody, after `unshieldedBalanceGte` confirms the custody exists |
 | `swapNightToAkd(dx, dy, minOut)` | Real. Debits `balances[pool]`, credits `balances[trader]` | **Real.** `receiveUnshielded` pulls the trader's tNIGHT into pool custody |
 | `privateSwapAkdToNight(coin, dy, minOut, recipient)` | Real. `receiveShielded` takes the trader's shielded coin, credits `balances[pool]` | **Real.** `sendUnshielded` pays the trader, after `unshieldedBalanceGte` confirms the custody exists |
@@ -169,7 +169,7 @@ Full list, with severities and fixes, in [SECURITY_AUDIT.md](./SECURITY_AUDIT.md
 ## 7. Quick map for reading the source
 
 | Lines | Contents |
-|---|---|
+| --- | --- |
 | 5 to 58 | Header comments: the two-contract merge, the identity binding, the tNIGHT settlement decision, and the honest limit of the shielded path |
 | 61 to 79 | Ledger declarations |
 | 85 to 130 | Internal helpers: `callerKey`, `poolKey`, `faucetKey`, `balanceOf`, `hasClaimedFaucet` |

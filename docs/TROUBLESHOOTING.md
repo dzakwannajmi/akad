@@ -30,7 +30,7 @@ The [official installation guide](https://docs.midnight.network/getting-started/
 docker run -p 6300:6300 midnightntwrk/proof-server:latest midnight-proof-server -v
 ```
 
-This is required only when proving happens on the developer's own machine — e.g. a local/standalone network, CLI-based deploy tooling (we hit this with the third-party `scaffold-midnight` tool, since abandoned), or manual circuit testing outside a wallet flow. To use it with Lace at all, you also have to manually switch Lace to **Settings → Midnight → Local (http://localhost:6300)** — it isn't the default.
+This is required only when proving happens on the developer's own machine — e.g. a local/standalone network, CLI-based deploy tooling (we hit this with the third-party `scaffold-midnight` tool, since abandoned), or manual circuit testing outside a wallet flow. To use it with Lace at all, you also have to manually switch Lace to **Settings → Midnight → Local (<http://localhost:6300>)** — it isn't the default.
 
 Akad's deploy pipeline delegates proving to the connected wallet instead, via `dappConnectorProofProvider`. On Preview testnet, Lace proves against Midnight's own hosted proof server rather than anything local — confirmed directly from the wallet's own config:
 
@@ -59,7 +59,7 @@ Two things to know before touching this code:
 The same underlying fault surfaced differently depending on the wallet and how far the transaction got:
 
 | Wallet | Symptom |
-|---|---|
+| --- | --- |
 | Lace | Silent hang inside `balanceUnsealedTransaction` — no popup, no error, no timeout |
 | 1AM | `Balance failed: Insufficient funds`, sometimes preceded by a "Dust Sponsorship Failed" prompt |
 

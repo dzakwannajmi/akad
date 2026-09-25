@@ -15,7 +15,7 @@
 This audit was delivered against commit `bad91f3`. The developer has since applied fixes on the `hackathon` branch. This section records what changed. The findings below are left exactly as first written: an audit that quietly edits away its own findings is worth less than one that shows what was found and what was done about it.
 
 | Finding | Status | What changed |
-|---|---|---|
+| --- | --- | --- |
 | C-01 Critical | **FIXED** | `privateSwapNightToAkd` now calls `receiveUnshielded(nativeToken(), disclose(dx))`, so the NIGHT leg is real. The free mint, and the three-transaction drain it enabled, are both gone. |
 | H-01 High | **FIXED** | `privateSwapAkdToNight` gained a `recipient: UserAddress` parameter and pays out through `sendUnshielded`, guarded by `unshieldedBalanceGte`. It can no longer consume a coin and return nothing. |
 | H-02 High | **REFUTED (14 Sep 2026)** | Tested on chain and the finding does not hold. Coin nonces were never published in plaintext, even as circuit arguments. The premise this audit reasoned from was wrong. Full method, controls and data in "H-02 refuted on chain" below. The witness refactor was applied anyway, for narrower reasons stated there. |
@@ -50,7 +50,7 @@ Deployments at the time of this audit: Preprod `77e840accabf8b7f6301d55285218f93
 The three transaction shapes that actually close the findings:
 
 | Finding | Circuit | What the chain shows |
-|---|---|---|
+| --- | --- | --- |
 | **C-01 closed** | `privateSwapNightToAkd` | `SUCCESS`, no failed segments, **`SPENT INPUTS: 1`**, 1 zswap event. Real tNIGHT entered the contract through `receiveUnshielded` and shielded AKD was minted out. The circuit can no longer mint AKD for free, so the three-transaction pool drain is gone. |
 | **H-01 closed** | `privateSwapAkdToNight` | `SUCCESS`, no failed segments, **`PUBLIC OUTPUTS: 1`** with zero spent inputs, 2 zswap events. The trader's shielded coin was consumed and real tNIGHT left the pool's own custody through `sendUnshielded`. Zero spent inputs is correct for this direction, since the payout is funded by the contract rather than the caller. |
 | **tokenColor regression closed** | `unwrap` | `SUCCESS`, no failed segments, 2 zswap events. The shielded coin was really spent and received, so the colour the ledger reports and the colour `mintShieldedToken()` stamps now agree. |
@@ -88,7 +88,7 @@ This is good evidence that the source at `bad91f3` compiled under 0.31.1 on the 
 *Status below means "verified as a finding", not "still broken". Remediation is tracked in the section above.*
 
 | ID | Severity | Status | Finding |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | C-01 | Critical | CONFIRMED | `privateSwapNightToAkd` mints real AKD without ever receiving NIGHT, and the free AKD chains into a complete drain of the pool's real tNIGHT custody |
 | H-01 | High | CONFIRMED | `privateSwapAkdToNight` consumes the caller's real shielded AKD and delivers nothing in return |
 | H-02 | High | **REFUTED on chain, 14 Sep 2026** | Originally filed as CONFIRMED. Testing against live transactions disproved it. Kept in place, with the refutation, rather than deleted |
@@ -130,7 +130,7 @@ Stated plainly, because an audit that only lists problems is not an honest one:
 
 **Location:** `contracts/src/akad.compact:399-433`
 
-**What it is**
+#### What it is
 
 `privateSwapNightToAkd(dx, dy, minOut, nonce)` is documented as a NIGHT to AKD swap whose NIGHT leg is "simulated". In the source, "simulated" means the circuit contains **no token primitive for the NIGHT leg at all**. There is no `receiveUnshielded` anywhere in lines 399 to 433. The circuit:
 
@@ -143,13 +143,14 @@ The AKD leg is real in both directions. The NIGHT leg is real only on the public
 
 Note that this is not a supply inflation bug: `balances[pool]` is debited by exactly `dy` before the mint, so total AKD is conserved. It is a theft-from-pool bug.
 
-**Concrete exploit**
+#### Concrete exploit
 
 Assume the pool is seeded at `reserveAKD = 2_000_000_000`, `reserveNight = 2_000_000_000` (2000 AKD and 2000 tNIGHT at 6 decimals), with 2_000_000_000 base units of real tNIGHT in contract custody.
 
 *Transaction 1.* Attacker calls `privateSwapNightToAkd(dx = 2_000_000_000, dy = 1_000_000_000, minOut = 0, nonce = <fresh>)`.
 
 Every assertion passes:
+
 - `x > 0 && y > 0` holds.
 - `dx > 0`, `dy > 0` hold.
 - `dy >= minOut` holds trivially, because the attacker chose `minOut = 0` (see M-01).
@@ -177,11 +178,11 @@ Total cost to the attacker: transaction fees only. Total extracted: 100% of the 
 
 The mechanism is that transaction 1 is a free lever on the price: `privateSwapNightToAkd` moves `reserveAKD` down and `reserveNight` up at zero cost, which is exactly the state that makes `swapAkdToNight` pay out the most tNIGHT for the least AKD.
 
-**Why the documentation does not neutralise this**
+#### Why the documentation does not neutralise this
 
 `contracts/README.md:44` and the file header at lines 27 to 36 present the simulated NIGHT leg as a deliberate privacy tradeoff. The reasoning about `sendUnshielded` being transparent is correct and worth keeping. But documenting a limitation does not change what a deployed, exported circuit does when a stranger calls it directly against the contract address, bypassing the frontend entirely. The circuits are live on both Preview and Preprod at the addresses listed in the README.
 
-**Recommended fix (developer to apply; this audit does not modify contract code)**
+#### Recommended fix (developer to apply; this audit does not modify contract code)
 
 Pick one, in descending order of preference given the Sep 28 deadline:
 
@@ -195,17 +196,17 @@ Pick one, in descending order of preference given the Sep 28 deadline:
 
 **Location:** `contracts/src/akad.compact:354-385`
 
-**What it is**
+#### What it is
 
 The mirror of C-01, pointing the other way. The circuit calls `receiveShielded(disclose(coin))` at line 356, taking the caller's real shielded AKD coin into contract custody, sets `dx = coin.value`, credits `balances[pool] += dx` at line 381, and writes `reserveNight = y - dy` at line 384. There is no `sendUnshielded` and no payout of any kind. The circuit ends at line 385 having taken the user's AKD and given back nothing.
 
-**Concrete failure scenario**
+#### Concrete failure scenario
 
 A user holds a shielded AKD coin worth 50,000,000 base units (50 AKD, exactly one faucet claim, wrapped). They toggle "Private" in the swap card and submit. The transaction succeeds. The contract now holds their 50 AKD, credited to the pool's custody account. `reserveNight` drops by `dy` as though a payout happened. The user's wallet shows the shielded coin gone and no tNIGHT received. There is no circuit that can return it: `balances[pool]` is only spendable through `swapNightToAkd` and `privateSwapNightToAkd`, neither of which pays the original user.
 
 This is unrecoverable loss for the user, not a reverted transaction. The transaction is valid and succeeds.
 
-**Recommended fix**
+#### Recommended fix
 
 Same options as C-01, item 1 or item 3. If the circuit is kept in any form, it must either pay out real tNIGHT or refuse to accept the coin.
 
@@ -217,20 +218,20 @@ Same options as C-01, item 1 or item 3. If the circuit is kept in any form, it m
 
 **Location:** `contracts/src/akad.compact:186` (`wrap`), `206` (`unwrap`), `354` (`privateSwapAkdToNight`), `399` (`privateSwapNightToAkd`)
 
-**What it is**
+#### What it is
 
 In Compact, **every argument to an exported circuit is part of the public transcript**. This is not a subtlety of this contract; it is a documented property of the execution model, and the two independent references consulted for this audit state it identically: "Circuit arguments: all of them, they are part of the public transcript", and, under what ZK proofs do not guarantee, "Confidentiality of circuit arguments, those are always public".
 
 Now look at the four circuits that touch shielded coins:
 
 | Circuit | Signature | Public consequence |
-|---|---|---|
+| --- | --- | --- |
 | `wrap` | `(amount: Uint<128>, nonce: Bytes<32>)` | The minted coin's nonce and value are public. The same transaction writes `balances.insert(caller, ...)` at line 195, publishing the caller's `ownPublicKey()` bytes. |
 | `unwrap` | `(coin: ShieldedCoinInfo)` | The spent coin's nonce, color, and value are all public. |
 | `privateSwapAkdToNight` | `(coin: ShieldedCoinInfo, dy, minOut)` | Same: the spent coin is fully identified in the clear. |
 | `privateSwapNightToAkd` | `(dx, dy, minOut, nonce: Bytes<32>)` | The minted coin's nonce is public, and its value is `dy`, also public and also written to reserves. |
 
-**Concrete deanonymisation**
+#### Concrete deanonymisation
 
 An observer with nothing but the public chain state does the following:
 
@@ -242,7 +243,7 @@ No cryptanalysis, no anonymity-set reasoning, no statistical inference. Direct e
 
 The same matching works in reverse for coins created by `privateSwapNightToAkd` (public nonce at mint, public nonce at spend) and for the `wrap` then `unwrap` round trip.
 
-**What this contradicts**
+#### What this contradicts
 
 Root `README.md:182` states: "**Ownership of any AKD balance held in shielded form.** [...] While shielded, the AKD is unlinkable from the public balance it came from, using Midnight's own shielded-pool cryptography rather than a hand-rolled scheme."
 
@@ -250,7 +251,7 @@ The cryptography is indeed Midnight's own and is sound. The problem is above the
 
 Root `README.md:109` makes the same claim in different words: "a shielded coin nobody but the holder can link to a wallet". An observer can link it, using only public data.
 
-**Recommended fix**
+#### Recommended fix
 
 Two parts, and the second is mandatory even if the first turns out to be impossible.
 
@@ -263,17 +264,17 @@ Two parts, and the second is mandatory even if the first turns out to be impossi
 
 **Verdict: the finding above is false. The attack it describes cannot be carried out, because the value it depends on is never published.**
 
-**Why it was filed in the first place**
+#### Why it was filed in the first place
 
 The finding rests on one premise, quoted in its own text: every argument to an exported circuit is part of the public transcript. Two Midnight reference sources state this, in nearly identical words, and the original audit cited both. It was never tested against a transaction. The whole finding is an inference from a sentence in documentation.
 
-**How it was tested**
+#### How it was tested
 
 The old Preprod deployment `77e840accabf8b7f6301d55285218f93466e6a41c9623cb48d7529e7549eb4aa` used the pre-refactor contract, where `wrap(amount, nonce)` took the nonce as a circuit argument. That is the exact code path the finding accuses.
 
 A coin minted by that contract was still recorded in the developer's browser, unspent, with its nonce in full:
 
-```
+```text
 key    akad:wrappedCoin:preprod:77e840ac…eb4aa:mn_addr_preprod1xng…m0l9eh
 nonce  f4d27ff7410a26ebafe56d3ebce3690c57fba7a5c77bf3daf80fad26ec01a875
 value  22066533
@@ -285,39 +286,39 @@ The contract's entire life was then enumerated from the Preprod indexer, block b
 
 Every one of the 16 raw transactions was searched for the nonce, in forward byte order, reverse byte order, both 16 byte halves, and all four 8 byte chunks, to catch a re-encoded or split layout rather than only a verbatim match.
 
-**Control**
+#### Control
 
 A null result is worthless without proof the search can find anything at all. The same search, on the same bytes, was run for the contract address, a value known to be present. It was found in all three `wrap` transactions. The method works.
 
-**Result**
+#### Result
 
 | Height | Circuit | Contract address found (control) | Nonce found |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | 2,526,695 | `wrap` | yes | **no** |
 | 2,526,732 | `wrap` | yes | **no** |
 | 2,527,165 | `wrap` | yes | **no** |
 
 Not in the other 13 transactions either, under any of the encodings tried.
 
-**Why the premise was wrong**
+#### Why the premise was wrong
 
 The ledger's own type definitions say it plainly. An on-chain `ContractCall` carries exactly six things: `address`, `entryPoint`, `guaranteedTranscript`, `fallibleTranscript`, `communicationCommitment`, and `proof`. There is no field for circuit arguments and none for witness values. The arguments are bound through `communicationCommitment(input, output, rand)`, which takes randomness and therefore hides what it commits to.
 
 "Public" in the documentation means public to the proof system, that is, a public input the verifier constrains against. It does not mean serialised in the clear into the transaction. This audit conflated the two.
 
-**What this changes**
+#### What this changes
 
 The unlinkability claim the original README made was closer to correct than this audit's rebuttal of it. Nothing in the contract needed fixing for this reason.
 
-**What it does not change**
+#### What it does not change
 
 The witness refactor applied on 13 Sep stays, on narrower and honest grounds: the proof's public input count drops (`wrap` 3 to 1, `unwrap` 5 to 0, measurable with `scripts/zk-public-inputs.mjs`), the contract no longer trusts caller-supplied coin material, and no frontend defect can leak it through an argument list. Those are real, but they are hardening, not the closing of a vulnerability. **The project must not claim this refactor fixed a privacy hole.**
 
-**What the real leak turned out to be**
+#### What the real leak turned out to be
 
 While verifying the above, four post-refactor Preprod transactions were inspected directly. `wrap` and `unwrap` are clean: zero public outputs, zero spent inputs, no address anywhere. Both private swaps are not:
 
-```
+```text
 privateSwapAkdToNight   created output   mn_addr_prepro…9xrqm0l9eh    20.15355 NIGHT
 privateSwapNightToAkd   spent input      mn_addr_prepro…9xrqm0l9eh     1,807 NIGHT
                         created output   mn_addr_prepro…9xrqm0l9eh     1,786 NIGHT
@@ -325,7 +326,7 @@ privateSwapNightToAkd   spent input      mn_addr_prepro…9xrqm0l9eh     1,807 N
 
 The same unshielded address in both, rendered in the clear by a public block explorer with no decoding required, and matching the wallet in the localStorage key above. Any observer can tie both "private" swaps to one identity and read their sizes. This is the genuine identity leak on the private path, it was always the real one, and it follows from `sendUnshielded` and `receiveUnshielded` being transparent by design. It is recorded in this audit under the honest caveat in section 8 rather than as a numbered finding, which understated it.
 
-**Method note for the reader**
+#### Method note for the reader
 
 Both the original error and its correction came from the same place: a claim about runtime behaviour that was never executed. The `kernel.self()` regression found during remediation had the same shape, in the opposite direction, where code that compiled was assumed to behave correctly. Compiling is not running, and documenting is not verifying.
 
@@ -335,25 +336,25 @@ Both the original error and its correction came from the same place: a claim abo
 
 **Location:** `contracts/src/akad.compact:120-133`
 
-**What it is**
+#### What it is
 
 The only guard on `init()` is `assert(totalSupply.read() == 0, "already initialized")` at line 121. There is no check that the caller is the deployer. Whoever calls `init()` first receives the entire initial supply:
 
-```
+```text
 balances.insert(owner, 1000000000000);   // line 126, owner = callerKey()
 ```
 
 On Midnight, contract deployment and the first circuit call are separate transactions. Between the deployment landing on chain and the deployer's own `init` transaction being included, the contract exists with `totalSupply == 0` and `init` callable by anyone. The public transcript makes the contract address and the available circuits visible immediately.
 
-**Concrete exploit**
+#### Concrete exploit
 
 An observer watching new contract deployments on Preview or Preprod sees the Akad contract appear. They call `init()` with a higher fee before the deployer's `init` lands. They now hold 1,000,000 AKD, the entire supply. The deployer's `init` reverts with "already initialized". The deployer controls nothing: they cannot seed liquidity (`addLiquidity` at line 237 requires an AKD balance they do not have) and cannot fund the faucet. The deployment is a total loss and must be redone.
 
-**Current exposure**
+#### Current exposure
 
 The two deployments listed in the README are already initialized, so they are not exploitable today. **The exposure is prospective and immediate:** the README's own roadmap and the "pending re-verification" table indicate a redeploy is planned before submission. Every redeploy reopens this window.
 
-**Recommended fix**
+#### Recommended fix
 
 Store the deployer at construction time and check it, or accept a constructor-set owner. The minimal change, if a Compact constructor is available at this language version, is to move the supply mint into the constructor so no separate `init` call exists. If that is not workable, add an owner ledger field written by the deploying transaction and assert against it. At a bare minimum, submit the `init` transaction in the same block as the deployment and verify it landed before announcing the address.
 
@@ -363,23 +364,23 @@ Store the deployer at construction time and check it, or accept a constructor-se
 
 **Location:** lines 271, 312, 366, 406 (all four swap circuits)
 
-**What it is**
+#### What it is
 
 Every swap circuit contains `assert(dy >= minOut, "slippage: insufficient output")`. Both `dy` and `minOut` are supplied by the same caller in the same transaction. The assertion can only fail if the caller deliberately passes a `minOut` greater than their own `dy`. It is tautological in every honest and every hostile call. It protects nobody.
 
 In a conventional AMM, the contract computes `dy` from the reserves at execution time and compares that computed value against the caller's `minOut`. Here the contract never computes `dy`; the frontend does, off-chain, and passes it in (this is visible in the README's own flow diagram at line 121: "compute dy off-chain (bonding curve)").
 
-**What actually protects the trader**
+#### What actually protects the trader
 
 The constant-product assertion. If another trade lands between quote and execution and moves the reserves, the caller's fixed `dy` no longer satisfies `(x + dx) * (y - dy) >= x * y` and the transaction reverts. So a trader is never overcharged relative to `k`. The protection is real, but it is a revert rather than a bound, and it is not what `minOut` is doing.
 
 There is a residual asymmetry worth stating: if the reserves move in the trader's favour between quote and execution, their fixed `dy` is now less than the fair output, the invariant still holds, and the transaction succeeds. The trader silently receives less than the pool would have given them. `minOut` cannot catch this, because `minOut <= dy` by construction.
 
-**Concrete failure scenario**
+#### Concrete failure scenario
 
 Alice's UI quotes `dy = 100` for `dx = 10` and submits `swapAkdToNight(10, 100, 95, alice)`. Before it lands, Bob's `swapNightToAkd` increases `reserveAKD`. Alice's fair output is now 92. Her invariant check fails and her transaction reverts, forfeiting fees (Midnight forfeits fees on fallible-phase failure). Bob can repeat this for pennies to grief every trade on the pool.
 
-**Recommended fix**
+#### Recommended fix
 
 Compute `dy` inside the circuit from `reserveAKD`, `reserveNight`, and `dx`, then assert `dy >= minOut`. This makes `minOut` meaningful, removes the caller's ability to specify an output at all, and turns front-running from a revert into a bounded partial fill. If integer division inside the circuit is awkward at this language version, the minimum honest change is to stop calling it slippage protection in the code and the docs, and to document that the invariant assertion is the real guard.
 
@@ -389,7 +390,7 @@ Compute `dy` inside the circuit from `reserveAKD`, `reserveNight`, and `dx`, the
 
 **Location:** root `README.md:181`, against the circuit signatures at lines 264, 305, 354, 399
 
-**What it is**
+#### What it is
 
 The README's Privacy Model section, under "What an observer **cannot** learn", states:
 
@@ -405,7 +406,7 @@ The README's Privacy Model section, under "What an observer **cannot** learn", s
 
 Severity is Medium rather than High because the practical harm of a leaked `minOut` is small (it reveals a trader's slippage tolerance, which is mildly useful to a front-runner and nothing more). The reason it matters here is different: the hackathon's review process explicitly assesses "how clearly Midnight's privacy features are used", and this is the one sentence in the README that claims a zero-knowledge property for a specific value. A judge who knows Compact will check it first, and it is wrong. A wrong privacy claim in a privacy project costs more credibility than the leak itself costs security.
 
-**Recommended fix**
+#### Recommended fix
 
 Delete the bullet. `minOut` is not private and cannot be made private while it is a circuit argument. Replacing it with something true, for example "the contract never stores any per-trader state beyond a public AKD balance", is better than defending the claim.
 
@@ -415,19 +416,19 @@ Delete the bullet. `minOut` is not private and cannot be made private while it i
 
 **Location:** lines 254 to 255, 296 to 297, 341 to 342, 383 to 384, 425 to 426
 
-**What it is**
+#### What it is
 
 `reserveNight` is a ledger number written independently of the contract's actual native-token holdings. Four circuits write it. Only two of them (`addLiquidity` at line 252, `swapNightToAkd` at line 327) actually move tNIGHT in, and only one (`swapAkdToNight` at line 299) moves tNIGHT out. The two private circuits write `reserveNight` with no corresponding token movement at all.
 
 The only reconciliation anywhere in the contract is `unshieldedBalanceGte(nativeToken(), disclose(dy))` at line 275, which checks custody at payout time in `swapAkdToNight`. That check prevents the contract from promising tNIGHT it does not have, which is genuinely valuable and correctly placed. But it is a floor check on one circuit, not an invariant.
 
-**Concrete failure scenario**
+#### Concrete failure scenario
 
 Independent of the C-01 exploit, a single honest-looking `privateSwapNightToAkd` call leaves `reserveNight` overstated. The pool then quotes prices as though it holds tNIGHT it does not hold. Every subsequent `swapAkdToNight` whose fair `dy` exceeds real custody reverts on line 275, forfeiting the trader's fees, with the error message "pool has insufficient tNIGHT custody for this swap". From the trader's side this looks like the pool is broken at random. The pool is not drained, but it is mispriced and partially unusable, and there is no circuit that can correct `reserveNight` back down.
 
 `privateSwapAkdToNight` produces the opposite skew: real custody exceeds `reserveNight`, so the pool holds tNIGHT it will never quote or pay out.
 
-**Recommended fix**
+#### Recommended fix
 
 Removing the private circuits (C-01 fix 1) eliminates every path that creates this skew today. Beyond that, the durable fix is to stop keeping `reserveNight` as an independent number and derive it from actual custody where the language allows, or to assert consistency at the top of each swap. Given the deadline, the practical action is the removal.
 
@@ -437,21 +438,21 @@ Removing the private circuits (C-01 fix 1) eliminates every path that creates th
 
 **Location:** `contracts/src/akad.compact:264`, payout at line 299
 
-**What it is**
+#### What it is
 
 `swapAkdToNight` takes `recipient: UserAddress` and pays the full tNIGHT output there at line 299, while debiting the AKD from `callerKey()` at line 289. Nothing ties `recipient` to the caller. The comment at lines 262 to 263 says it "must be the caller's own unshielded address", but nothing enforces it.
 
-**Concrete exploit**
+#### Concrete exploit
 
 The victim is the user, and the attacker is whoever builds the transaction. A phishing clone of the dApp, a compromised frontend deployment, a malicious npm dependency in the wallet integration path, or a hostile SDK wrapper substitutes its own address for `recipient`. The user approves what their wallet shows as an Akad swap. Their AKD balance is debited correctly. The entire tNIGHT output goes to the attacker. On-chain everything looks valid, and the contract has no basis to reject it.
 
 The contract is the trust boundary here, and it is not enforcing the one relationship that makes the swap a swap rather than a donation.
 
-**Honest note on the fix**
+#### Honest note on the fix
 
 I could not find a clean enforcement in Compact at this language version, and I will not invent one. `ownPublicKey()` returns a `ZswapCoinPublicKey`, while `sendUnshielded` needs a `UserAddress`. These are different types and the contract cannot derive the second from the first. The author's comment acknowledges exactly this constraint and it appears to be a real language limitation, not an oversight.
 
-**Recommended action**
+#### Recommended action
 
 Investigate whether the standard library offers an own-unshielded-address primitive at 0.31.1 (the search terms worth trying are `ownAddress`, `kernel` address accessors, and the `UserAddress` constructors). If one exists, assert `recipient == <that>`. If none exists, document the constraint prominently in `contracts/README.md` as a known trust assumption on transaction construction, rather than only as an implementation note. A stated limitation is defensible; an undocumented one is not.
 
@@ -461,19 +462,19 @@ Investigate whether the standard library offers an own-unshielded-address primit
 
 **Location:** lines 232 to 233, 273 to 274, 314 to 315, 368 to 369, 408 to 409
 
-**What it is**
+#### What it is
 
 Reserves are capped at 4,000,000,000 base units. At the token's 6 decimals that is 4,000 AKD. `init` mints 1,000,000,000,000 base units, which is 1,000,000 AKD. The pool can therefore hold at most 0.4% of the supply, and `claimFaucet` hands out 50 AKD per wallet, which is 1.25% of a maximally seeded pool.
 
 The cap derives from the `Uint<64>` downcast in the invariant check: `4e9 * 4e9 = 1.6e19`, under `Uint<64>::MAX` of about `1.844e19`. The reasoning in the comment at lines 228 to 231 is arithmetically correct.
 
-**Concrete failure scenario**
+#### Concrete failure scenario
 
 `swapAkdToNight` asserts `x + dx <= 4000000000` at line 273, where `x` is `reserveAKD`. Suppose the pool is seeded at 2,000 AKD and 2,000 tNIGHT. Traders sell AKD into the pool. After a cumulative 2,000 AKD of inflow (40 faucet users spending their full claim), every further `swapAkdToNight` and `privateSwapAkdToNight` call reverts with "reserveAKD exceeds safe bound", regardless of size, because `dx > 0` is required. The AKD-to-NIGHT direction is dead until someone trades the other way. On a demo pool during judging, forty small trades is a plausible afternoon.
 
 This is recoverable, not permanent: `swapNightToAkd` reduces `reserveAKD`. But it will look like a broken app to whoever hits it, and the recovery requires somebody to have tNIGHT and a reason to sell it.
 
-**Recommended fix**
+#### Recommended fix
 
 Either raise the effective headroom by performing the invariant check without the `Uint<64>` downcast (Compact tracks bit widths and may widen the multiplication automatically, which would make the cap unnecessary; worth testing once you can compile), or reduce the token's decimals so 4e9 base units represents a sensible pool, or lower the faucet amount and seed the pool near the cap so the headroom lasts. The cheapest pre-deadline action is to seed conservatively (well under half the cap) so the halt is not reachable during judging.
 
@@ -533,14 +534,14 @@ Minor related note: `const coin = mintShieldedToken(...)` at lines 201 and 432 o
 
 Explicit answers to the questions in scope, including the ones where the answer is "this is fine".
 
-**A. Privacy correctness**
+### A. Privacy correctness
 
 - *Is `disclose()` used everywhere required?* By construction yes, since a missing one is a compile error and the committed artifacts show the contract compiled. The inverse question is I-06: it may be used more broadly than the minimum.
 - *Does the private swap keep the trader's balance and swap amount off-chain?* Balance: partially. The trader's AKD does not appear in the `balances` map for that trade, which is a genuine improvement over the public path. Amount: **no**. `reserveAKD.write(disclose(x + dx))` at line 383 publishes the new reserve, and the delta from the previous public value is exactly `dx`. Identity: **no**, but not for the reason first given here. H-02's nonce-matching argument was refuted on chain (see "H-02 refuted on chain"). The real exposure is `sendUnshielded` and `receiveUnshielded` publishing the trader's unshielded address in the clear, which a block explorer renders without any decoding. The README's own "honest boundary" paragraph at line 186 already concedes trade amounts are public, which is correct and to the author's credit; the identity claim at line 182 is the one that does not hold.
 - *Is the documented simulated-NIGHT limitation accurate?* The description is accurate. The framing is not. Describing it as a privacy tradeoff implies the alternative would be worse for privacy, when the actual consequence is C-01 and H-01: one circuit gives away real AKD, the other takes real AKD without paying. No code path warns the caller.
 - *Nullifier and double-spend handling for the shielded AKD coin:* **sound, no finding.** The contract does not implement its own nullifier scheme and does not need to. `receiveShielded` routes the spend through Zswap, where nullifier uniqueness is enforced at the protocol layer, so a coin cannot be spent twice or replayed against the contract. Delegating this to audited protocol code rather than hand-rolling a commitment and nullifier scheme is the correct decision and is worth saying out loud in the judge-facing docs. The one caveat is nonce freshness for minting (H-02): reusing a nonce with the same value and recipient would produce an identical commitment, which the ledger should reject as a duplicate. That is a failed transaction, not a double-mint, so it is a usability issue rather than a security one.
 
-**B. Security vulnerabilities**
+### B. Security vulnerabilities
 
 - *Invariant enforcement and ordering:* correct. In all four circuits the invariant assertion precedes every state write. No rounding drain: the `>=` direction accumulates in the pool's favour.
 - *Slippage:* M-01, non-functional.
@@ -550,7 +551,7 @@ Explicit answers to the questions in scope, including the ones where the answer 
 - *Reentrancy-equivalent risks:* no cross-contract calls exist (the contract was deliberately merged into one to avoid them), so classic reentrancy does not apply. The Midnight-specific analogue is the guaranteed-versus-fallible phase split, where guaranteed-phase effects persist if a fallible-phase assertion fails. `swapNightToAkd` is the circuit to watch: `receiveUnshielded` at line 327 precedes `assert(poolBalance >= dy)` at line 331. If the receive lands in the guaranteed phase and that assertion fails in the fallible phase, the trader's tNIGHT is taken and no AKD is delivered. I could not determine phase assignment from source alone and am not asserting that it happens, but reordering the assertion above line 327 costs nothing and removes the question entirely. Flagging it here as a hardening recommendation rather than a numbered finding, because I cannot demonstrate the failure.
 - *Other:* covered in the numbered findings.
 
-**C. Architecture quality**
+### C. Architecture quality
 
 The public and private split is clean at the circuit level and easy to follow. Naming is consistent, the helper circuits (`callerKey`, `poolKey`, `faucetKey`, `balanceOf`, `hasClaimedFaucet`) are well chosen, and the comments explain reasoning rather than restating code, which is unusually good.
 
@@ -558,7 +559,7 @@ The main architectural weakness is duplication: the same twelve-line block of re
 
 Ledger state is minimal and correct. Six fields, each with a clear owner and a stated reason. `faucetAddress` duplicates what `faucetKey()` computes, but the comment at lines 53 to 56 justifies it (frontend read without a transaction) and the justification is sound.
 
-**D. Code readiness**
+### D. Code readiness
 
 - Dead code: I-04 (`akdColor`), I-05 (test scaffolding, unused `coin` bindings).
 - TODOs and placeholders: none found in the contract. Clean.

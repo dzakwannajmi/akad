@@ -1,8 +1,6 @@
-<div align="center">
+# Akad
 
 <img src="frontend/public/token/logo.svg" width="72" height="72" alt="Akad" />
-
-# Akad
 
 ![Network](https://img.shields.io/badge/network-Preview%20%26%20Preprod%20live-blue)
 ![Chain](https://img.shields.io/badge/chain-Midnight-6f42c1)
@@ -14,13 +12,7 @@ Privacy-optional AMM on Midnight Network, submitted to the Midnight Korea Hackat
 
 [Live Demo](https://akad-dzakwannajmis-projects.vercel.app) · [Demo Video](https://youtu.be/Va0iGdtlR7s) · [@akadtok](https://x.com/akadtok) · [Troubleshooting & Build Notes](docs/TROUBLESHOOTING.md)
 
-</div>
-
 > **Reviewing this for the hackathon?** Everything you need is in [`docs/hackathon/`](docs/hackathon/), written for someone seeing the project for the first time: [ARCHITECTURE.md](docs/hackathon/ARCHITECTURE.md) for the contract, [MIDNIGHT_IMPLEMENTATION.md](docs/hackathon/MIDNIGHT_IMPLEMENTATION.md) for exactly what is proven, disclosed, and kept private, [SECURITY_AUDIT.md](docs/hackathon/SECURITY_AUDIT.md) for an independent adversarial audit of this contract (findings and all), and [HOW_TO_RUN.md](docs/hackathon/HOW_TO_RUN.md) to compile it yourself in about five minutes.
-
-<div align="center">
-
-</div>
 
 ---
 
@@ -48,14 +40,14 @@ The idea behind the name: "Akad" is an agreement between two parties — every s
 
 ## Live Demo & Deployed Contracts
 
-**App:** https://akad-dzakwannajmis-projects.vercel.app/
+**App:** <https://akad-dzakwannajmis-projects.vercel.app/>
 
 **Network:** Midnight Preview testnet (default), with **Preprod** also live and verified — see [Network Toggle](#network-toggle) below.
 
 **Contracts:** shielded AKD/sNIGHT pair build (constructor replacing `init()`, real tNIGHT settlement on the public swap path, `recordTokenColor()`, shielded swaps trading AKD against sNIGHT instead of exposing an unshielded NIGHT address).
 
 | Contract | Network | Address |
-|---|---|---|
+| --- | --- | --- |
 | Akad (token + AMM) | Preview | `676fb20d4062e293d6521bd8e70af202345f75406ba4922d66453148a9d636ae` |
 | Akad (token + AMM) | Preprod | `2689c5c24d4f560ec4ce0be14641ad544bca382d524ebdcb2e69c152f179a51a` |
 
@@ -67,15 +59,15 @@ Token and swap logic were originally two separate contracts, merged into one so 
 
 Circuits exercised against the addresses above, where a hash has been published. **Check these on the explorer rather than taking the table's word for it**, and look at three fields: `STATUS`, `EXECUTION SEGMENTS` (any `FAILED` segment means the effects were rolled back) and `SPENT INPUTS` (an unshielded token movement showing zero spent inputs never moved anything). All rows below are `SUCCESS` with no failed segments.
 
-**Preprod**
+### Preprod
 
 | Action | Transaction |
-|---|---|
+| --- | --- |
 | `shieldedSwapAkdToNight()` | [`9b327947…25f3de`](https://explorer.1am.xyz/tx/9b3279472c483cc84381f357455bd4acbd7ad33235b271def35d515da025f3de?network=preprod) |
 | `shieldedSwapNightToAkd()` | [`db36fb34…60de7f`](https://explorer.1am.xyz/tx/db36fb3411411f3265c66e844c8f1935b928a45cd332568342a4070d6f60de7f?network=preprod) |
 | `unwrapNight()` | [`1f502679…12cc41`](https://explorer.1am.xyz/tx/1f50267947ee63e9d0cc54866238402c585731142b499a7521c51778cd12cc41?network=preprod) |
 
-**Preview**
+### Preview
 
 No transaction has been recorded yet against this deployment (`676fb20d…9d636ae`, see the address table above).
 
@@ -102,9 +94,11 @@ Akad can run against **Preview** or **Preprod** from the same deployed site — 
 
 ## Architecture
 
-    contracts/    Compact smart contract (akad.compact: token + AMM), see contracts/README.md
-    frontend/     Next.js app (landing, swap UI, wallet integration) — see frontend/README.md
-    docs/         Build notes and troubleshooting log
+```text
+contracts/    Compact smart contract (akad.compact: token + AMM), see contracts/README.md
+frontend/     Next.js app (landing, swap UI, wallet integration) — see frontend/README.md
+docs/         Build notes and troubleshooting log
+```
 
 **Stack:** Compact (smart contracts) · Next.js + TypeScript (frontend) · 1AM and Lace wallets via DApp Connector API v4 · shadcn/ui · Vitest · GitHub Actions.
 
@@ -234,15 +228,19 @@ GitHub Actions runs typecheck, tests, and build on every push — see `.github/w
 
 Contracts:
 
-    cd contracts
-    compact compile src/akad.compact ../build/akad
+```bash
+cd contracts
+compact compile src/akad.compact ../build/akad
+```
 
 Frontend:
 
-    cd frontend
-    npm install
-    cp .env.example .env.local
-    npm run dev
+```bash
+cd frontend
+npm install
+cp .env.example .env.local
+npm run dev
+```
 
 Full details, including artifact wiring and environment variables, in [contracts/README.md](contracts/README.md) and [frontend/README.md](frontend/README.md).
 
