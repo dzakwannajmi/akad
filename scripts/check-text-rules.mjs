@@ -9,7 +9,11 @@
 //
 //      const x = (lib as any).fn(); // interop: <library, version, reason>
 //
-// Both rules check tracked files plus untracked files that .gitignore does
+// 3. No file assigns a seed value: a line that sets an AKAD_SEED_* variable to
+//    64 hex characters fails, wherever it appears. Seeds live only in the
+//    ignored .env.automation (AUTOMATION.md section 5).
+//
+// The rules check tracked files plus untracked files that .gitignore does
 // not exclude, so a new file fails locally before it is committed.
 // Compiler output synced by scripts/sync-contract-artifacts.sh is skipped.
 
@@ -21,6 +25,8 @@ const EM_DASH = '\u2014';
 const ANY_CAST = /\bas[ ]any\b/;
 const INTEROP_TAG = '// interop:';
 const CODE_FILE = /\.(ts|tsx|mts|cts|js|jsx|mjs|cjs)$/;
+// Written with [_] so this line does not match its own rule.
+const SEED_ASSIGNMENT = /AKAD[_]SEED_A[0-9]+\s*[=:]\s*['"]?[0-9a-fA-F]{64}/;
 const SKIPPED_DIRS = [
   'docs/risein/',
   'contracts/managed/',
@@ -41,24 +47,26 @@ const files = execFileSync(
 const violations = [];
 let checked = 0;
 
-function check(file, isViolation, message) {
-  checked += 1;
-  readFileSync(file, 'utf8')
-    .split('\n')
-    .forEach((line, index) => {
-      if (isViolation(line)) violations.push(`${file}:${index + 1}: ${message}`);
-    });
+function check(lines, file, isViolation, message) {
+  lines.forEach((line, index) => {
+    if (isViolation(line)) violations.push(`${file}:${index + 1}: ${message}`);
+  });
 }
 
 for (const file of files) {
+  checked += 1;
+  const lines = readFileSync(file, 'utf8').split('\n');
+  check(lines, file, (line) => SEED_ASSIGNMENT.test(line), 'a seed value is assigned here; seeds belong only in .env.automation');
   if (file.endsWith('.md')) {
     check(
+      lines,
       file,
       (line) => line.includes(EM_DASH),
       'em dash (U+2014); use a comma, colon, period or parentheses'
     );
   } else if (CODE_FILE.test(file)) {
     check(
+      lines,
       file,
       (line) => ANY_CAST.test(line) && !line.includes(INTEROP_TAG),
       'cast to any without a same-line "// interop: <reason>" comment'
