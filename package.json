@@ -5,9 +5,12 @@
   "scripts": {
     "lint:md": "markdownlint-cli2 \"**/*.md\"",
     "lint:md:fix": "markdownlint-cli2 --fix \"**/*.md\"",
-    "lint:text": "node scripts/check-text-rules.mjs"
+    "lint:text": "node scripts/check-text-rules.mjs",
+    "validate:json": "node scripts/validate-json.mjs"
   },
   "devDependencies": {
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1",
     "markdownlint-cli2": "^0.23.3"
   }
 }

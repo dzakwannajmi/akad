@@ -33,7 +33,6 @@ Claude outputs/
 .claude/
 skills-lock.json
 
-# v2 planning and working docs (CLAUDE.md, docs/v2/). Kept local on purpose;
-# .claude/plan/ is already covered by .claude/ above.
+# Claude Code operating notes. Plans and working docs live under .claude/,
+# ignored above; docs/v2/ holds only final documents, schemas and evidence.
 CLAUDE.md
-docs/v2/

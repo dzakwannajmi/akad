@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dzakwannajmi/akad/docs/v2/schemas/evidence.schema.json",
+  "title": "Akad evidence file",
+  "description": "Published proof that each circuit ran on a public network. Generated from run reports only.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "network", "contract", "commit", "entries"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "network": { "enum": ["preview", "preprod"] },
+    "contract": { "$ref": "#/$defs/hex64" },
+    "commit": { "type": "string", "pattern": "^[0-9a-f]{7,40}$" },
+    "entries": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/entry" } },
+    "experiments": { "type": "array", "items": { "$ref": "#/$defs/experiment" } }
+  },
+  "$defs": {
+    "hex64": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "runId": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z-[a-z0-9-]+$" },
+    "entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "circuit", "tx", "expectedStatus", "observed", "runId"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^E-[0-9]{2,3}$" },
+        "circuit": { "type": "string", "pattern": "^[a-zA-Z][a-zA-Z0-9]*$" },
+        "tx": { "$ref": "#/$defs/hex64" },
+        "expectedStatus": { "enum": ["SUCCESS", "PARTIAL_SUCCESS", "FAILURE"] },
+        "observed": { "type": "string", "minLength": 1, "description": "One factual sentence of what the explorer or indexer shows." },
+        "runId": { "$ref": "#/$defs/runId" }
+      }
+    },
+    "experiment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "txs", "runIds", "finding"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^E-[0-9]{2,3}$" },
+        "name": { "type": "string", "minLength": 1 },
+        "txs": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/hex64" } },
+        "runIds": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/runId" } },
+        "finding": { "type": "string", "pattern": "^docs/v2/findings/.+\\.md$" }
+      }
+    }
+  }
+}
