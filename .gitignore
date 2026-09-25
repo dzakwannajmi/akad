@@ -27,3 +27,13 @@ build/
 # Files the Claude desktop app drops into this folder when it delivers
 # generated files during a chat session -- not meant to be versioned.
 Claude outputs/
+
+# Claude Code project config and skills installed via `npx skills add`
+# -- local tooling, not part of the product.
+.claude/
+skills-lock.json
+
+# v2 planning and working docs (CLAUDE.md, docs/v2/). Kept local on purpose;
+# .claude/plan/ is already covered by .claude/ above.
+CLAUDE.md
+docs/v2/
