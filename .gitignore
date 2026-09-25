@@ -16,6 +16,9 @@ frontend/tsconfig.tsbuildinfo
 .env.*
 !.env.example
 
+# CLI wallet sync cache: no keys, but it reveals which coins a wallet owns.
+.akad-cache/
+
 # Compact compile output (large binary artifacts; regenerate via `compact compile`)
 build/
 

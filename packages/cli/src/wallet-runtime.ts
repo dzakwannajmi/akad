@@ -8,6 +8,7 @@ import * as Rx from 'rxjs';
 import type { ResolvedNetwork } from './config.js';
 import { AkadError } from './errors.js';
 import type { WalletKeys } from './keys.js';
+import { readWalletCache, writeWalletCache, type WalletCache } from './wallet-cache.js';
 
 /** The raw token type of tNIGHT in wallet balance maps. */
 export const NIGHT = ledger.nativeToken().raw;
@@ -16,6 +17,11 @@ export const NIGHT = ledger.nativeToken().raw;
 export type RunningWallet = {
   keys: WalletKeys;
   facade: WalletFacade;
+  /** True when sync resumed from the local cache instead of index 0. */
+  restored: boolean;
+  /** Saves the current sync state to the cache, if one is configured. */
+  save: () => Promise<void>;
+  /** Saves the sync state, then stops the wallet. */
   stop: () => Promise<void>;
 };
 
@@ -31,13 +37,15 @@ export type WalletSummary = {
 /**
  * Builds and starts the wallet facade for a wallet, following the Midnight.js
  * 4.1.1 testkit: shielded, unshielded and dust wallets from the derived keys,
- * the node relay for submission, and the proof server for proving.
+ * the node relay for submission, and the proof server for proving. When a
+ * cache file for this wallet exists, sync resumes from it.
  *
  * @param keys - Keys from deriveWalletKeys.
  * @param network - Endpoints of the target network.
+ * @param cacheFile - Sync cache path, or null to always sync from index 0.
  * @returns The running wallet.
  */
-export async function startWallet(keys: WalletKeys, network: ResolvedNetwork): Promise<RunningWallet> {
+export async function startWallet(keys: WalletKeys, network: ResolvedNetwork, cacheFile: string | null): Promise<RunningWallet> {
   const configuration = {
     networkId: keys.networkId,
     indexerClientConnection: { indexerHttpUrl: network.indexerHttp, indexerWsUrl: network.indexerWs },
@@ -46,15 +54,68 @@ export async function startWallet(keys: WalletKeys, network: ResolvedNetwork): P
     txHistoryStorage: new InMemoryTransactionHistoryStorage(WalletEntrySchema, mergeWalletEntries),
     costParameters: { additionalFeeOverhead: 0n, feeBlocksMargin: 5 },
   };
-  const facade = await WalletFacade.init({
-    configuration,
-    shielded: (config) => ShieldedWallet(config).startWithSecretKeys(keys.shieldedSecretKeys),
-    unshielded: (config) => UnshieldedWallet(config).startWithPublicKey(PublicKey.fromKeyStore(keys.unshieldedKeystore)),
-    dust: (config) =>
-      DustWallet(config).startWithSecretKey(keys.dustSecretKey, ledger.LedgerParameters.initialParameters().dust),
-  });
+  const init = (cache: WalletCache | null) =>
+    WalletFacade.init({
+      configuration,
+      shielded: (config) =>
+        cache === null
+          ? ShieldedWallet(config).startWithSecretKeys(keys.shieldedSecretKeys)
+          : ShieldedWallet(config).restore(cache.shielded),
+      unshielded: (config) =>
+        cache === null
+          ? UnshieldedWallet(config).startWithPublicKey(PublicKey.fromKeyStore(keys.unshieldedKeystore))
+          : UnshieldedWallet(config).restore(cache.unshielded),
+      dust: (config) =>
+        cache === null
+          ? DustWallet(config).startWithSecretKey(keys.dustSecretKey, ledger.LedgerParameters.initialParameters().dust)
+          : DustWallet(config).restore(cache.dust),
+    });
+
+  const cache = cacheFile === null ? null : readWalletCache(cacheFile, network.name, keys.addresses.unshielded);
+  let facade: WalletFacade;
+  let restored = false;
+  if (cache === null) {
+    facade = await init(null);
+  } else {
+    try {
+      facade = await init(cache);
+      restored = true;
+    } catch {
+      facade = await init(null);
+    }
+  }
   await facade.start(keys.shieldedSecretKeys, keys.dustSecretKey);
-  return { keys, facade, stop: () => facade.stop() };
+
+  const save = async (): Promise<void> => {
+    if (cacheFile === null) return;
+    const [shielded, unshielded, dust] = await Promise.all([
+      facade.shielded.serializeState(),
+      facade.unshielded.serializeState(),
+      facade.dust.serializeState(),
+    ]);
+    writeWalletCache(cacheFile, {
+      version: 1,
+      network: network.name,
+      unshieldedAddress: keys.addresses.unshielded,
+      shielded,
+      unshielded,
+      dust,
+      savedAt: new Date().toISOString(),
+    });
+  };
+  return {
+    keys,
+    facade,
+    restored,
+    save,
+    stop: async () => {
+      try {
+        await save();
+      } finally {
+        await facade.stop();
+      }
+    },
+  };
 }
 
 /**

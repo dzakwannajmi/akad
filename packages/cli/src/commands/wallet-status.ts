@@ -4,6 +4,7 @@ import { isSet, optionalString, parseBaseUnits, requireString } from '../flags.j
 import { parseNetwork } from '../networks.js';
 import { parseWalletName } from '../secrets.js';
 import { loadWallet } from '../wallet.js';
+import { cachePath } from '../wallet-cache.js';
 import { startWallet, summarize, waitForSync } from '../wallet-runtime.js';
 
 /** Default sync timeout in seconds. */
@@ -52,9 +53,10 @@ export const walletStatus: Command = {
       return;
     }
 
-    const wallet = await startWallet(keys, resolveNetwork(ctx.config, network));
+    const wallet = await startWallet(keys, resolveNetwork(ctx.config, network), cachePath(ctx.paths.repoRoot, network, name));
     try {
       const state = await waitForSync(wallet.facade, timeoutMs(optionalString(flags, 'timeout'), SYNC_TIMEOUT_S));
+      await wallet.save();
       const summary = summarize(state, ctx.now());
       rows.push(['tNIGHT', summary.night.toString()]);
       rows.push(['NIGHT UTXOs', `${summary.nightUtxos.total} (${summary.nightUtxos.registeredForDust} registered for DUST)`]);

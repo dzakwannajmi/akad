@@ -5,6 +5,7 @@ import { isSet, optionalString, requireString } from '../flags.js';
 import { parseNetwork } from '../networks.js';
 import { parseWalletName } from '../secrets.js';
 import { loadWallet } from '../wallet.js';
+import { cachePath } from '../wallet-cache.js';
 import { NIGHT, startWallet, summarize, waitForState, waitForSync } from '../wallet-runtime.js';
 import { SYNC_TIMEOUT_S, timeoutMs } from './wallet-status.js';
 
@@ -58,9 +59,10 @@ export const faucet: Command = {
     ctx.out.fields(rows);
     if (isSet(flags, 'no-wait')) return;
 
-    const wallet = await startWallet(keys, resolveNetwork(ctx.config, network));
+    const wallet = await startWallet(keys, resolveNetwork(ctx.config, network), cachePath(ctx.paths.repoRoot, network, name));
     try {
       const before = summarize(await waitForSync(wallet.facade, SYNC_TIMEOUT_S * 1000), ctx.now()).night;
+      await wallet.save();
       ctx.out.line(`Waiting for tNIGHT to arrive (current balance ${before} base units)...`);
       const after = await waitForState(
         wallet.facade,
