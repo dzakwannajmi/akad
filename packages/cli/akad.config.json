@@ -1,0 +1,28 @@
+{
+  "networks": {
+    "local": {
+      "indexerHttp": null,
+      "indexerWs": null,
+      "nodeWs": null,
+      "proofServer": "http://127.0.0.1:6300",
+      "faucetUrl": null,
+      "akadV1Contract": null
+    },
+    "preview": {
+      "indexerHttp": "https://indexer.preview.midnight.network/api/v4/graphql",
+      "indexerWs": "wss://indexer.preview.midnight.network/api/v4/graphql/ws",
+      "nodeWs": "wss://rpc.preview.midnight.network",
+      "proofServer": "http://127.0.0.1:6300",
+      "faucetUrl": "https://midnight-tmnight-preview.nethermind.dev/",
+      "akadV1Contract": "676fb20d4062e293d6521bd8e70af202345f75406ba4922d66453148a9d636ae"
+    },
+    "preprod": {
+      "indexerHttp": "https://indexer.preprod.midnight.network/api/v4/graphql",
+      "indexerWs": "wss://indexer.preprod.midnight.network/api/v4/graphql/ws",
+      "nodeWs": "wss://rpc.preprod.midnight.network",
+      "proofServer": "http://127.0.0.1:6300",
+      "faucetUrl": "https://midnight-tmnight-preprod.nethermind.dev/",
+      "akadV1Contract": "2689c5c24d4f560ec4ce0be14641ad544bca382d524ebdcb2e69c152f179a51a"
+    }
+  }
+}
