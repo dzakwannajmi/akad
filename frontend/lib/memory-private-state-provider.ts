@@ -31,7 +31,7 @@ export function createMemoryPrivateStateProvider(): any {
     async clearSigningKeys() {
       signingKeys.clear();
     },
-    // Export/import not needed for Level 1-3 dev flow; stubbed to fail loudly
+    // Export/import not needed for the current dev flow; stubbed to fail loudly
     // rather than silently, so future-you notices if this is ever relied on.
     async exportPrivateStates() {
       throw new Error('exportPrivateStates not implemented in memory provider');

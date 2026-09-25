@@ -66,7 +66,7 @@ jobs:
             console.log('compiler', j['compiler-version'], '| language', j['language-version']);
             console.log('circuits:', j.circuits.map(c => c.name).join(', '));
             if (j.circuits.some(c => c.name === 'init')) {
-              throw new Error('init() is back: the supply mint belongs in the constructor, see hackathon/SECURITY_AUDIT.md finding H-03');
+              throw new Error('init() is back: the supply mint belongs in the constructor, see docs/hackathon/SECURITY_AUDIT.md finding H-03');
             }
             // Midnight rejects a deploy transaction whose weight exceeds the
             // block limits, and every exported circuit adds a verifier key to

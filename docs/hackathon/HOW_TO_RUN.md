@@ -202,12 +202,13 @@ contracts/
 frontend/                   Next.js app: landing, swap UI, wallet integration, /deploy page
 scripts/
   sync-contract-artifacts.sh   copies build output to the three places that consume it
-docs/                       build notes, troubleshooting log, proposal, feedback
-hackathon/                  this folder: judge-facing documentation
-  ARCHITECTURE.md           contract architecture for a first-time reader
-  SECURITY_AUDIT.md         independent security audit with findings and punch list
-  MIDNIGHT_IMPLEMENTATION.md how Midnight privacy features are used
-  HOW_TO_RUN.md             this file
+docs/
+  TROUBLESHOOTING.md        build notes and troubleshooting log
+  hackathon/                this folder: judge-facing documentation
+    ARCHITECTURE.md         contract architecture for a first-time reader
+    SECURITY_AUDIT.md       independent security audit with findings and punch list
+    MIDNIGHT_IMPLEMENTATION.md how Midnight privacy features are used
+    HOW_TO_RUN.md           this file
 ```
 
 Suggested reading order for a reviewer: `ARCHITECTURE.md`, then `MIDNIGHT_IMPLEMENTATION.md`, then `SECURITY_AUDIT.md`.

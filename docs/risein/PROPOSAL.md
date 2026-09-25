@@ -16,7 +16,7 @@ Rise In × Midnight — "New Moon to Full: Monthly Moonshots" Builder Program
 
 ---
 
-> **Status update (10 September 2026):** This proposal is kept as originally submitted where it is still accurate. The sections below were updated only where the project has materially changed since: Architecture (the token and swap contracts were merged into a single `akad.compact`), Deployed Contracts (the merged contract's addresses, now live on both Preview and Preprod), wallet support (1AM added alongside Lace, and now recommended), and Roadmap (items shipped since are checked off, three new exploratory items added). See the [repository README](../README.md) for the current, complete picture.
+> **Status update (10 September 2026):** This proposal is kept as originally submitted where it is still accurate. The sections below were updated only where the project has materially changed since: Architecture (the token and swap contracts were merged into a single `akad.compact`), Deployed Contracts (the merged contract's addresses, now live on both Preview and Preprod), wallet support (1AM added alongside Lace, and now recommended), and Roadmap (items shipped since are checked off, three new exploratory items added). See the [repository README](../../README.md) for the current, complete picture.
 
 ## 1. Executive Summary
 

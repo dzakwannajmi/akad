@@ -229,7 +229,7 @@ export default function DeployPage() {
       );
       // Funds 100 claims of 50 AKD each (50_000_000 base units at AKD's
       // 6-decimal scale, see claimFaucet() in akad.compact), comfortably
-      // above the Level 6 target of 70 wallets.
+      // above the 70 wallets that have tested the app so far.
       await transferTokens(
         connectedApi,
         addresses.shieldedCoinPublicKey,

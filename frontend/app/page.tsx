@@ -48,7 +48,7 @@ const faqs = [
   },
   {
     q: 'What stays private, and what does not?',
-    a: 'Private: what you hold. While AKD is wrapped there is no public ledger row tying that balance to your address. Public: trade sizes, pool reserves, and your slippage tolerance, because every argument passed to a Compact circuit is part of the public transcript. A shielded coin nonce is also published both when you wrap and when you spend it, so the two can be linked by an observer. The full boundary is written up in hackathon/SECURITY_AUDIT.md in the repo.',
+    a: 'Private: what you hold. While AKD is wrapped there is no public ledger row tying that balance to your address. Public: trade sizes, pool reserves, and your slippage tolerance, because every argument passed to a Compact circuit is part of the public transcript. A shielded coin nonce is also published both when you wrap and when you spend it, so the two can be linked by an observer. The full boundary is written up in docs/hackathon/SECURITY_AUDIT.md in the repo.',
   },
   {
     q: 'Does swapping move my tokens?',

@@ -21,7 +21,7 @@
 //    on-chain ContractCall carries no argument list at all; arguments reach
 //    the verifier through a randomised communication commitment. This was
 //    tested against live transactions, because an earlier version of this
-//    project assumed otherwise and was wrong. See hackathon/SECURITY_AUDIT.md,
+//    project assumed otherwise and was wrong. See docs/hackathon/SECURITY_AUDIT.md,
 //    "H-02 refuted on chain".
 //
 // 2. A circuit with zero public inputs can still publish plenty through its

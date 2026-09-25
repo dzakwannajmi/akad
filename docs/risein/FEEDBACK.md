@@ -7,8 +7,8 @@ response is tied to usage that anyone can check on chain rather than to an unver
 **70 responses. 70 unique wallets. 70 transaction hashes, every one verified on Preprod.**
 Average rating 4.4 out of 5 (44 fives, 11 fours, 15 threes).
 
-The wallet lists are in [`USERS.md`](../USERS.md) (50 wallets) and
-[`LAUNCH_USERS.md`](../LAUNCH_USERS.md) (20 wallets, no overlap), each with the verification
+The wallet lists are in [`USERS.md`](USERS.md) (50 wallets) and
+[`LAUNCH_USERS.md`](LAUNCH_USERS.md) (20 wallets, no overlap), each with the verification
 method and the exact GraphQL query used, so the check can be repeated independently.
 
 - Try it: [akad-dzakwannajmis-projects.vercel.app](https://akad-dzakwannajmis-projects.vercel.app)

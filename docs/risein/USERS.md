@@ -8,7 +8,7 @@ feedback form, each with a transaction hash from their own session.
 Testing ran on 11 and 12 September 2026 against the live app at
 [akad-dzakwannajmis-projects.vercel.app](https://akad-dzakwannajmis-projects.vercel.app).
 Raw responses, including the open-ended feedback, are in
-[`docs/FEEDBACK.md`](docs/FEEDBACK.md) and the linked public response spreadsheet.
+[`FEEDBACK.md`](FEEDBACK.md) and the linked public response spreadsheet.
 
 The 20 wallets that tested after this cohort are listed separately in
 [`LAUNCH_USERS.md`](LAUNCH_USERS.md); the two lists share no address.

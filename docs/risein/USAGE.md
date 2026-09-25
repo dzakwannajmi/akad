@@ -130,7 +130,7 @@ script says so in its own header.
 
 ## If something goes wrong
 
-See [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md). The three most common issues:
+See [`TROUBLESHOOTING.md`](../TROUBLESHOOTING.md). The three most common issues:
 
 - **Wallet will not connect.** The wallet's network and the app's toggle do not match.
 - **`unwrap` hangs forever.** Known Lace issue on shielded receive. Use 1AM.

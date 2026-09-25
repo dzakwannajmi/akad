@@ -12,11 +12,11 @@
 
 Privacy-optional AMM on Midnight Network, submitted to the Midnight Korea Hackathon 2026
 
-[Live Demo](https://akad-dzakwannajmis-projects.vercel.app) · [Demo Video](https://youtu.be/Va0iGdtlR7s) · [@akadtok](https://x.com/akadtok) · [See Full Proposal](docs/PROPOSAL.md) · [Feedback & Testing](docs/FEEDBACK.md) · [Troubleshooting & Build Notes](docs/TROUBLESHOOTING.md)
+[Live Demo](https://akad-dzakwannajmis-projects.vercel.app) · [Demo Video](https://youtu.be/Va0iGdtlR7s) · [@akadtok](https://x.com/akadtok) · [Troubleshooting & Build Notes](docs/TROUBLESHOOTING.md)
 
 </div>
 
-> **Reviewing this for the hackathon?** Everything you need is in [`hackathon/`](hackathon/), written for someone seeing the project for the first time: [ARCHITECTURE.md](hackathon/ARCHITECTURE.md) for the contract, [MIDNIGHT_IMPLEMENTATION.md](hackathon/MIDNIGHT_IMPLEMENTATION.md) for exactly what is proven, disclosed, and kept private, [SECURITY_AUDIT.md](hackathon/SECURITY_AUDIT.md) for an independent adversarial audit of this contract (findings and all), and [HOW_TO_RUN.md](hackathon/HOW_TO_RUN.md) to compile it yourself in about five minutes.
+> **Reviewing this for the hackathon?** Everything you need is in [`docs/hackathon/`](docs/hackathon/), written for someone seeing the project for the first time: [ARCHITECTURE.md](docs/hackathon/ARCHITECTURE.md) for the contract, [MIDNIGHT_IMPLEMENTATION.md](docs/hackathon/MIDNIGHT_IMPLEMENTATION.md) for exactly what is proven, disclosed, and kept private, [SECURITY_AUDIT.md](docs/hackathon/SECURITY_AUDIT.md) for an independent adversarial audit of this contract (findings and all), and [HOW_TO_RUN.md](docs/hackathon/HOW_TO_RUN.md) to compile it yourself in about five minutes.
 
 <div align="center">
 
@@ -35,7 +35,6 @@ Privacy-optional AMM on Midnight Network, submitted to the Midnight Korea Hackat
 - [End-to-End Flows](#end-to-end-flows)
 - [Privacy Model](#privacy-model)
 - [Roadmap](#roadmap)
-- [Traction & User Validation](#traction--user-validation)
 - [Testing & CI](#testing--ci)
 - [Running Locally](#running-locally)
 - [Project Structure](#project-structure)
@@ -80,7 +79,7 @@ Circuits exercised against the addresses above, where a hash has been published.
 
 No transaction has been recorded yet against this deployment (`676fb20d…9d636ae`, see the address table above).
 
-`deploy`, `recordTokenColor()`, `addLiquidity()`, `transfer()`, `wrap()`, `unwrap()`, `swapAkdToNight()`, `swapNightToAkd()`, and `claimFaucet()` have no published hash yet against the current addresses, on either network. The three Preprod rows above come from [docs/FEEDBACK.md](docs/FEEDBACK.md#the-private-swap-was-not-doing-what-testers-thought-so-we-made-it-real), where they back the sNIGHT pairing that replaced `privateSwapAkdToNight`/`privateSwapNightToAkd`.
+`deploy`, `recordTokenColor()`, `addLiquidity()`, `transfer()`, `wrap()`, `unwrap()`, `swapAkdToNight()`, `swapNightToAkd()`, and `claimFaucet()` have no published hash yet against the current addresses, on either network. The three Preprod rows above back the sNIGHT pairing that replaced `privateSwapAkdToNight`/`privateSwapNightToAkd`.
 
 Earlier deployments are superseded and their hashes no longer describe this code. They are omitted rather than listed, since a hash that proves nothing about the current contract is worse than no hash at all.
 
@@ -187,7 +186,7 @@ These replace the earlier `privateSwapAkdToNight`/`privateSwapNightToAkd` circui
 
 ## Privacy Model
 
-Every claim in this section was checked against live transactions on Preprod, not against platform documentation. That distinction is not pedantry: an earlier version of this section, and the security audit backing it, both asserted a leak that turned out not to exist, purely because nobody had opened a transaction to look. The correction is written up in [hackathon/SECURITY_AUDIT.md](hackathon/SECURITY_AUDIT.md) under "H-02 refuted on chain".
+Every claim in this section was checked against live transactions on Preprod, not against platform documentation. That distinction is not pedantry: an earlier version of this section, and the security audit backing it, both asserted a leak that turned out not to exist, purely because nobody had opened a transaction to look. The correction is written up in [docs/hackathon/SECURITY_AUDIT.md](docs/hackathon/SECURITY_AUDIT.md) under "H-02 refuted on chain".
 
 What an observer **can** learn from public state:
 
@@ -206,7 +205,7 @@ The honest boundary, stated once: **Akad gives you privacy of custody, and now p
 
 `wrap`, `unwrap`, `shieldedSwapAkdToNight`, and `shieldedSwapNightToAkd` all assert the spent coin's color matches the expected token (AKD or sNIGHT) before moving it, so shielded supply stays 1:1 backed by locked public balance or pool custody and cannot be inflated by feeding in a different token's shielded coin.
 
-Every public-input count above is reproducible from a clean clone: compile the contract, then run `node scripts/zk-public-inputs.mjs`. The full reasoning, including a finding this audit filed as High and later disproved on chain, is in [hackathon/SECURITY_AUDIT.md](hackathon/SECURITY_AUDIT.md).
+Every public-input count above is reproducible from a clean clone: compile the contract, then run `node scripts/zk-public-inputs.mjs`. The full reasoning, including a finding this audit filed as High and later disproved on chain, is in [docs/hackathon/SECURITY_AUDIT.md](docs/hackathon/SECURITY_AUDIT.md).
 
 ## Roadmap
 
@@ -224,60 +223,6 @@ Every public-input count above is reproducible from a clean clone: compile the c
 - [ ] Akad Explorer — a self-built block/transaction explorer scoped to the Akad contract, instead of relying on Night Scan/1AM's explorer for a full picture of pool and wallet activity
 - [ ] Akad as a wallet — extend the swap app itself into a lightweight Midnight wallet (key management, balances, shielded coins) instead of only connecting to an external one
 - [ ] Akad SDK — a published TypeScript package wrapping the contract's circuits and providers, so other developers can integrate Akad swap/wrap/unwrap into their own dApps without copying `lib/akad-api.ts`
-
-## Traction & User Validation
-
-Real testers used the live app on Midnight Preprod, then reported back through a public form that
-asks for their wallet address and a transaction hash from their own session. That makes the
-feedback loop checkable rather than asserted.
-
-**70 responses. 70 unique wallets. 70 transaction hashes, all verified on chain. Average rating
-4.4 out of 5.**
-
-Every hash was queried against the public Preprod indexer. All 70 resolve, all 70 settled with
-status `SUCCESS`, and every one calls an Akad circuit on one of the two deployed Preprod
-contracts. Where a circuit publishes an unshielded address, the claimed wallet was compared
-against the on-chain counterparty: 15 rows could be checked that way and 15 matched. The rest
-call circuits that publish no address at all, which is the privacy property this contract exists
-for, and that limitation is stated in the user lists rather than glossed over.
-
-**Raw data:** every response as submitted through the feedback form, wallet address and
-transaction hash included, is also in this [Google Sheet](https://docs.google.com/spreadsheets/d/1zu7t4H6PT3U2Y-WKDxBRs5Bgxmd6qQ2KHYS7sBgr7jE/edit?usp=sharing),
-if sorting or filtering is easier than reading the tables below. The form only collects a wallet
-address and a transaction hash, so those are the only identifying fields; no name or email is
-gathered.
-
-**Raw data:** every response as submitted through the feedback form, wallet address and
-transaction hash included:
-https://docs.google.com/spreadsheets/d/1zu7t4H6PT3U2Y-WKDxBRs5Bgxmd6qQ2KHYS7sBgr7jE/edit?gid=20629337#gid=20629337
-The form only collects a wallet address and a transaction hash, so those are the only
-identifying fields; no name or email is gathered.
-
-### Users
-
-[`USERS.md`](USERS.md) lists the first **50 wallets**, with the date, the features each tester
-tried, a link to their transaction, and its on-chain check. It also documents the verification
-method, including the exact GraphQL query, so the whole table can be re-verified independently.
-
-### Launch users
-
-[`LAUNCH_USERS.md`](LAUNCH_USERS.md) lists a further **20 wallets** from the launch session, none
-of which appears in `USERS.md`. The split follows a real gap in the data rather than an arbitrary
-cut: the first cohort finished at 13:00 and the launch session began at 16:53, visible in both
-the form timestamps and the block heights.
-
-### What testers asked for, and what changed because of it
-
-[`docs/FEEDBACK.md`](docs/FEEDBACK.md) carries the verbatim feedback grouped by theme, and a
-"What We Changed" section where every item names the commit or the transaction hash behind it.
-The largest theme was that people could not tell what the private swap actually did. Chasing that
-down revealed the circuits were not settling the NIGHT leg at all, which led to the real
-settlement fix and then to the shielded sNIGHT pairing. That section also lists what is still
-open, including in-app transaction status, tooltips, and fee information.
-
-The project has 58 commits on `main`. The feedback-driven changes are named by commit message in
-`docs/FEEDBACK.md`, and the full history is on
-[GitHub](https://github.com/dzakwannajmi/akad/commits/main).
 
 ## Testing & CI
 
