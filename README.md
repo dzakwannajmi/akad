@@ -220,7 +220,7 @@ Every public-input count above is reproducible from a clean clone: compile the c
 
 ## Testing & CI
 
-8+ tests (Vitest) covering bonding curve math and wallet compatibility filtering, in `frontend/lib/__tests__/`.
+Vitest tests in `frontend/lib/__tests__/` cover bonding curve math, wallet compatibility filtering, and the stored network choice, including browsers and Node versions where `localStorage` is blocked or missing.
 
 GitHub Actions runs typecheck, tests, and build on every push. See `.github/workflows/ci.yml`.
 

@@ -47,10 +47,19 @@ export const DEFAULT_NETWORK: NetworkKey =
 
 const STORAGE_KEY = 'akad-network';
 
+// Storage can be missing (Node 25 and later install an undefined
+// localStorage global unless run with --localstorage-file) or throw on
+// access (browsers with site data blocked). Either way the app starts on
+// DEFAULT_NETWORK instead of failing while this module loads.
 function readStoredNetwork(): NetworkKey | null {
   if (typeof window === 'undefined') return null;
-  const raw = window.localStorage.getItem(STORAGE_KEY);
-  return raw === 'preview' || raw === 'preprod' ? raw : null;
+  try {
+    const raw = window.localStorage?.getItem(STORAGE_KEY);
+    return raw === 'preview' || raw === 'preprod' ? raw : null;
+  } catch (err) {
+    console.error('[Network] Failed to read from localStorage:', err);
+    return null;
+  }
 }
 
 // Plain module-level store (not React state) so code that isn't a
@@ -75,7 +84,12 @@ export function setCurrentNetwork(network: NetworkKey): void {
   if (network === currentNetwork) return;
   currentNetwork = network;
   if (typeof window !== 'undefined') {
-    window.localStorage.setItem(STORAGE_KEY, network);
+    try {
+      window.localStorage?.setItem(STORAGE_KEY, network);
+    } catch (err) {
+      // The switch still applies to this session; it is only not remembered.
+      console.error('[Network] Failed to persist to localStorage:', err);
+    }
   }
   subscribers.forEach((fn) => fn(network));
 }
