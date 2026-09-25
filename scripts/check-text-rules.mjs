@@ -16,7 +16,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 
-const EM_DASH = '—';
+const EM_DASH = '\u2014';
 // The [ ] keeps this line from matching its own rule.
 const ANY_CAST = /\bas[ ]any\b/;
 const INTEROP_TAG = '// interop:';
