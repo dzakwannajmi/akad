@@ -11,9 +11,12 @@ export type IndexedContractAction = {
 
 /**
  * A transaction as read from the indexer. Fees are deliberately absent: on
- * 25 Sep 2026 both the Preview and Preprod indexers returned paidFees "1"
- * and estimatedFees "1" for every transaction checked, deploys included, so
- * the field does not carry the real fee.
+ * 25 and 26 Sep 2026 both the Preview and Preprod indexers returned
+ * paidFees "1" and estimatedFees "1" for every transaction checked, deploys
+ * included, and the wallet SDK's own estimates for the CLI's transfers and
+ * DUST registrations were also 1 (wallet DUST balances are near 10^16).
+ * Whether 1 is the real fee is open until spike S5, so run reports keep
+ * feeActual null.
  */
 export type IndexedTransaction = {
   hash: string;
