@@ -27,6 +27,8 @@ const DRY_RUN_CASES: Record<string, { argv: string[]; seed: string }> = {
   faucet: { argv: ['faucet', '--name', 'a0', '--network', 'preview', '--dry-run'], seed: PUBLIC_SEED },
   state: { argv: ['state', '--network', 'preprod', '--dry-run'], seed: TEST_SEED },
   'evidence verify': { argv: ['evidence', 'verify', '--file', EVIDENCE_SAMPLE, '--dry-run'], seed: TEST_SEED },
+  'wallet register-dust': { argv: ['wallet', 'register-dust', '--name', 'a0', '--network', 'preprod', '--dry-run'], seed: PUBLIC_SEED },
+  'wallet fund': { argv: ['wallet', 'fund', '--from', 'a0', '--to', 'a1,a2', '--amount', '1000', '--network', 'preview', '--dry-run'], seed: PUBLIC_SEED },
   call: {
     argv: ['call', 'transfer', '--wallet', 'a1', '--network', 'preprod', '--args', `["${'ab'.repeat(32)}", "1000"]`, '--dry-run'],
     seed: PUBLIC_SEED,

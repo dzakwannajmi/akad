@@ -64,3 +64,48 @@ describe('wallet status', () => {
     expect(run.stderr).toContain('akad wallet create --name a3');
   });
 });
+
+describe('wallet fund', () => {
+  const env = {
+    AKAD_SEED_A0: Seed.generate().revealHexForStorage(),
+    AKAD_SEED_A1: Seed.generate().revealHexForStorage(),
+    AKAD_SEED_A2: Seed.generate().revealHexForStorage(),
+  };
+
+  it('lists sender and every recipient in the dry-run plan', async () => {
+    const run = await runCli(['wallet', 'fund', '--from', 'a0', '--to', 'a1,a2', '--amount', '5000000', '--network', 'preprod', '--dry-run', '--json'], env);
+    expect(run.code, run.stderr).toBe(0);
+    const plan = JSON.parse(run.stdout) as Record<string, string>;
+    expect(plan['action']).toBe('send 5000000 tNIGHT base units to each of a1, a2');
+    expect(plan['to a1']).toMatch(/^mn_addr_preprod1/);
+    expect(plan['to a2']).toMatch(/^mn_addr_preprod1/);
+    expect(plan['to a1']).not.toBe(plan['to a2']);
+  });
+
+  it.each([
+    [['--to', 'a0,a1', '--amount', '1'], /must not include the --from wallet/],
+    [['--to', 'a1', '--amount', '0'], /more than 0/],
+    [['--to', 'a1', '--amount', '1.5'], /whole number/],
+    [['--to', 'b1', '--amount', '1'], /Wallet names/],
+  ])('rejects %j', async (extra, message) => {
+    const run = await runCli(['wallet', 'fund', '--from', 'a0', '--network', 'preprod', '--dry-run', ...extra], env);
+    expect(run.code).toBe(1);
+    expect(run.stderr).toMatch(message);
+  });
+
+  it('stops before any network work when the fee cap is missing', async () => {
+    const run = await runCli(['wallet', 'fund', '--from', 'a0', '--to', 'a1', '--amount', '1', '--network', 'preprod', '--yes'], env);
+    expect(run.code).toBe(1);
+    expect(run.stderr).toContain('FEE_CAP_MISSING');
+  });
+});
+
+describe('wallet register-dust', () => {
+  it('stops before any network work when the fee cap is missing', async () => {
+    const run = await runCli(['wallet', 'register-dust', '--name', 'a0', '--network', 'preprod', '--yes'], {
+      AKAD_SEED_A0: PUBLIC_SEED,
+    });
+    expect(run.code).toBe(1);
+    expect(run.stderr).toContain('FEE_CAP_MISSING');
+  });
+});

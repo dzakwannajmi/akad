@@ -16,7 +16,7 @@ import { convertArgs, type ArgType, type CircuitArg } from '../contract/args.js'
 import { akadV1Providers, type Submission } from '../contract/providers.js';
 import type { Command } from '../context.js';
 import { AkadError, isAkadError } from '../errors.js';
-import { enforceFeeCap, readFeeCap } from '../fees.js';
+import { readFeeCap } from '../fees.js';
 import { isSet, optionalString, requireString } from '../flags.js';
 import type { IndexerClient } from '../indexer/client.js';
 import { DEFAULT_WAIT, describeOutcome, waitForTransaction, type TxOutcome } from '../indexer/wait.js';
@@ -26,6 +26,7 @@ import { parseWalletName } from '../secrets.js';
 import { loadWallet } from '../wallet.js';
 import { cachePath } from '../wallet-cache.js';
 import { startWallet, waitForSync } from '../wallet-runtime.js';
+import { checkGate } from '../wallet-tx.js';
 import { contractAddress } from './state.js';
 import { SYNC_TIMEOUT_S, timeoutMs } from './wallet-status.js';
 
@@ -135,15 +136,7 @@ export const call: Command = {
       const submission: Submission = { identifier: null };
       const providers = akadV1Providers(wallet, resolved, ctx.paths.managedContractDir, async (finalized) => {
         feeEstimate = await wallet.facade.calculateTransactionFee(finalized);
-        ctx.out.fields([
-          ...plan,
-          ['fee estimate', `${feeEstimate} DUST base units (approximate until spike S5)`],
-          ['fee cap', `${cap} (AKAD_MAX_FEE_DUST)`],
-        ]);
-        enforceFeeCap(feeEstimate, cap);
-        if (!isSet(flags, 'yes')) {
-          throw new AkadError('CONFIRMATION_REQUIRED', 'Nothing was submitted. Re-run with --yes to submit.');
-        }
+        checkGate(ctx, { cap, yes: isSet(flags, 'yes'), plan }, feeEstimate);
       }, submission);
 
       providers.privateStateProvider.setContractAddress(address);
