@@ -9,14 +9,14 @@ frontend/out/
 frontend/next-env.d.ts
 frontend/tsconfig.tsbuildinfo
 
-# Environment secrets
+# Environment secrets, including the CLI's automation wallet seeds in
+# .env.automation. Only .env.example files, which hold variable names, are
+# committed.
 .env
-.env.local
-.env*.local
+.env.*
 !.env.example
-!frontend/.env.example
 
-# Compact compile output (large binary artifacts — regenerate via `compact compile`)
+# Compact compile output (large binary artifacts; regenerate via `compact compile`)
 build/
 
 # OS/editor cruft
