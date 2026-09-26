@@ -117,7 +117,7 @@ export const call: Command = {
     const startedAt = ctx.now();
     const stateBefore = await readState(indexer, address);
 
-    const wallet = await startWallet(keys, resolved, cachePath(ctx.paths.repoRoot, network, walletName));
+    const wallet = await startWallet(keys, resolved, cachePath(ctx.paths.repoRoot, network, walletName), (message) => ctx.out.error(message));
     try {
       if (wallet.restored) ctx.out.error('sync: resuming from the local cache');
       await waitForSync(wallet.facade, SYNC_TIMEOUT_S * 1000, (line) => ctx.out.error(line));

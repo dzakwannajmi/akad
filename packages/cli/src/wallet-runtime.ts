@@ -20,9 +20,12 @@ export type RunningWallet = {
   facade: WalletFacade;
   /** True when sync resumed from the local cache instead of index 0. */
   restored: boolean;
-  /** Saves the current sync state to the cache, if one is configured. */
+  /**
+   * Saves the current sync state to the cache, if one is configured. Never
+   * throws: the cache only saves time, so a failure is reported as a warning.
+   */
   save: () => Promise<void>;
-  /** Saves the sync state, then stops the wallet. */
+  /** Saves the sync state, then stops the wallet. Never throws, so it cannot mask the error that ended a command. */
   stop: () => Promise<void>;
 };
 
@@ -44,9 +47,15 @@ export type WalletSummary = {
  * @param keys - Keys from deriveWalletKeys.
  * @param network - Endpoints of the target network.
  * @param cacheFile - Sync cache path, or null to always sync from index 0.
+ * @param warn - Receives non-fatal problems, such as a cache that could not be saved.
  * @returns The running wallet.
  */
-export async function startWallet(keys: WalletKeys, network: ResolvedNetwork, cacheFile: string | null): Promise<RunningWallet> {
+export async function startWallet(
+  keys: WalletKeys,
+  network: ResolvedNetwork,
+  cacheFile: string | null,
+  warn: (message: string) => void = () => {}
+): Promise<RunningWallet> {
   const configuration = {
     networkId: keys.networkId,
     indexerClientConnection: { indexerHttpUrl: network.indexerHttp, indexerWsUrl: network.indexerWs },
@@ -90,20 +99,24 @@ export async function startWallet(keys: WalletKeys, network: ResolvedNetwork, ca
 
   const save = async (): Promise<void> => {
     if (cacheFile === null) return;
-    const [shielded, unshielded, dust] = await Promise.all([
-      facade.shielded.serializeState(),
-      facade.unshielded.serializeState(),
-      facade.dust.serializeState(),
-    ]);
-    writeWalletCache(cacheFile, {
-      version: 1,
-      network: network.name,
-      unshieldedAddress: keys.addresses.unshielded,
-      shielded,
-      unshielded,
-      dust,
-      savedAt: new Date().toISOString(),
-    });
+    try {
+      const [shielded, unshielded, dust] = await Promise.all([
+        facade.shielded.serializeState(),
+        facade.unshielded.serializeState(),
+        facade.dust.serializeState(),
+      ]);
+      writeWalletCache(cacheFile, {
+        version: 1,
+        network: network.name,
+        unshieldedAddress: keys.addresses.unshielded,
+        shielded,
+        unshielded,
+        dust,
+        savedAt: new Date().toISOString(),
+      });
+    } catch (err) {
+      warn(`wallet cache not saved: ${err instanceof Error ? err.message.split('\n')[0] : String(err)}`);
+    }
   };
   return {
     keys,
@@ -111,10 +124,11 @@ export async function startWallet(keys: WalletKeys, network: ResolvedNetwork, ca
     restored,
     save,
     stop: async () => {
+      await save();
       try {
-        await save();
-      } finally {
         await facade.stop();
+      } catch (err) {
+        warn(`wallet did not stop cleanly: ${err instanceof Error ? err.message.split('\n')[0] : String(err)}`);
       }
     },
   };

@@ -59,7 +59,7 @@ export const faucet: Command = {
     ctx.out.fields(rows);
     if (isSet(flags, 'no-wait')) return;
 
-    const wallet = await startWallet(keys, resolveNetwork(ctx.config, network), cachePath(ctx.paths.repoRoot, network, name));
+    const wallet = await startWallet(keys, resolveNetwork(ctx.config, network), cachePath(ctx.paths.repoRoot, network, name), (message) => ctx.out.error(message));
     try {
       if (wallet.restored) ctx.out.error('sync: resuming from the local cache');
       const synced = await waitForSync(wallet.facade, SYNC_TIMEOUT_S * 1000, (line) => ctx.out.error(line));

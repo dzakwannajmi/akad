@@ -74,7 +74,7 @@ export const walletFund: Command = {
     const report = () =>
       steps.length === 0 ? null : writeRun(ctx, { scenario: 'wallet-fund', network, contract: null, startedAt, steps });
 
-    const wallet = await startWallet(sender, resolved, cachePath(ctx.paths.repoRoot, network, fromName));
+    const wallet = await startWallet(sender, resolved, cachePath(ctx.paths.repoRoot, network, fromName), (message) => ctx.out.error(message));
     try {
       if (wallet.restored) ctx.out.error(`sync ${fromName}: resuming from the local cache`);
       const state = await waitForSync(wallet.facade, SYNC_TIMEOUT_S * 1000, (line) => ctx.out.error(`${fromName} ${line}`));
@@ -160,7 +160,7 @@ async function registerRecipients(
   steps: RunStep[]
 ): Promise<void> {
   for (const recipient of recipients) {
-    const running = await startWallet(recipient, run.resolved, cachePath(ctx.paths.repoRoot, run.network, recipient.name));
+    const running = await startWallet(recipient, run.resolved, cachePath(ctx.paths.repoRoot, run.network, recipient.name), (message) => ctx.out.error(message));
     try {
       if (running.restored) ctx.out.error(`sync ${recipient.name}: resuming from the local cache`);
       await waitForSync(running.facade, SYNC_TIMEOUT_S * 1000, (line) => ctx.out.error(`${recipient.name} ${line}`));

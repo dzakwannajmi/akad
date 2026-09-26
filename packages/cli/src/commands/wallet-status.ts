@@ -53,7 +53,7 @@ export const walletStatus: Command = {
       return;
     }
 
-    const wallet = await startWallet(keys, resolveNetwork(ctx.config, network), cachePath(ctx.paths.repoRoot, network, name));
+    const wallet = await startWallet(keys, resolveNetwork(ctx.config, network), cachePath(ctx.paths.repoRoot, network, name), (message) => ctx.out.error(message));
     try {
       if (wallet.restored) ctx.out.error('sync: resuming from the local cache');
       const state = await waitForSync(
