@@ -38,6 +38,21 @@ compact compile src/akad.compact ../build/akad
 
 Compiled output (`compiler/`, `contract/`, `keys/`, `zkir/`) is consumed by the frontend. Run `../scripts/sync-contract-artifacts.sh akad` after every compile, before deploying from the frontend. See `frontend/README.md` for how artifacts are wired in.
 
+## Testing
+
+`test/` runs the compiled contract from `managed/akad` in-process, with no proofs, wallets or network. It pins `@midnight-ntwrk/compact-runtime` 0.16.0, the runtime version the compiled code checks on import.
+
+```bash
+npm ci
+npm run test:sim
+```
+
+- Simulator tests cover the success path of every exported circuit and each of its 55 asserts. Test names cite the source lines, for example `swapAkdToNight L420-L456 > assert L428 "cannot drain full reserve"`.
+- Property tests check `computeSwapOutput()` from `frontend/lib/bonding-curve.ts` against the constant-product checks, confirm that the swap circuits accept its quote and reject one unit more, and run random operation sequences against the solvency invariant `custody == reserveNight + sNightSupply`. A failing run prints its seed; set `AKAD_PROPERTY_SEED` to replay it.
+- `disclosure-map.test.ts` compares `docs/v2/disclosure-map.json` with the ledger reads, writes and caller exposure in each circuit's public transcript. From the repo root, `npm run check:privacy` compares the map's public-input counts with the compiler output in `managed/akad/zkir`.
+
+The simulator does not generate proofs, charge fees, balance transactions or check that a spent coin exists. Those need the local network or a public test network.
+
 ## Design notes
 
 - Reserve pools are intentionally public (required for AMM price discovery on any chain). See the root [README's Privacy Model section](../README.md#privacy-model) for the exact public/private boundary.
