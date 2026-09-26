@@ -6,6 +6,7 @@
     "lint:md": "markdownlint-cli2 \"**/*.md\"",
     "lint:md:fix": "markdownlint-cli2 --fix \"**/*.md\"",
     "lint:text": "node scripts/check-text-rules.mjs",
+    "check:privacy": "node scripts/check-privacy-budget.mjs",
     "validate:json": "node scripts/validate-json.mjs"
   },
   "devDependencies": {

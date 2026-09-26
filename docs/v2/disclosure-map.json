@@ -1,0 +1,200 @@
+{
+  "schemaVersion": 1,
+  "contract": "akad-v1",
+  "sourceCommit": "26e25f4",
+  "circuits": {
+    "transfer": {
+      "source": "contracts/src/akad.compact#L263-L275",
+      "publicInputs": 3,
+      "ledgerReads": ["balances"],
+      "ledgerWrites": ["balances"],
+      "traderAddressPublished": true,
+      "amountsVisible": "exact",
+      "visible": [
+        "entry point transfer",
+        "caller's Zswap coin public key, as a balances key",
+        "recipient account key",
+        "new balances of caller and recipient; the amount is their delta"
+      ],
+      "private": [],
+      "evidence": []
+    },
+    "claimFaucet": {
+      "source": "contracts/src/akad.compact#L285-L301",
+      "publicInputs": 0,
+      "ledgerReads": ["balances", "faucetClaimed"],
+      "ledgerWrites": ["balances", "faucetClaimed"],
+      "traderAddressPublished": true,
+      "amountsVisible": "exact",
+      "visible": [
+        "entry point claimFaucet",
+        "caller's Zswap coin public key, as a balances key and a faucetClaimed key",
+        "new faucet and caller balances; the amount is fixed at 50 AKD"
+      ],
+      "private": [],
+      "evidence": []
+    },
+    "recordTokenColor": {
+      "source": "contracts/src/akad.compact#L323-L326",
+      "publicInputs": 0,
+      "ledgerReads": [],
+      "ledgerWrites": ["sNightColor", "tokenColor"],
+      "traderAddressPublished": false,
+      "amountsVisible": "none",
+      "visible": [
+        "entry point recordTokenColor",
+        "AKD and sNIGHT colors, both derived from the contract address"
+      ],
+      "private": [],
+      "evidence": []
+    },
+    "wrap": {
+      "source": "contracts/src/akad.compact#L335-L351",
+      "publicInputs": 1,
+      "ledgerReads": ["balances"],
+      "ledgerWrites": ["balances"],
+      "traderAddressPublished": true,
+      "amountsVisible": "exact",
+      "visible": [
+        "entry point wrap",
+        "amount, a public input",
+        "caller's Zswap coin public key, as a balances key",
+        "caller's new balance",
+        "minted AKD value in the shieldedMints effect of the transcript"
+      ],
+      "private": [
+        "nonce of the minted coin: coinNonce() witness output, absent from the public inputs"
+      ],
+      "evidence": []
+    },
+    "unwrap": {
+      "source": "contracts/src/akad.compact#L361-L372",
+      "publicInputs": 0,
+      "ledgerReads": ["balances"],
+      "ledgerWrites": ["balances"],
+      "traderAddressPublished": true,
+      "amountsVisible": "exact",
+      "visible": [
+        "entry point unwrap",
+        "caller's Zswap coin public key, as a balances key",
+        "caller's new balance; the coin value is the balance delta",
+        "commitment of the coin the contract receives (claimedShieldedReceives effect)"
+      ],
+      "private": [
+        "nonce and color of the spent coin: spentCoin() witness output, absent from the public inputs and the public transcript"
+      ],
+      "evidence": []
+    },
+    "addLiquidity": {
+      "source": "contracts/src/akad.compact#L378-L412",
+      "publicInputs": 2,
+      "ledgerReads": ["balances", "reserveAKD", "reserveNight"],
+      "ledgerWrites": ["balances", "reserveAKD", "reserveNight"],
+      "traderAddressPublished": true,
+      "amountsVisible": "exact",
+      "visible": [
+        "entry point addLiquidity",
+        "amountAKD and amountNight, public inputs",
+        "caller's Zswap coin public key, as a balances key",
+        "both reserves and the new pool and caller balances",
+        "tNIGHT taken from the caller's unshielded UTXOs: address and amount (unshieldedInputs effect)"
+      ],
+      "private": [],
+      "evidence": []
+    },
+    "swapAkdToNight": {
+      "source": "contracts/src/akad.compact#L420-L456",
+      "publicInputs": 5,
+      "ledgerReads": ["balances", "reserveAKD", "reserveNight"],
+      "ledgerWrites": ["balances", "reserveAKD", "reserveNight"],
+      "traderAddressPublished": true,
+      "amountsVisible": "exact",
+      "visible": [
+        "entry point swapAkdToNight",
+        "dx, dy, minOut and recipient, public inputs",
+        "caller's Zswap coin public key, as a balances key",
+        "both reserves and the new pool and caller balances",
+        "tNIGHT paid to the recipient's unshielded address: address and amount (claimedUnshieldedSpends effect)"
+      ],
+      "private": [],
+      "evidence": []
+    },
+    "swapNightToAkd": {
+      "source": "contracts/src/akad.compact#L461-L501",
+      "publicInputs": 3,
+      "ledgerReads": ["balances", "reserveAKD", "reserveNight"],
+      "ledgerWrites": ["balances", "reserveAKD", "reserveNight"],
+      "traderAddressPublished": true,
+      "amountsVisible": "exact",
+      "visible": [
+        "entry point swapNightToAkd",
+        "dx, dy and minOut, public inputs",
+        "caller's Zswap coin public key, as a balances key",
+        "both reserves and the new pool and caller balances",
+        "tNIGHT taken from the caller's unshielded UTXOs: address and amount (unshieldedInputs effect)"
+      ],
+      "private": [],
+      "evidence": []
+    },
+    "unwrapNight": {
+      "source": "contracts/src/akad.compact#L538-L554",
+      "publicInputs": 2,
+      "ledgerReads": ["sNightSupply"],
+      "ledgerWrites": ["sNightSupply"],
+      "traderAddressPublished": true,
+      "amountsVisible": "exact",
+      "visible": [
+        "entry point unwrapNight",
+        "recipient, a public input",
+        "tNIGHT paid to the recipient's unshielded address: address and amount, equal to the redeemed coin's value",
+        "new sNightSupply",
+        "commitment of the coin the contract receives (claimedShieldedReceives effect)",
+        "the redeemed amount can be matched against earlier sNIGHT mint amounts to link a redemption to the swap that minted the coin"
+      ],
+      "private": [
+        "caller's Zswap coin public key: the circuit writes no balances entry"
+      ],
+      "evidence": []
+    },
+    "shieldedSwapAkdToNight": {
+      "source": "contracts/src/akad.compact#L576-L621",
+      "publicInputs": 2,
+      "ledgerReads": ["balances", "reserveAKD", "reserveNight", "sNightSupply"],
+      "ledgerWrites": ["balances", "reserveAKD", "reserveNight", "sNightSupply"],
+      "traderAddressPublished": false,
+      "amountsVisible": "inferable from reserve delta",
+      "visible": [
+        "entry point shieldedSwapAkdToNight",
+        "dy and minOut, public inputs",
+        "both reserves, the pool balance and sNightSupply; dx is the reserveAKD delta",
+        "minted sNIGHT value dy in the shieldedMints effect of the transcript",
+        "commitment of the coin the contract receives (claimedShieldedReceives effect)"
+      ],
+      "private": [
+        "caller's Zswap coin public key and unshielded address: absent from the public transcript and its effects",
+        "nonce of the spent AKD coin and of the minted sNIGHT coin: witness outputs"
+      ],
+      "evidence": []
+    },
+    "shieldedSwapNightToAkd": {
+      "source": "contracts/src/akad.compact#L624-L670",
+      "publicInputs": 2,
+      "ledgerReads": ["balances", "reserveAKD", "reserveNight", "sNightSupply"],
+      "ledgerWrites": ["balances", "reserveAKD", "reserveNight", "sNightSupply"],
+      "traderAddressPublished": false,
+      "amountsVisible": "inferable from reserve delta",
+      "visible": [
+        "entry point shieldedSwapNightToAkd",
+        "dy and minOut, public inputs",
+        "both reserves, the pool balance and sNightSupply; dx is the reserveNight delta",
+        "minted AKD value dy in the shieldedMints effect of the transcript",
+        "commitment of the coin the contract receives (claimedShieldedReceives effect)"
+      ],
+      "private": [
+        "caller's Zswap coin public key and unshielded address: absent from the public transcript and its effects",
+        "nonce of the spent sNIGHT coin and of the minted AKD coin: witness outputs"
+      ],
+      "evidence": []
+    }
+  }
+}
