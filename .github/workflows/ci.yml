@@ -57,6 +57,34 @@ jobs:
       - name: Run tests
         run: npm test
 
+  contract-tests:
+    name: Contract simulator tests, property tests and privacy budget
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: contracts/package-lock.json
+
+      - name: Install test dependencies
+        working-directory: ./contracts
+        run: npm ci
+
+      - name: TypeScript typecheck
+        working-directory: ./contracts
+        run: npm run typecheck
+
+      - name: Run simulator and property tests
+        working-directory: ./contracts
+        run: npm run test:sim
+
+      - name: Check the privacy budget against the compiler output
+        run: node scripts/check-privacy-budget.mjs
+
   frontend-checks:
     name: Frontend typecheck, tests and build
     runs-on: ubuntu-latest
