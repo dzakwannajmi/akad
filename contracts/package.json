@@ -1,0 +1,22 @@
+{
+  "name": "@akad/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Simulator and property tests for the Akad Compact contracts. Runs the compiled contracts in-process, without proofs.",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test:sim": "vitest run"
+  },
+  "devDependencies": {
+    "@midnight-ntwrk/compact-runtime": "0.16.0",
+    "@midnight-ntwrk/onchain-runtime-v3": "3.0.0",
+    "@types/node": "20.19.43",
+    "fast-check": "4.10.2",
+    "typescript": "5.9.3",
+    "vitest": "4.1.10"
+  }
+}
